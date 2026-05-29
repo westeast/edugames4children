@@ -9,7 +9,14 @@ export function showNotif(text, dur = 3) {
   el.textContent = text; el.classList.add('show'); state.notifTimer = dur;
 }
 
-export function updateCamera() {
+export function updateCamera(gameStarted = false) {
+  // Always ensure camera has valid position
+  if (!Number.isFinite(state.dronePos.x) || !Number.isFinite(state.dronePos.y) || !Number.isFinite(state.dronePos.z)) {
+    camera.position.set(0, 50, 30);
+    camera.lookAt(0, 0, 0);
+    return;
+  }
+
   skyMesh.position.copy(state.dronePos);
   sunLight.position.set(state.dronePos.x + 200, 300, state.dronePos.z + 100);
   sunLight.target.position.copy(state.dronePos);
@@ -22,7 +29,12 @@ export function updateCamera() {
   } else {
     const offset = new THREE.Vector3(0, 8, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     const targetCamPos = state.dronePos.clone().add(offset);
-    camera.position.lerp(targetCamPos, 0.05);
+    // Use lerp after game started for smooth camera, snap immediately before
+    if (gameStarted) {
+      camera.position.lerp(targetCamPos, 0.05);
+    } else {
+      camera.position.copy(targetCamPos);
+    }
     camera.lookAt(state.dronePos);
   }
 }

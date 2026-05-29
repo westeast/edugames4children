@@ -28,7 +28,8 @@ function gameLoop(time) {
       propellers.forEach((p, i) => { p.rotation.y += state.propSpeed * dt * (i % 2 === 0 ? 1 : -1); });
     }
   }
-  updateCamera();
+  // Always update camera, but only lerp after game started
+  updateCamera(state.gameStarted);
   updateUI();
   renderer.render(scene, camera);
 }
