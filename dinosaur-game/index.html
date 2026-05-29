@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小恐龙跳跳乐 - 彩色识字版</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <h1>小恐龙跳跳乐</h1>
+        <p>按下 <strong>空格键</strong> 开始跳跃！遇到拼音/字母可以加分，碰到带星星的阶梯可以获得复活机会哦！</p>
+        <div id="controls">
+            <label for="speed-select">速度档位:</label>
+            <select id="speed-select">
+                <option value="1">1挡（慢速）</option>
+                <option value="2" selected>2挡</option>
+                <option value="3">3挡</option>
+                <option value="4">4挡</option>
+                <option value="5">5挡（极速）</option>
+            </select>
+            <span id="speed-indicator">当前: 2挡</span>
+        </div>
+        <div id="score-board">
+            <span>分数: <span id="score">0</span></span> | 
+            <span>复活币: <span id="lives">0</span></span> |
+            <span>收集到: <span id="collected">-</span></span>
+        </div>
+        <canvas id="gameCanvas" width="800" height="300"></canvas>
+        <div id="game-over" class="hidden">
+            <h2>游戏结束!</h2>
+            <p>最终得分: <span id="final-score">0</span></p>
+            <button id="restart-btn">重新开始</button>
+            <br>
+            <a href="../index.html">返回大厅</a>
+        </div>
+    </div>
+    
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>已读诗句 - 围棋读诗游戏</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #f3f4f6 0%, #dbeafe 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .header h1 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 24px;
+        }
+
+        .header-info {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .stat {
+            background: #fef3c7;
+            padding: 6px 12px;
+            border-radius: 6px;
+            color: #92400e;
+            font-weight: 700;
+        }
+
+        .back-btn, .clear-btn {
+            background: #4b5563;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-btn:hover {
+            background: #374151;
+        }
+
+        .clear-btn {
+            background: #dc2626;
+        }
+
+        .clear-btn:hover {
+            background: #b91c1c;
+        }
+
+        .poems-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .poem-card {
+            background: #fefce8;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .poem-card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 6px;
+        }
+
+        .poem-card-meta {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 10px;
+            border-bottom: 1px dashed #9ca3af;
+            padding-bottom: 8px;
+        }
+
+        .poem-card-lines {
+            font-size: 15px;
+            color: #374151;
+            line-height: 1.8;
+        }
+
+        .poem-card-line {
+            margin: 4px 0;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            background: white;
+            color: #1f2937;
+            border: 1px solid #d1d5db;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-width: 36px;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: #e5e7eb;
+        }
+
+        .page-btn.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .empty-state {
+            background: white;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 16px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+        }
+
+        .empty-state .icon {
+            font-size: 60px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📖 已读诗句</h1>
+            <div class="header-info">
+                <span class="stat" id="totalCount">共 0 首</span>
+                <button class="clear-btn" id="clearBtn">清空记录</button>
+                <a class="back-btn" href="index.html">返回游戏</a>
+            </div>
+        </div>
+
+        <div id="content"></div>
+    </div>
+
+    <script src="poems.js"></script>
+    <script>
+        const PAGE_SIZE = 9;
+        let currentPage = 1;
+        let readPoems = [];
+
+        function getReadPoemKeys() {
+            try {
+                const stored = localStorage.getItem('weiqi_read_poems');
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function clearReadPoemKeys() {
+            try {
+                localStorage.removeItem('weiqi_read_poems');
+            } catch (e) {}
+        }
+
+        function findPoemByKey(key) {
+            const poems = window.TANG_POEMS || [];
+            return poems.find(p => (p.id || p.title) === key);
+        }
+
+        function loadReadPoems() {
+            const keys = getReadPoemKeys();
+            readPoems = keys
+                .map(key => findPoemByKey(key))
+                .filter(p => p !== undefined);
+        }
+
+        function renderEmpty() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">📚</div>
+                    <div>暂无已读诗句</div>
+                    <div style="margin-top: 8px; font-size: 14px;">回到游戏中朗读诗句后，会在这里显示</div>
+                </div>
+            `;
+        }
+
+        function renderPoems() {
+            const content = document.getElementById('content');
+
+            if (readPoems.length === 0) {
+                renderEmpty();
+                return;
+            }
+
+            const totalPages = Math.ceil(readPoems.length / PAGE_SIZE);
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIdx = (currentPage - 1) * PAGE_SIZE;
+            const pagePoems = readPoems.slice(startIdx, startIdx + PAGE_SIZE);
+
+            const cardsHtml = pagePoems.map(poem => {
+                const lines = (poem.lines || []).map(
+                    line => `<div class="poem-card-line">${escapeHtml(line)}</div>`
+                ).join('');
+                return `
+                    <div class="poem-card">
+                        <div class="poem-card-title">${escapeHtml(poem.title)}</div>
+                        <div class="poem-card-meta">${escapeHtml(poem.dynasty)}·${escapeHtml(poem.author)}</div>
+                        <div class="poem-card-lines">${lines}</div>
+                    </div>
+                `;
+            }).join('');
+
+            const paginationHtml = totalPages > 1 ? renderPagination(totalPages) : '';
+
+            content.innerHTML = `
+                <div class="poems-grid">${cardsHtml}</div>
+                ${paginationHtml}
+            `;
+
+            bindPaginationEvents();
+        }
+
+        function renderPagination(totalPages) {
+            const buttons = [];
+            buttons.push(`<button class="page-btn" data-page="prev" ${currentPage === 1 ? 'disabled' : ''}>上一页</button>`);
+
+            const maxButtons = 7;
+            let start = Math.max(1, currentPage - 3);
+            let end = Math.min(totalPages, start + maxButtons - 1);
+            if (end - start < maxButtons - 1) {
+                start = Math.max(1, end - maxButtons + 1);
+            }
+
+            if (start > 1) {
+                buttons.push(`<button class="page-btn" data-page="1">1</button>`);
+                if (start > 2) buttons.push(`<span>...</span>`);
+            }
+
+            for (let i = start; i <= end; i++) {
+                buttons.push(`<button class="page-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`);
+            }
+
+            if (end < totalPages) {
+                if (end < totalPages - 1) buttons.push(`<span>...</span>`);
+                buttons.push(`<button class="page-btn" data-page="${totalPages}">${totalPages}</button>`);
+            }
+
+            buttons.push(`<button class="page-btn" data-page="next" ${currentPage === totalPages ? 'disabled' : ''}>下一页</button>`);
+
+            return `<div class="pagination">${buttons.join('')}</div>`;
+        }
+
+        function bindPaginationEvents() {
+            document.querySelectorAll('.page-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const page = btn.dataset.page;
+                    if (page === 'prev') currentPage -= 1;
+                    else if (page === 'next') currentPage += 1;
+                    else currentPage = parseInt(page, 10);
+                    renderPoems();
+                    window.scrollTo({top: 0, behavior: 'smooth'});
+                });
+            });
+        }
+
+        function escapeHtml(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function init() {
+            loadReadPoems();
+            document.getElementById('totalCount').textContent = `共 ${readPoems.length} 首`;
+            renderPoems();
+
+            document.getElementById('clearBtn').addEventListener('click', () => {
+                if (confirm('确定要清空所有已读诗句记录吗？')) {
+                    clearReadPoemKeys();
+                    readPoems = [];
+                    currentPage = 1;
+                    document.getElementById('totalCount').textContent = `共 0 首`;
+                    renderPoems();
+                }
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

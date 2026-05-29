@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>围棋读诗游戏 - 人机/双人</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="page">
+        <header class="top-bar">
+            <h1>围棋读诗游戏</h1>
+            <div id="winnerBanner" class="winner-banner hidden"></div>
+        </header>
+
+        <main class="game-layout">
+            <aside class="panel left-panel">
+                <h2>对局信息</h2>
+                <div class="item">
+                    <span>游戏模式</span>
+                    <select id="modeSelect">
+                        <option value="pvc">单人模式（你 vs 电脑）</option>
+                        <option value="pvp">双人模式（玩家 vs 玩家）</option>
+                    </select>
+                </div>
+
+                <div class="item" id="difficultyWrap">
+                    <span>电脑难度</span>
+                    <select id="difficultySelect">
+                        <option value="1">1 级</option>
+                        <option value="2">2 级</option>
+                        <option value="3">3 级</option>
+                        <option value="4">4 级</option>
+                        <option value="5" selected>5 级</option>
+                        <option value="6">6 级</option>
+                        <option value="7">7 级</option>
+                        <option value="8">8 级</option>
+                        <option value="9">9 级</option>
+                        <option value="10">10 级</option>
+                    </select>
+                </div>
+
+                <div class="item" id="speechSpeedWrap">
+                    <span>朗诵语速</span>
+                    <select id="speechSpeedSelect">
+                        <option value="0.75">慢</option>
+                        <option value="0.9" selected>中</option>
+                        <option value="1.1">快</option>
+                    </select>
+                </div>
+
+                <div class="item" id="voiceSelectWrap">
+                    <span>朗读声音</span>
+                    <select id="voiceSelect">
+                        <option value="default">默认声音</option>
+                        <option value="female">甜美女生</option>
+                        <option value="male">阳光男生</option>
+                        <option value="robot">机器人</option>
+                    </select>
+                </div>
+
+                <div class="item"><span>当前落子</span><strong id="currentPlayer">黑棋</strong></div>
+                <div class="item"><span>总步数</span><strong id="moveCount">0</strong></div>
+                <div class="item"><span>黑棋提子</span><strong id="blackCaptures">0</strong></div>
+                <div class="item"><span>白棋提子</span><strong id="whiteCaptures">0</strong></div>
+                <div class="item"><span>连续停一手</span><strong id="passCount">0</strong></div>
+
+                <div class="buttons">
+                    <button id="passBtn">停一手</button>
+                    <button id="restartBtn">重新开始</button>
+                </div>
+
+                <p class="rule-note">判定规则：连续两次"停一手"后结束，按"子+地+提子"计分，白棋贴3.75子。</p>
+
+                <a class="back-link" href="../index.html">返回大厅</a>
+            </aside>
+
+            <section class="board-wrap">
+                <div id="poemTicker" class="poem-ticker"></div>
+                <div class="board-shell">
+                    <div id="board"></div>
+                </div>
+                <p id="hintText" class="hint-text">黑棋先行。请点击交叉点落子。</p>
+            </section>
+
+            <aside class="panel right-panel">
+                <h2>当前诗句</h2>
+                <div id="poemDisplay" class="poem-display">
+                    <div class="poem-display-title" id="poemDisplayTitle"></div>
+                    <div class="poem-display-lines" id="poemDisplayLines"></div>
+                </div>
+                <button id="viewReadPoemsBtn" class="view-read-poems-btn">已读诗句</button>
+
+                <h2>垃圾桶（被吃棋子）</h2>
+                <div class="trash-box">
+                    <div class="trash-title">黑棋被吃</div>
+                    <div id="blackTrash" class="trash-stones"></div>
+                </div>
+                <div class="trash-box">
+                    <div class="trash-title">白棋被吃</div>
+                    <div id="whiteTrash" class="trash-stones"></div>
+                </div>
+                <div id="scoreDetail" class="score-detail">等待终局后显示胜负依据</div>
+            </aside>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/gh/waltheri/wgo.js@master/wgo/wgo.min.js"></script>
+    <script src="poems.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

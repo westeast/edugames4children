@@ -1,0 +1,3310 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>大疆虚拟飞行 - RC Pro 2</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0f; color: #fff; font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; overflow: hidden; user-select: none; }
+canvas { display: block; position: fixed; top: 0; left: 0; }
+
+#topBar { position: fixed; top: 0; left: 0; right: 0; height: 38px; background: rgba(10,10,15,0.85); border-bottom: 1px solid rgba(255,149,0,0.3); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100; }
+.status-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ccc; }
+.status-item .val { color: #fff; font-weight: 600; }
+.status-item .unit { color: #888; font-size: 10px; }
+.battery-bar { width: 60px; height: 14px; background: #1a1a25; border-radius: 7px; overflow: hidden; border: 1px solid #333; }
+.battery-fill { height: 100%; background: #4caf50; border-radius: 7px; transition: width 0.5s, background 0.3s; }
+.battery-fill.low { background: #f44336; }
+.battery-fill.mid { background: #ff9800; }
+
+#leftPanel { position: fixed; left: 12px; top: 50px; width: 200px; background: rgba(10,10,15,0.88); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25); padding: 12px; z-index: 90; max-height: calc(100vh - 300px); overflow-y: auto; }
+.panel-title { font-size: 11px; color: #ff9500; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.drone-card { background: #12121a; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s; }
+.drone-card:hover { border-color: rgba(255,149,0,0.5); }
+.drone-card.active { border-color: #ff9500; background: #1a1500; }
+.drone-card .name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.drone-card .specs { font-size: 10px; color: #888; }
+.drone-card .stats { margin-top: 6px; display: flex; gap: 8px; }
+.drone-card .stat { font-size: 10px; color: #aaa; }
+.drone-card .stat span { color: #ff9500; font-weight: 600; }
+
+#rightPanel { position: fixed; right: 12px; top: 50px; width: 140px; background: rgba(10,10,15,0.88); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25); padding: 12px; z-index: 90; }
+.obstacle-indicator { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 3px; width: 100px; margin: 0 auto; }
+.ob-cell { width: 100%; aspect-ratio: 1; border-radius: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); transition: all 0.1s; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+.ob-cell.active-safe { background: rgba(76,175,80,0.5); border-color: #4caf50; }
+.ob-cell.active-warn { background: rgba(255,152,0,0.5); border-color: #ff9800; }
+.ob-cell.active-danger { background: rgba(244,67,54,0.7); border-color: #f44336; }
+
+#bottomPanel { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 90; }
+.tele-panel { background: rgba(10,10,15,0.92); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25); padding: 10px 14px; min-width: 100px; text-align: center; }
+.tele-panel .label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.tele-panel .value { font-size: 20px; font-weight: 700; color: #fff; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.tele-panel .unit { font-size: 10px; color: #888; margin-top: 1px; }
+
+#joystickLeft { position: fixed; bottom: 80px; left: 20px; width: 130px; height: 130px; z-index: 90; }
+#joystickRight { position: fixed; bottom: 80px; right: 20px; width: 130px; height: 130px; z-index: 90; }
+.joystick-base { width: 130px; height: 130px; border-radius: 50%; background: rgba(20,20,30,0.85); border: 2px solid rgba(255,149,0,0.4); position: relative; touch-action: none; cursor: pointer; }
+.joystick-thumb { width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff9500, #cc5500); border: 2px solid #ff9500; box-shadow: 0 0 12px rgba(255,149,0,0.5); position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: box-shadow 0.1s; }
+.joystick-label { text-align: center; font-size: 10px; color: #888; margin-top: 4px; }
+
+#ctrlButtons { position: fixed; bottom: 80px; right: 170px; display: flex; flex-direction: column; gap: 8px; z-index: 90; }
+.ctrl-btn { width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255,149,0,0.5); background: rgba(20,20,30,0.85); color: #ff9500; font-size: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.ctrl-btn:hover, .ctrl-btn:active { background: rgba(255,149,0,0.2); border-color: #ff9500; }
+.ctrl-btn.active { background: rgba(255,149,0,0.3); box-shadow: 0 0 10px rgba(255,149,0,0.4); }
+.ctrl-btn .icon { font-size: 16px; }
+
+.gear-btn { width: 36px; height: 28px; border-radius: 6px; border: 1.5px solid rgba(255,149,0,0.4); background: rgba(20,20,30,0.85); color: #888; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.gear-btn:hover { border-color: rgba(255,149,0,0.6); color: #aaa; }
+.gear-btn.active { background: rgba(255,149,0,0.25); border-color: #ff9500; color: #ff9500; box-shadow: 0 0 8px rgba(255,149,0,0.3); }
+
+#notification { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); background: rgba(10,10,15,0.95); border: 1px solid rgba(255,149,0,0.5); border-radius: 8px; padding: 8px 20px; font-size: 13px; color: #ff9500; z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+#notification.show { opacity: 1; }
+
+#startScreen { position: fixed; inset: 0; background: rgba(10,10,15,0.97); z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
+#startScreen h1 { font-size: 32px; color: #ff9500; letter-spacing: 2px; text-shadow: 0 0 20px rgba(255,149,0,0.4); }
+#startScreen p { color: #888; font-size: 14px; }
+.start-btn { padding: 14px 48px; background: #ff9500; color: #000; border: none; border-radius: 30px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.start-btn:hover { background: #ffad33; transform: scale(1.05); }
+.rc-preview { width: 280px; height: 160px; background: #1a1a25; border-radius: 16px; border: 2px solid rgba(255,149,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; color: #555; }
+
+#warningOverlay { position: fixed; inset: 0; pointer-events: none; z-index: 50; display: none; }
+#warningOverlay.show { display: block; }
+.warning-border { position: absolute; inset: 0; border: 6px solid transparent; transition: border-color 0.2s; }
+.warning-border.red { border-color: rgba(244,67,54,0.6); animation: pulse-red 0.4s infinite alternate; }
+@keyframes pulse-red { from { border-color: rgba(244,67,54,0.3); } to { border-color: rgba(244,67,54,0.8); } }
+
+#crashOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0); z-index: 150; pointer-events: none; transition: background 0.5s; }
+#crashOverlay.show { background: rgba(255,0,0,0.3); }
+</style>
+</head>
+<body>
+
+<div id="crashOverlay"></div>
+
+<div id="startScreen">
+  <div style="font-size:48px;">🚁</div>
+  <h1>大疆虚拟飞行</h1>
+  <p>DJI Flight Simulator · RC Pro 2</p>
+  <div class="rc-preview">
+    <div style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:8px;">🎮</div>
+      <div>RC Pro 2 遥控器</div>
+      <div style="font-size:11px;color:#666;margin-top:4px;">22代专业遥控器</div>
+    </div>
+  </div>
+  <div style="font-size:12px;color:#555;text-align:center;line-height:1.8;">
+    真实地貌 · 飞鸟穿行 · 沉浸式飞行体验<br>
+    3款大疆机型可选 · 避开飞鸟防止炸机
+  </div>
+  <button class="start-btn" id="startBtn">▶ 开始飞行</button>
+</div>
+
+<div id="topBar" style="display:none">
+  <div class="status-item"><span>📶</span><span class="val" id="signalVal">5</span></div>
+  <div class="status-item" style="gap:10px;">
+    <span style="font-size:11px;color:#888;">电池</span>
+    <div class="battery-bar"><div class="battery-fill" id="batteryFill" style="width:100%"></div></div>
+    <span class="val" id="batteryVal">100%</span>
+  </div>
+  <div class="status-item"><span>🛰️</span><span class="val" id="gpsVal">23</span><span class="unit">GPS</span></div>
+  <div style="font-size:11px;color:#ff9500;font-weight:600;" id="flightMode">N档</div>
+</div>
+
+<canvas id="mapCanvas"></canvas>
+
+<div id="leftPanel" style="display:none">
+  <div class="panel-title">选择机型</div>
+  <div class="drone-card active" onclick="selectDrone(0)" id="droneCard0">
+    <div class="name">🟠 Air 3</div>
+    <div class="specs">中端旗舰 · 双摄系统</div>
+    <div class="stats"><div class="stat">极速 <span>21m/s</span></div><div class="stat">续航 <span>46min</span></div></div>
+  </div>
+  <div class="drone-card" onclick="selectDrone(1)" id="droneCard1">
+    <div class="name">🔴 Mavic 3 Pro</div>
+    <div class="specs">专业旗舰 · 三摄系统</div>
+    <div class="stats"><div class="stat">极速 <span>19m/s</span></div><div class="stat">续航 <span>43min</span></div></div>
+  </div>
+  <div class="drone-card" onclick="selectDrone(2)" id="droneCard2">
+    <div class="name">⚪ Mini 4 Pro</div>
+    <div class="specs">轻量旗舰 · 单摄系统</div>
+    <div class="stats"><div class="stat">极速 <span>16m/s</span></div><div class="stat">续航 <span>34min</span></div></div>
+  </div>
+  <div class="panel-title" style="margin-top:14px;">操作说明</div>
+  <div style="font-size:10px;color:#666;line-height:1.8;">
+    左遥杆：升降 / 转向<br>
+    右遥杆：前后 / 左右<br>
+    避开飞鸟 · 安全飞行
+  </div>
+</div>
+
+<div id="rightPanel" style="display:none">
+  <div class="panel-title">飞行档位</div>
+  <div style="display:flex;gap:4px;margin-bottom:10px;">
+    <button class="gear-btn" id="gearC" onclick="setGear('C')">C</button>
+    <button class="gear-btn active" id="gearN" onclick="setGear('N')">N</button>
+    <button class="gear-btn" id="gearS" onclick="setGear('S')">S</button>
+  </div>
+  <div style="font-size:9px;color:#666;margin-bottom:8px;text-align:center;">
+    <span id="gearDesc">普通档 · 均衡飞行</span>
+  </div>
+  <div class="panel-title">避障感知</div>
+  <div class="obstacle-indicator" id="obIndicator">
+    <div class="ob-cell" id="ob-tl"></div><div class="ob-cell" id="ob-tc"></div><div class="ob-cell" id="ob-tr"></div>
+    <div class="ob-cell" id="ob-ml"></div><div class="ob-cell" id="ob-drone-icon" style="font-size:16px;">🚁</div><div class="ob-cell" id="ob-mr"></div>
+    <div class="ob-cell" id="ob-bl"></div><div class="ob-cell" id="ob-bc"></div><div class="ob-cell" id="ob-br"></div>
+  </div>
+  <div style="margin-top:10px;font-size:10px;color:#666;text-align:center;">
+    <div style="margin-bottom:3px;">🔴 危险 &lt;3m</div>
+    <div style="margin-bottom:3px;">🟡 警告 &lt;8m</div>
+    <div>🟢 安全 &gt;8m</div>
+  </div>
+</div>
+
+<div id="ctrlButtons" style="display:none">
+  <button class="ctrl-btn" id="btnCruise" onclick="toggleCruise()"><span class="icon">🚀</span><span>巡航</span></button>
+  <button class="ctrl-btn" id="btnRTH" onclick="triggerRTH()"><span class="icon">🏠</span><span>返航</span></button>
+  <button class="ctrl-btn" id="btnOBS" onclick="toggleObstacle()"><span class="icon">🛡️</span><span>避障</span></button>
+  <button class="ctrl-btn" id="btnFPV" onclick="toggleFPV()"><span class="icon">👁️</span><span>视角</span></button>
+  <button class="ctrl-btn" id="btnPause" onclick="togglePause()"><span class="icon">⏸️</span><span>暂停</span></button>
+</div>
+
+<div id="bottomPanel" style="display:none">
+  <div class="tele-panel"><div class="label">高度 ALT</div><div class="value" id="teleAlt">0.0</div><div class="unit">m</div></div>
+  <div class="tele-panel"><div class="label">速度 SPD</div><div class="value" id="teleSpd">0.0</div><div class="unit">m/s</div></div>
+  <div class="tele-panel"><div class="label">距离 DIS</div><div class="value" id="teleDis">0.0</div><div class="unit">m</div></div>
+  <div class="tele-panel"><div class="label">里程 DIST</div><div class="value" id="teleDist">0.0</div><div class="unit">km</div></div>
+  <div class="tele-panel"><div class="label">航向 HDG</div><div class="value" id="teleHdg">0</div><div class="unit">°</div></div>
+</div>
+
+<div id="joystickLeft" style="display:none">
+  <div class="joystick-base" id="baseL"><div class="joystick-thumb" id="thumbL"></div></div>
+  <div class="joystick-label">左摇杆 · 高度/方向</div>
+</div>
+<div id="joystickRight" style="display:none">
+  <div class="joystick-base" id="baseR"><div class="joystick-thumb" id="thumbR"></div></div>
+  <div class="joystick-label">右摇杆 · 俯仰/横滚</div>
+</div>
+
+<div id="warningOverlay"><div class="warning-border" id="warnBorder"></div></div>
+<div id="notification"></div>
+
+<script>
+const DRONES = [
+  { name: 'Air 3', maxSpeed: 21, color: '#ff9500', icon: '🟠', accel: 8, weight: 720, type: 'air3' },
+  { name: 'Mavic 3 Pro', maxSpeed: 19, color: '#ff3b30', icon: '🔴', accel: 6, weight: 958, type: 'mavic3' },
+  { name: 'Mini 4 Pro', maxSpeed: 16, color: '#d0d0d0', icon: '⚪', accel: 7, weight: 290, type: 'mini4' },
+];
+
+let drone = DRONES[0];
+let droneX = 500, droneY = 500;
+let droneZ = 30;
+let droneVX = 0, droneVY = 0, droneVZ = 0;
+let droneAngle = -90;
+let dronePitch = 0;
+let droneRoll = 0;
+let obstacleEnabled = true;
+let isPaused = false;
+let fpvMode = false;
+let isRTH = false;
+let rthTargetX = 500, rthTargetY = 500;
+let battery = 100;
+let totalDist = 0;
+let gameStarted = false;
+let lastTime = 0;
+let isCrashed = false;
+let crashVx = 0, crashVy = 0, crashVz = 0;
+
+// 定速巡航状态
+let isCruise = false;
+let cruiseWaitingForInput = false;
+let cruiseSpeed = 0;
+let cruiseAngle = 0;
+
+// 飞行档位 C/N/S
+let currentGear = 'N'; // C=平稳档, N=普通档, S=运动档
+
+let leftX = 0, leftY = 0;
+let rightX = 0, rightY = 0;
+
+let mapScale = 1;
+let worldOffsetX = 0;
+let worldOffsetY = 0;
+
+const OBSTACLES = [];
+const BIRDS = [];
+const LEAVES = [];
+const ROCKS = [];
+const TREES = [];
+const ROADS = [];
+const LAKES = [];
+const CARS = [];
+const PEOPLE = [];
+const BUILDINGS = [];
+const TOWERS = [];
+
+const SAFE_POINTS = [
+  { x: 300, y: 300, set: false },
+  { x: 700, y: 200, set: false },
+  { x: 400, y: 700, set: false },
+];
+
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+
+// 兼容性：为不支持 roundRect 的浏览器添加 polyfill
+if (!ctx.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    this.beginPath();
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y, x + w, y + h, r);
+    this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r);
+    this.arcTo(x, y, x + w, y, r);
+    this.closePath();
+    return this;
+  };
+}
+
+function initCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function generateWorld() {
+  OBSTACLES.length = 0;
+  TREES.length = 0;
+  ROADS.length = 0;
+  LAKES.length = 0;
+  BIRDS.length = 0;
+  LEAVES.length = 0;
+  ROCKS.length = 0;
+  CARS.length = 0;
+  PEOPLE.length = 0;
+  BUILDINGS.length = 0;
+  TOWERS.length = 0;
+
+  for (let i = 0; i < 40; i++) {
+    const h = 15 + Math.random() * 80;
+    OBSTACLES.push({
+      x: Math.random() * 2000,
+      y: Math.random() * 2000,
+      r: 10 + Math.random() * 20,
+      h: h,
+    });
+  }
+
+  for (let i = 0; i < 60; i++) {
+    TREES.push({
+      x: Math.random() * 2000,
+      y: Math.random() * 2000,
+      height: 15 + Math.random() * 25,
+      crown: 12 + Math.random() * 15,
+      type: Math.floor(Math.random() * 3),
+    });
+  }
+
+  ROADS.push({ points: [[0, 400], [400, 380], [800, 420], [1200, 400], [1600, 390], [2000, 410]] });
+  ROADS.push({ points: [[300, 0], [320, 500], [280, 1000], [340, 1500], [300, 2000]] });
+
+  LAKES.push({ x: 800, y: 600, rx: 150, ry: 100 });
+  LAKES.push({ x: 1500, y: 300, rx: 100, ry: 70 });
+  LAKES.push({ x: 400, y: 1200, rx: 120, ry: 80 });
+
+  // 生成汽车（在道路上行驶）
+  const carColors = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#ff9800', '#8e24aa', '#00acc1', '#5d4037'];
+  for (let i = 0; i < 8; i++) {
+    const roadIndex = i % 2;
+    const road = ROADS[roadIndex];
+    const progress = Math.random();
+    const pointIndex = Math.floor(progress * (road.points.length - 1));
+    const nextIndex = Math.min(pointIndex + 1, road.points.length - 1);
+    const t = (progress * (road.points.length - 1)) - pointIndex;
+    const x = road.points[pointIndex][0] + (road.points[nextIndex][0] - road.points[pointIndex][0]) * t;
+    const y = road.points[pointIndex][1] + (road.points[nextIndex][1] - road.points[pointIndex][1]) * t;
+
+    CARS.push({
+      x: x,
+      y: y,
+      z: 0,
+      speed: 15 + Math.random() * 25,
+      direction: Math.random() > 0.5 ? 1 : -1,
+      roadIndex: roadIndex,
+      progress: progress,
+      color: carColors[Math.floor(Math.random() * carColors.length)],
+      type: Math.floor(Math.random() * 3), // 0: 轿车, 1: SUV, 2: 卡车
+      length: 8 + Math.random() * 4
+    });
+  }
+
+  // 生成行人（在道路附近行走）
+  for (let i = 0; i < 15; i++) {
+    const roadIndex = i % 2;
+    const road = ROADS[roadIndex];
+    const progress = Math.random();
+    const pointIndex = Math.floor(progress * (road.points.length - 1));
+    const nextIndex = Math.min(pointIndex + 1, road.points.length - 1);
+    const t = (progress * (road.points.length - 1)) - pointIndex;
+    const roadX = road.points[pointIndex][0] + (road.points[nextIndex][0] - road.points[pointIndex][0]) * t;
+    const roadY = road.points[pointIndex][1] + (road.points[nextIndex][1] - road.points[pointIndex][1]) * t;
+
+    PEOPLE.push({
+      x: roadX + (Math.random() - 0.5) * 60,
+      y: roadY + (Math.random() - 0.5) * 60,
+      z: 0,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3,
+      walkPhase: Math.random() * Math.PI * 2,
+      color: 'hsl(' + Math.random() * 360 + ', 60%, 50%)',
+      shirtColor: 'hsl(' + Math.random() * 360 + ', 70%, ' + (40 + Math.random() * 30) + '%)',
+      size: 0.8 + Math.random() * 0.4
+    });
+  }
+
+  for (let i = 0; i < 15; i++) {
+    const birdType = Math.floor(Math.random() * 3);
+    const baseSize = birdType === 0 ? 3 : birdType === 1 ? 4 : 5;
+    const baseSpeed = birdType === 0 ? 8 : birdType === 1 ? 6 : 4;
+    BIRDS.push({
+      x: Math.random() * 2000,
+      y: Math.random() * 2000,
+      z: 20 + Math.random() * 60,
+      vx: (Math.random() - 0.5) * baseSpeed,
+      vy: (Math.random() - 0.5) * 3,
+      vz: (Math.random() - 0.5) * 2,
+      wingPhase: Math.random() * Math.PI * 2,
+      wingSpeed: 6 + Math.random() * 6,
+      size: baseSize + Math.random() * 2,
+      type: birdType,
+      color: birdType === 0 ? `hsl(${30 + Math.random() * 20}, ${60 + Math.random() * 20}%, ${40 + Math.random() * 20}%)` :
+             birdType === 1 ? `hsl(${200 + Math.random() * 40}, ${50 + Math.random() * 20}%, ${35 + Math.random() * 20}%)` :
+             `hsl(${0 + Math.random() * 20}, ${70 + Math.random() * 20}%, ${30 + Math.random() * 20}%)`,
+    });
+  }
+
+  for (let i = 0; i < 40; i++) {
+    const leafType = Math.floor(Math.random() * 3);
+    LEAVES.push({
+      x: Math.random() * 2000,
+      y: Math.random() * 2000,
+      z: Math.random() * 100,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3,
+      vz: -0.5 - Math.random() * 0.8,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.15,
+      size: 3 + Math.random() * 5,
+      type: leafType,
+      color: leafType === 0 ? `hsl(${80 + Math.random() * 40}, 70%, ${40 + Math.random() * 20}%)` :
+             leafType === 1 ? `hsl(${30 + Math.random() * 30}, 80%, ${35 + Math.random() * 25}%)` :
+             `hsl(${0 + Math.random() * 20}, 75%, ${30 + Math.random() * 20}%)`,
+    });
+  }
+
+  for (let i = 0; i < 12; i++) {
+    ROCKS.push({
+      x: Math.random() * 2000,
+      y: Math.random() * 2000,
+      z: 50 + Math.random() * 100,
+      vz: -2 - Math.random() * 4,
+      size: 3 + Math.random() * 5,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.2,
+      active: false,
+    });
+  }
+
+  // 生成建筑物（住宅和商业）
+  const buildingColors = ['#d4c4a8', '#c8b898', '#e0d0b8', '#b8a888', '#a89878', '#f0e0d0', '#ddd0c0', '#ccc0b0'];
+  const roofColors = ['#8b4513', '#a0522d', '#6b3a2a', '#7b3f2f', '#5c3317', '#994d3d', '#b85c3d'];
+  for (let i = 0; i < 25; i++) {
+    const bType = Math.floor(Math.random() * 4);
+    let bw, bh, bd, floors;
+    if (bType === 0) { // 小房子
+      bw = 12 + Math.random() * 8; bd = 10 + Math.random() * 6; bh = 8 + Math.random() * 5; floors = 1;
+    } else if (bType === 1) { // 两层楼房
+      bw = 14 + Math.random() * 10; bd = 12 + Math.random() * 8; bh = 15 + Math.random() * 8; floors = 2;
+    } else if (bType === 2) { // 小型公寓
+      bw = 16 + Math.random() * 12; bd = 14 + Math.random() * 10; bh = 25 + Math.random() * 20; floors = 3 + Math.floor(Math.random() * 3);
+    } else { // 高楼
+      bw = 18 + Math.random() * 14; bd = 16 + Math.random() * 12; bh = 40 + Math.random() * 50; floors = 5 + Math.floor(Math.random() * 10);
+    }
+    const hasWindows = Math.random() > 0.2;
+    const cols = Math.max(2, Math.floor(bw * 0.6 / (bw * 0.08 * 2.5)));
+    const windowLit = [];
+    if (hasWindows) {
+      for (let f = 0; f < floors; f++) {
+        for (let c = 0; c < cols; c++) {
+          windowLit.push(Math.random() > 0.4);
+        }
+      }
+    }
+    BUILDINGS.push({
+      x: Math.random() * 1800 + 100,
+      y: Math.random() * 1800 + 100,
+      width: bw,
+      depth: bd,
+      height: bh,
+      type: bType,
+      floors: floors,
+      color: buildingColors[Math.floor(Math.random() * buildingColors.length)],
+      roofColor: roofColors[Math.floor(Math.random() * roofColors.length)],
+      windows: hasWindows,
+      door: bType < 2,
+      windowLit: windowLit,
+      windowCols: cols,
+    });
+  }
+
+  // 生成信号塔和电线塔
+  for (let i = 0; i < 8; i++) {
+    const tType = Math.floor(Math.random() * 3);
+    TOWERS.push({
+      x: Math.random() * 1800 + 100,
+      y: Math.random() * 1800 + 100,
+      height: 30 + Math.random() * 60,
+      type: tType, // 0: 通信塔, 1: 输电塔, 2: 灯塔
+      color: tType === 2 ? '#f0f0f0' : '#666',
+      blinkPhase: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function spawnRock(nearX, nearY) {
+  for (let r of ROCKS) {
+    if (!r.active) {
+      r.x = nearX + (Math.random() - 0.5) * 100;
+      r.y = nearY + (Math.random() - 0.5) * 100;
+      r.z = 80 + Math.random() * 40;
+      r.vz = -2 - Math.random() * 3;
+      r.active = true;
+      return;
+    }
+  }
+}
+
+function startGame() {
+  const startScreen = document.getElementById('startScreen');
+  const topBar = document.getElementById('topBar');
+  const leftPanel = document.getElementById('leftPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  const bottomPanel = document.getElementById('bottomPanel');
+  const joystickLeft = document.getElementById('joystickLeft');
+  const joystickRight = document.getElementById('joystickRight');
+  const ctrlButtons = document.getElementById('ctrlButtons');
+  const btnOBS = document.getElementById('btnOBS');
+  const btnPause = document.getElementById('btnPause');
+
+  if (startScreen) startScreen.style.display = 'none';
+  if (topBar) topBar.style.display = 'flex';
+  if (leftPanel) leftPanel.style.display = 'block';
+  if (rightPanel) rightPanel.style.display = 'block';
+  if (bottomPanel) bottomPanel.style.display = 'flex';
+  if (joystickLeft) joystickLeft.style.display = 'block';
+  if (joystickRight) joystickRight.style.display = 'block';
+  if (ctrlButtons) ctrlButtons.style.display = 'flex';
+
+  generateWorld();
+  updateSafePointsUI();
+  initCanvas();
+  setupJoysticks();
+
+  if (btnOBS) btnOBS.classList.add('active');
+  if (btnPause) btnPause.innerHTML = '<span class="icon">⏸️</span><span>暂停</span>';
+
+  gameStarted = true;
+  isCrashed = false;
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+
+  notify('飞行器已启动 · 祝您飞行愉快', 3000);
+}
+
+function setupJoysticks() {
+  document.addEventListener('keydown', (e) => {
+    if (!gameStarted) return;
+    switch(e.key) {
+      case 'ArrowUp': case 'w': case 'W': rightY = -1; break;
+      case 'ArrowDown': case 's': case 'S': rightY = 1; break;
+      case 'ArrowLeft': case 'a': case 'A': rightX = -1; break;
+      case 'ArrowRight': case 'd': case 'D': rightX = 1; break;
+      case 'q': case 'Q': leftX = -1; break;
+      case 'e': case 'E': leftX = 1; break;
+      case ' ': case 'r': case 'R': leftY = 1; break;
+      case 'Shift': leftY = -1; break;
+      case 'h': case 'H': triggerRTH(); break;
+    }
+    // 检测定速巡航等待输入
+    checkCruiseInput();
+  });
+  document.addEventListener('keyup', (e) => {
+    switch(e.key) {
+      case 'ArrowUp': case 'w': case 'W': case 'ArrowDown': case 's': case 'S': rightY = 0; break;
+      case 'ArrowLeft': case 'a': case 'A': case 'ArrowRight': case 'd': case 'D': rightX = 0; break;
+      case 'q': case 'Q': case 'e': case 'E': leftX = 0; break;
+      case ' ': case 'r': case 'R': case 'Shift': leftY = 0; break;
+    }
+  });
+
+  setupTouchJoystick('baseL', 'thumbL', (x, y) => { leftX = x; leftY = y; checkCruiseInput(); }, () => { leftX = 0; leftY = 0; });
+  setupTouchJoystick('baseR', 'thumbR', (x, y) => { rightX = x; rightY = y; checkCruiseInput(); }, () => { rightX = 0; rightY = 0; });
+}
+
+function checkCruiseInput() {
+  if (cruiseWaitingForInput && (Math.abs(rightX) > 0.3 || Math.abs(rightY) > 0.3)) {
+    // 检测到摇杆输入，启动定速巡航
+    isCruise = true;
+    cruiseWaitingForInput = false;
+    cruiseSpeed = drone.maxSpeed * 0.5; // 巡航速度为最大速度的50%
+    cruiseAngle = droneAngle;
+
+    const btnCruise = document.getElementById('btnCruise');
+    if (btnCruise) {
+      btnCruise.classList.add('active');
+      btnCruise.innerHTML = '<span class="icon">🚀</span><span>巡航中</span>';
+    }
+    notify(`🚀 定速巡航已启动 · 速度 ${cruiseSpeed.toFixed(1)} m/s`, 3000);
+  }
+}
+
+function setupTouchJoystick(baseId, thumbId, onMove, onEnd) {
+  const base = document.getElementById(baseId);
+  const thumb = document.getElementById(thumbId);
+  if (!base || !thumb) return;
+  const R = 65;
+  let active = false;
+  let touchId = null;
+  let mouseDown = false;
+
+  function getPos(clientX, clientY) {
+    const rect = base.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > R) { dx = dx/dist*R; dy = dy/dist*R; }
+    return { dx, dy };
+  }
+
+  base.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    active = true;
+    touchId = e.changedTouches[0].identifier;
+    const { dx, dy } = getPos(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    onMove(dx/R, dy/R);
+  }, { passive: false });
+
+  base.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!active) return;
+    for (let t of e.changedTouches) {
+      if (t.identifier === touchId) {
+        const { dx, dy } = getPos(t.clientX, t.clientY);
+        thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        onMove(dx/R, dy/R);
+      }
+    }
+  }, { passive: false });
+
+  base.addEventListener('touchend', (e) => {
+    for (let t of e.changedTouches) {
+      if (t.identifier === touchId) {
+        active = false;
+        touchId = null;
+        thumb.style.transform = 'translate(-50%, -50%)';
+        onEnd();
+      }
+    }
+  });
+
+  base.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    mouseDown = true;
+    const { dx, dy } = getPos(e.clientX, e.clientY);
+    thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    onMove(dx/R, dy/R);
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!mouseDown) return;
+    const { dx, dy } = getPos(e.clientX, e.clientY);
+    thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    onMove(dx/R, dy/R);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (mouseDown) {
+      mouseDown = false;
+      thumb.style.transform = 'translate(-50%, -50%)';
+      onEnd();
+    }
+  });
+}
+
+function gameLoop(ts) {
+  if (!gameStarted) return;
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  if (!isPaused) {
+    if (isCrashed) {
+      updateCrash(dt);
+    } else {
+      updateDrone(dt);
+      updateBattery(dt);
+      checkObstacles();
+      checkSafePoints();
+      checkBirdCollisions();
+    }
+    updateWorld(dt);
+  }
+
+  render();
+  updateUI();
+
+  requestAnimationFrame(gameLoop);
+}
+
+function updateDrone(dt) {
+  const ACCEL = drone.accel;
+  const DRAG = 3.5;
+  const MAX_SPEED = drone.maxSpeed;
+
+  // 获取档位倍率
+  const speedMult = getGearSpeedMultiplier();
+  const turnMult = getGearTurnSpeedMultiplier();
+
+  // 方向控制（档位影响转弯速度）
+  droneAngle += leftX * 90 * turnMult * dt;
+
+  // 定速巡航模式下，允许通过摇杆改变方向
+  if (isCruise) {
+    // 巡航模式下，右摇杆控制方向改变（档位影响转弯速度）
+    cruiseAngle += rightX * 60 * turnMult * dt;
+
+    // 按巡航方向和速度飞行（档位影响巡航速度）
+    const adjustedCruiseSpeed = cruiseSpeed * speedMult;
+    const cruiseRad = cruiseAngle * Math.PI / 180;
+    const targetVX = Math.cos(cruiseRad) * adjustedCruiseSpeed;
+    const targetVY = Math.sin(cruiseRad) * adjustedCruiseSpeed;
+
+    droneVX += (targetVX - droneVX) * ACCEL * dt;
+    droneVY += (targetVY - droneVY) * ACCEL * dt;
+
+    // 巡航时无人机朝向跟随巡航方向
+    droneAngle = cruiseAngle;
+
+    // 高度控制仍然有效
+    const vertInput = leftY;
+    droneVZ += vertInput * ACCEL * 5 * dt;
+    droneVZ -= DRAG * droneVZ * dt;
+    droneZ = Math.max(1, Math.min(200, droneZ + droneVZ * dt));
+  } else {
+    // 正常飞行模式
+    const vertInput = leftY;
+    droneVZ += vertInput * ACCEL * 5 * dt;
+    droneVZ -= DRAG * droneVZ * dt;
+    droneZ = Math.max(1, Math.min(200, droneZ + droneVZ * dt));
+
+    // 档位影响最大速度
+    let targetVX = rightX * MAX_SPEED * speedMult;
+    let targetVY = rightY * MAX_SPEED * speedMult;
+
+    const rad = droneAngle * Math.PI / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const worldVX = targetVX * cos - targetVY * sin;
+    const worldVY = targetVX * sin + targetVY * cos;
+
+    droneVX += (worldVX - droneVX) * ACCEL * dt;
+    droneVY += (worldVY - droneVY) * ACCEL * dt;
+  }
+
+  droneVX -= droneVX * DRAG * dt;
+  droneVY -= droneVY * DRAG * dt;
+
+  if (obstacleEnabled) {
+    applyObstacleAvoidance();
+  }
+
+  if (isRTH) {
+    // 返航时自动关闭巡航
+    if (isCruise) {
+      isCruise = false;
+      cruiseSpeed = 0;
+      const btnCruise = document.getElementById('btnCruise');
+      if (btnCruise) {
+        btnCruise.classList.remove('active');
+        btnCruise.innerHTML = '<span class="icon">🚀</span><span>巡航</span>';
+      }
+    }
+    applyRTH();
+  }
+
+  const prevX = droneX, prevY = droneY;
+  droneX += droneVX * dt;
+  droneY += droneVY * dt;
+
+  droneX = Math.max(20, Math.min(1980, droneX));
+  droneY = Math.max(20, Math.min(1980, droneY));
+
+  const moved = Math.sqrt((droneX-prevX)**2 + (droneY-prevY)**2);
+  totalDist += moved;
+
+  dronePitch = rightY * -20;
+  droneRoll = rightX * -15;
+}
+
+function updateCrash(dt) {
+  // 无人机坠落物理
+  crashVz -= 15 * dt;
+  droneX += crashVx * dt;
+  droneY += crashVy * dt;
+  droneZ += crashVz * dt;
+  droneAngle += 250 * dt; // 快速旋转
+  dronePitch += 180 * dt;
+  droneRoll += 200 * dt;
+
+  // 更新碰撞效果
+  updateCrashEffects(dt);
+
+  if (droneZ < 1.5) {
+    droneZ = 1.5;
+    crashVz = 0;
+    crashVx *= 0.3;
+    crashVy *= 0.3;
+    droneAngle = droneAngle % 360;
+    notify('💥 炸机了！刷新页面重新开始', 5000);
+  }
+}
+
+function updateWorld(dt) {
+  worldOffsetX = droneX - canvas.width / 2 / (canvas.width / 2000 * mapScale);
+  worldOffsetY = droneY - canvas.height / 2 / (canvas.height / 2000 * mapScale);
+
+  for (let bird of BIRDS) {
+    bird.x += bird.vx * dt * 10;
+    bird.y += bird.vy * dt * 10;
+    bird.z += bird.vz * dt * 10;
+    bird.wingPhase += bird.wingSpeed * dt;
+
+    if (bird.x < 0) bird.x = 2000;
+    if (bird.x > 2000) bird.x = 0;
+    if (bird.y < 0) bird.y = 2000;
+    if (bird.y > 2000) bird.y = 0;
+    if (bird.z < 10) bird.z = 10;
+    if (bird.z > 100) bird.z = 100;
+  }
+
+  for (let leaf of LEAVES) {
+    leaf.x += leaf.vx * dt * 10;
+    leaf.y += leaf.vy * dt * 10;
+    leaf.z += leaf.vz * dt * 10;
+    leaf.rotation += leaf.rotSpeed;
+
+    if (leaf.z < 0) {
+      leaf.x = Math.random() * 2000;
+      leaf.y = Math.random() * 2000;
+      leaf.z = 80 + Math.random() * 20;
+    }
+  }
+
+  for (let rock of ROCKS) {
+    if (rock.active) {
+      rock.z += rock.vz * dt * 10;
+      if (rock.z < 0) {
+        rock.active = false;
+        setTimeout(() => spawnRock(droneX + (Math.random() - 0.5) * 200, droneY + (Math.random() - 0.5) * 200), 3000 + Math.random() * 5000);
+      }
+    }
+  }
+
+  if (Math.random() < 0.002 && !isCrashed) {
+    spawnRock(droneX, droneY);
+  }
+
+  // 更新汽车（沿道路行驶）
+  for (let car of CARS) {
+    const road = ROADS[car.roadIndex];
+    car.progress += car.speed * dt * 0.0005 * car.direction;
+
+    // 循环行驶
+    if (car.progress > 1) {
+      car.progress = 0;
+    } else if (car.progress < 0) {
+      car.progress = 1;
+    }
+
+    // 计算当前位置
+    const totalPoints = road.points.length - 1;
+    const pointIndex = Math.floor(car.progress * totalPoints);
+    const nextIndex = Math.min(pointIndex + 1, totalPoints);
+    const t = (car.progress * totalPoints) - pointIndex;
+    car.x = road.points[pointIndex][0] + (road.points[nextIndex][0] - road.points[pointIndex][0]) * t;
+    car.y = road.points[pointIndex][1] + (road.points[nextIndex][1] - road.points[pointIndex][1]) * t;
+
+    // 计算行驶方向角度
+    const dx = road.points[nextIndex][0] - road.points[pointIndex][0];
+    const dy = road.points[nextIndex][1] - road.points[pointIndex][1];
+    car.angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    if (car.direction < 0) {
+      car.angle += 180;
+    }
+  }
+
+  // 更新行人
+  for (let person of PEOPLE) {
+    person.x += person.vx * dt * 10;
+    person.y += person.vy * dt * 10;
+    person.walkPhase += dt * 8;
+
+    // 边界循环
+    if (person.x < 0) person.x = 2000;
+    if (person.x > 2000) person.x = 0;
+    if (person.y < 0) person.y = 2000;
+    if (person.y > 2000) person.y = 0;
+
+    // 随机改变方向
+    if (Math.random() < 0.01) {
+      person.vx = (Math.random() - 0.5) * 3;
+      person.vy = (Math.random() - 0.5) * 3;
+    }
+  }
+}
+
+function checkBirdCollisions() {
+  for (let bird of BIRDS) {
+    const dx = droneX - bird.x;
+    const dy = droneY - bird.y;
+    const dz = droneZ - bird.z;
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+    if (dist < 15) {
+      triggerCrash(dx / dist * 10, dy / dist * 10, bird);
+      return;
+    }
+  }
+}
+
+// 碰撞效果系统
+const CRASH_EFFECTS = {
+  debris: [],
+  feathers: [],
+  smoke: [],
+  sparks: [],
+  fire: []
+};
+
+function triggerCrash(hx, hy, bird) {
+  isCrashed = true;
+  crashVx = hx;
+  crashVy = hy;
+  crashVz = 2;
+
+  // 重置所有碰撞效果
+  CRASH_EFFECTS.debris = [];
+  CRASH_EFFECTS.feathers = [];
+  CRASH_EFFECTS.smoke = [];
+  CRASH_EFFECTS.sparks = [];
+  CRASH_EFFECTS.fire = [];
+
+  // 创建无人机碎片
+  createDroneDebris();
+
+  // 创建飞鸟羽毛
+  if (bird) {
+    createBirdFeathers(bird);
+  }
+
+  // 创建火花
+  createSparks();
+
+  // 创建烟雾
+  createSmoke();
+
+  // 创建火焰
+  createFire();
+
+  const crashOverlay = document.getElementById('crashOverlay');
+  if (crashOverlay) {
+    crashOverlay.classList.add('show');
+    setTimeout(() => crashOverlay.classList.remove('show'), 800);
+  }
+
+  notify('💥 撞到飞鸟！炸机！', 3000);
+}
+
+function createDroneDebris() {
+  // 机身碎片
+  for (let i = 0; i < 15; i++) {
+    CRASH_EFFECTS.debris.push({
+      x: droneX,
+      y: droneY,
+      z: droneZ,
+      vx: (Math.random() - 0.5) * 20,
+      vy: (Math.random() - 0.5) * 20,
+      vz: Math.random() * 8 - 2,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.5,
+      size: 3 + Math.random() * 5,
+      color: drone.color,
+      alpha: 1,
+      type: Math.floor(Math.random() * 4), // 0: 机身, 1: 机臂, 2: 螺旋桨, 3: 电子元件
+      grounded: false
+    });
+  }
+}
+
+function createBirdFeathers(bird) {
+  // 飞鸟羽毛
+  for (let i = 0; i < 25; i++) {
+    CRASH_EFFECTS.feathers.push({
+      x: bird.x,
+      y: bird.y,
+      z: bird.z,
+      vx: (Math.random() - 0.5) * 15,
+      vy: (Math.random() - 0.5) * 15,
+      vz: Math.random() * 10 - 3,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.3,
+      size: 2 + Math.random() * 4,
+      color: bird.color,
+      alpha: 1,
+      flutter: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function createSparks() {
+  // 火花
+  for (let i = 0; i < 30; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 5 + Math.random() * 15;
+    CRASH_EFFECTS.sparks.push({
+      x: droneX,
+      y: droneY,
+      z: droneZ,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      vz: Math.random() * 10,
+      size: 1 + Math.random() * 3,
+      life: 1,
+      decay: 0.02 + Math.random() * 0.03
+    });
+  }
+}
+
+function createSmoke() {
+  // 烟雾粒子
+  for (let i = 0; i < 20; i++) {
+    CRASH_EFFECTS.smoke.push({
+      x: droneX + (Math.random() - 0.5) * 10,
+      y: droneY + (Math.random() - 0.5) * 10,
+      z: droneZ + Math.random() * 5,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3,
+      vz: 1 + Math.random() * 2,
+      size: 5 + Math.random() * 10,
+      alpha: 0.6,
+      growth: 0.5 + Math.random() * 0.5
+    });
+  }
+}
+
+function createFire() {
+  // 火焰粒子
+  for (let i = 0; i < 15; i++) {
+    CRASH_EFFECTS.fire.push({
+      x: droneX + (Math.random() - 0.5) * 15,
+      y: droneY + (Math.random() - 0.5) * 15,
+      z: droneZ + Math.random() * 5,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.5) * 5,
+      vz: 2 + Math.random() * 4,
+      size: 3 + Math.random() * 6,
+      life: 1,
+      decay: 0.03 + Math.random() * 0.02
+    });
+  }
+}
+
+function updateCrashEffects(dt) {
+  // 更新碎片
+  for (let debris of CRASH_EFFECTS.debris) {
+    if (debris.grounded) continue;
+    debris.vz -= 20 * dt;
+    debris.x += debris.vx * dt;
+    debris.y += debris.vy * dt;
+    debris.z += debris.vz * dt;
+    debris.rotation += debris.rotSpeed;
+    debris.vx *= 0.99;
+    debris.vy *= 0.99;
+
+    if (debris.z < 0.5) {
+      debris.z = 0.5;
+      debris.grounded = true;
+      debris.alpha = 0.8;
+    }
+  }
+
+  // 更新羽毛
+  for (let feather of CRASH_EFFECTS.feathers) {
+    feather.vz -= 5 * dt; // 缓慢下落
+    feather.x += feather.vx * dt;
+    feather.y += feather.vy * dt;
+    feather.z += feather.vz * dt;
+    feather.rotation += feather.rotSpeed;
+    feather.flutter += dt * 5;
+    feather.vx *= 0.98;
+    feather.vy *= 0.98;
+    feather.alpha = Math.max(0, feather.alpha - dt * 0.1);
+
+    if (feather.z < 0.5) {
+      feather.z = 0.5;
+      feather.vz = 0;
+    }
+  }
+
+  // 更新火花
+  for (let i = CRASH_EFFECTS.sparks.length - 1; i >= 0; i--) {
+    let spark = CRASH_EFFECTS.sparks[i];
+    spark.vz -= 30 * dt;
+    spark.x += spark.vx * dt;
+    spark.y += spark.vy * dt;
+    spark.z += spark.vz * dt;
+    spark.life -= spark.decay;
+    if (spark.life <= 0 || spark.z < 0) {
+      CRASH_EFFECTS.sparks.splice(i, 1);
+    }
+  }
+
+  // 更新烟雾
+  for (let smoke of CRASH_EFFECTS.smoke) {
+    smoke.x += smoke.vx * dt;
+    smoke.y += smoke.vy * dt;
+    smoke.z += smoke.vz * dt;
+    smoke.size += smoke.growth * dt;
+    smoke.alpha = Math.max(0, smoke.alpha - dt * 0.15);
+  }
+
+  // 更新火焰
+  for (let i = CRASH_EFFECTS.fire.length - 1; i >= 0; i--) {
+    let fire = CRASH_EFFECTS.fire[i];
+    fire.x += fire.vx * dt;
+    fire.y += fire.vy * dt;
+    fire.z += fire.vz * dt;
+    fire.life -= fire.decay;
+    if (fire.life <= 0) {
+      CRASH_EFFECTS.fire.splice(i, 1);
+    }
+  }
+}
+
+function drawCrashEffects(ctx, sx, sy) {
+  // 绘制烟雾（先绘制，在最底层）
+  for (let smoke of CRASH_EFFECTS.smoke) {
+    if (smoke.alpha <= 0) continue;
+    const px = (smoke.x - worldOffsetX) * sx;
+    const py = (smoke.y - worldOffsetY - smoke.z * 0.3) * sy;
+    const size = smoke.size * sx;
+
+    ctx.fillStyle = 'rgba(80,80,80,' + (smoke.alpha * 0.5) + ')';
+    ctx.beginPath();
+    ctx.arc(px, py, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 绘制火焰
+  for (let fire of CRASH_EFFECTS.fire) {
+    if (fire.life <= 0) continue;
+    const px = (fire.x - worldOffsetX) * sx;
+    const py = (fire.y - worldOffsetY - fire.z * 0.3) * sy;
+    const size = fire.size * fire.life * sx;
+
+    const fireGrad = ctx.createRadialGradient(px, py, 0, px, py, size);
+    fireGrad.addColorStop(0, 'rgba(255,255,200,' + fire.life + ')');
+    fireGrad.addColorStop(0.3, 'rgba(255,200,50,' + (fire.life * 0.8) + ')');
+    fireGrad.addColorStop(0.6, 'rgba(255,100,0,' + (fire.life * 0.5) + ')');
+    fireGrad.addColorStop(1, 'rgba(255,50,0,0)');
+    ctx.fillStyle = fireGrad;
+    ctx.beginPath();
+    ctx.arc(px, py, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 绘制火花
+  for (let spark of CRASH_EFFECTS.sparks) {
+    if (spark.life <= 0) continue;
+    const px = (spark.x - worldOffsetX) * sx;
+    const py = (spark.y - worldOffsetY - spark.z * 0.3) * sy;
+
+    ctx.fillStyle = 'rgba(255,255,100,' + spark.life + ')';
+    ctx.beginPath();
+    ctx.arc(px, py, spark.size * spark.life, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 火花拖尾
+    ctx.strokeStyle = 'rgba(255,200,50,' + (spark.life * 0.5) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px - spark.vx * 0.05 * sx, py - spark.vy * 0.05 * sy);
+    ctx.stroke();
+  }
+
+  // 绘制羽毛
+  for (let feather of CRASH_EFFECTS.feathers) {
+    if (feather.alpha <= 0) continue;
+    const px = (feather.x - worldOffsetX) * sx;
+    const py = (feather.y - worldOffsetY - feather.z * 0.3) * sy;
+    const size = feather.size * Math.max(0.3, 1 - feather.z / 100);
+
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(feather.rotation);
+    ctx.globalAlpha = feather.alpha;
+
+    // 羽毛形状
+    const flutterOffset = Math.sin(feather.flutter) * 2;
+    ctx.fillStyle = feather.color;
+    ctx.beginPath();
+    ctx.ellipse(0, flutterOffset, size, size * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 羽毛纹理
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.8, flutterOffset);
+    ctx.lineTo(size * 0.8, flutterOffset);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // 绘制碎片
+  for (let debris of CRASH_EFFECTS.debris) {
+    if (debris.alpha <= 0) continue;
+    const px = (debris.x - worldOffsetX) * sx;
+    const py = (debris.y - worldOffsetY - debris.z * 0.3) * sy;
+    const size = debris.size * Math.max(0.3, 1 - debris.z / 100);
+
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(debris.rotation);
+    ctx.globalAlpha = debris.alpha;
+
+    if (debris.type === 0) {
+      // 机身碎片
+      ctx.fillStyle = debris.color;
+      ctx.beginPath();
+      ctx.roundRect(-size, -size * 0.5, size * 2, size, 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    } else if (debris.type === 1) {
+      // 机臂碎片
+      ctx.strokeStyle = debris.color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-size, 0);
+      ctx.lineTo(size, 0);
+      ctx.stroke();
+    } else if (debris.type === 2) {
+      // 螺旋桨碎片
+      ctx.fillStyle = 'rgba(100,100,100,0.9)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, size, size * 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // 电子元件（闪烁）
+      const blink = Math.sin(Date.now() * 0.01) > 0;
+      ctx.fillStyle = blink ? 'rgba(255,100,0,0.9)' : 'rgba(50,50,50,0.9)';
+      ctx.fillRect(-size * 0.5, -size * 0.3, size, size * 0.6);
+    }
+
+    ctx.restore();
+  }
+}
+
+function applyObstacleAvoidance() {
+  for (const obs of OBSTACLES) {
+    const dx = droneX - obs.x;
+    const dy = droneY - obs.y;
+    const dist2D = Math.sqrt(dx*dx + dy*dy);
+    if (dist2D < 0.1) continue;
+    const safeDist = obs.r + 20;
+
+    if (dist2D < safeDist) {
+      const push = (safeDist - dist2D) * 3;
+      const nx = dx / dist2D;
+      const ny = dy / dist2D;
+      droneVX += nx * push;
+      droneVY += ny * push;
+    }
+  }
+}
+
+function applyRTH() {
+  const dx = rthTargetX - droneX;
+  const dy = rthTargetY - droneY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  if (dist < 5 && droneZ < 3) {
+    isRTH = false;
+    notify('✓ 已返航着陆', 2000);
+    const btnRTH = document.getElementById('btnRTH');
+    if (btnRTH) btnRTH.classList.remove('active');
+    return;
+  }
+
+  const targetAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+  let diff = targetAngle - droneAngle;
+  while (diff > 180) diff -= 360;
+  while (diff < -180) diff += 360;
+  droneAngle += Math.sign(diff) * Math.min(Math.abs(diff), 60 * 0.016);
+
+  if (droneZ > 10) {
+    droneVZ = -3;
+  }
+}
+
+function checkObstacles() {
+  const dirs = [
+    [135,'ob-tl'],[90,'ob-tc'],[45,'ob-tr'],
+    [180,'ob-ml'],[0,'ob-mr'],
+    [225,'ob-bl'],[270,'ob-bc'],[315,'ob-br']
+  ];
+
+  let dangerLevel = 0;
+  for (const [ang, id] of dirs) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    let minDist = Infinity;
+    for (const obs of OBSTACLES) {
+      const dx = obs.x - droneX;
+      const dy = obs.y - droneY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const relAngle = ((Math.atan2(dy,dx)*180/Math.PI) - droneAngle + 360) % 360;
+      const angleDiff = Math.abs(relAngle - ang);
+      const inRange = angleDiff < 30 || angleDiff > 330;
+      if (inRange) {
+        minDist = Math.min(minDist, dist - obs.r);
+      }
+    }
+
+    el.className = 'ob-cell';
+    if (minDist < 30) {
+      el.classList.add('active-danger');
+      el.textContent = '⚠️';
+      dangerLevel = Math.max(dangerLevel, 2);
+    } else if (minDist < 80) {
+      el.classList.add('active-warn');
+      el.textContent = '❗';
+      dangerLevel = Math.max(dangerLevel, 1);
+    } else {
+      el.classList.add('active-safe');
+      el.textContent = '';
+      dangerLevel = Math.max(dangerLevel, 0);
+    }
+  }
+
+  const warnOverlay = document.getElementById('warningOverlay');
+  const warnBorder = document.getElementById('warnBorder');
+  if (warnOverlay && warnBorder) {
+    if (dangerLevel === 2) {
+      warnOverlay.classList.add('show');
+      warnBorder.className = 'warning-border red';
+    } else {
+      warnOverlay.classList.remove('show');
+    }
+  }
+}
+
+function updateBattery(dt) {
+  const speed = Math.sqrt(droneVX**2 + droneVY**2);
+  const drain = 0.015 + speed * 0.008;
+  battery = Math.max(0, battery - drain * dt);
+
+  const fill = document.getElementById('batteryFill');
+  const batteryVal = document.getElementById('batteryVal');
+  if (fill) {
+    fill.style.width = battery + '%';
+    fill.className = 'battery-fill' + (battery < 20 ? ' low' : battery < 40 ? ' mid' : '');
+  }
+  if (batteryVal) {
+    batteryVal.textContent = Math.round(battery) + '%';
+  }
+
+  if (battery < 20 && battery > 19.5) notify('⚠️ 电池电量低！请返航', 4000);
+  if (battery < 5 && !isRTH) { notify('🔋 电池耗尽 · 强制返航', 3000); triggerRTH(); }
+}
+
+function checkSafePoints() {
+  for (let i = 0; i < SAFE_POINTS.length; i++) {
+    if (!SAFE_POINTS[i].set) {
+      const dx = droneX - SAFE_POINTS[i].x;
+      const dy = droneY - SAFE_POINTS[i].y;
+      if (Math.sqrt(dx*dx + dy*dy) < 15 && Math.abs(droneZ - 30) < 5) {
+        SAFE_POINTS[i].set = true;
+        notify(`✅ 安全点 ${i+1} 已记录！`, 3000);
+        updateSafePointsUI();
+      }
+    }
+  }
+}
+
+function render() {
+  try {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const sx = canvas.width / 2000 * mapScale;
+  const sy = canvas.height / 2000 * mapScale;
+
+  drawSkyBackground(ctx, canvas.width, canvas.height);
+
+  drawDistantMountains(ctx, canvas.width, canvas.height);
+
+  for (let lake of LAKES) {
+    drawLake(ctx, lake, sx, sy);
+  }
+
+  for (let road of ROADS) {
+    drawRoad(ctx, road, sx, sy);
+  }
+
+  // 绘制汽车（在道路上）
+  for (let car of CARS) {
+    drawCar(ctx, car, sx, sy);
+  }
+
+  // 绘制行人
+  for (let person of PEOPLE) {
+    drawPerson(ctx, person, sx, sy);
+  }
+
+  for (let tree of TREES) {
+    drawTree(ctx, tree, sx, sy);
+  }
+
+  for (let building of BUILDINGS) {
+    drawBuilding(ctx, building, sx, sy);
+  }
+
+  for (let tower of TOWERS) {
+    drawTower(ctx, tower, sx, sy);
+  }
+
+  for (let obs of OBSTACLES) {
+    drawMountain(ctx, obs, sx, sy);
+  }
+
+  for (let leaf of LEAVES) {
+    drawLeaf(ctx, leaf, sx, sy);
+  }
+
+  for (let rock of ROCKS) {
+    if (rock.active) {
+      drawRock(ctx, rock, sx, sy);
+    }
+  }
+
+  for (let bird of BIRDS) {
+    drawBird(ctx, bird, sx, sy);
+  }
+
+  drawHomePoint(ctx, rthTargetX, rthTargetY, sx, sy);
+
+  for (let i = 0; i < SAFE_POINTS.length; i++) {
+    const sp = SAFE_POINTS[i];
+    drawSafePoint(ctx, sp, i, sx, sy);
+  }
+
+  drawDroneShadow(ctx, droneX, droneY, droneZ, sx, sy);
+
+  if (isCrashed) {
+    drawCrashEffects(ctx, sx, sy);
+  }
+
+  drawDJIMavicDrone(ctx, droneX, droneY, droneZ, droneAngle, dronePitch, droneRoll, drone.color, drone.type, sx, sy);
+
+  } catch(e) { console.warn('render error:', e); }
+}
+
+function drawSkyBackground(ctx, w, h) {
+  // 增强的天空渐变 - 更真实的大气效果
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+  skyGrad.addColorStop(0, '#0a3d62');
+  skyGrad.addColorStop(0.15, '#1e6f9e');
+  skyGrad.addColorStop(0.3, '#4a90d9');
+  skyGrad.addColorStop(0.45, '#87ceeb');
+  skyGrad.addColorStop(0.6, '#b0d4e8');
+  skyGrad.addColorStop(0.75, '#d4e8d4');
+  skyGrad.addColorStop(0.9, '#c8e6c9');
+  skyGrad.addColorStop(1, '#a5d6a7');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // 太阳位置和光晕效果
+  const sunX = w * 0.85;
+  const sunY = h * 0.12;
+
+  // 太阳外层光晕
+  const outerGlow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 200);
+  outerGlow.addColorStop(0, 'rgba(255,255,220,0.3)');
+  outerGlow.addColorStop(0.3, 'rgba(255,240,180,0.15)');
+  outerGlow.addColorStop(0.6, 'rgba(255,220,150,0.05)');
+  outerGlow.addColorStop(1, 'rgba(255,200,100,0)');
+  ctx.fillStyle = outerGlow;
+  ctx.fillRect(0, 0, w, h);
+
+  // 太阳核心
+  const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 60);
+  sunGrad.addColorStop(0, 'rgba(255,255,240,1)');
+  sunGrad.addColorStop(0.3, 'rgba(255,250,200,0.9)');
+  sunGrad.addColorStop(0.6, 'rgba(255,240,150,0.4)');
+  sunGrad.addColorStop(1, 'rgba(255,220,100,0)');
+  ctx.fillStyle = sunGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // 多层云层效果
+  const time = Date.now() * 0.008;
+
+  // 远景云层（更小、更淡）
+  for (let i = 0; i < 8; i++) {
+    const cloudX = ((time * 0.3 + i * 300) % (w + 600)) - 200;
+    const cloudY = h * (0.03 + (i % 4) * 0.04);
+    drawDetailedCloud(ctx, cloudX, cloudY, 25 + (i % 2) * 15, 0.4);
+  }
+
+  // 中景云层
+  for (let i = 0; i < 10; i++) {
+    const cloudX = ((time * 0.5 + i * 250) % (w + 500)) - 150;
+    const cloudY = h * (0.08 + (i % 5) * 0.06);
+    drawDetailedCloud(ctx, cloudX, cloudY, 35 + (i % 3) * 20, 0.7);
+  }
+
+  // 近景云层（更大、更亮）
+  for (let i = 0; i < 6; i++) {
+    const cloudX = ((time * 0.8 + i * 400) % (w + 400)) - 100;
+    const cloudY = h * (0.12 + (i % 3) * 0.08);
+    drawDetailedCloud(ctx, cloudX, cloudY, 50 + (i % 2) * 30, 0.9);
+  }
+}
+
+function drawDetailedCloud(ctx, x, y, size, opacity) {
+  // 云朵主体
+  const baseOpacity = opacity || 0.9;
+  ctx.fillStyle = `rgba(255,255,255,${baseOpacity})`;
+
+  // 云朵由多个圆组成，模拟体积感
+  const circles = [
+    [0, 0, size * 0.5],
+    [size * 0.35, -size * 0.15, size * 0.45],
+    [size * 0.7, -size * 0.05, size * 0.4],
+    [size * 0.9, size * 0.1, size * 0.3],
+    [size * 0.25, size * 0.2, size * 0.35],
+    [size * 0.55, size * 0.15, size * 0.3],
+  ];
+
+  // 云朵阴影（底部）
+  ctx.fillStyle = `rgba(200,210,220,${baseOpacity * 0.5})`;
+  for (let [cx, cy, r] of circles) {
+    ctx.beginPath();
+    ctx.arc(x + cx, y + cy + size * 0.1, r * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 云朵主体
+  ctx.fillStyle = `rgba(255,255,255,${baseOpacity})`;
+  for (let [cx, cy, r] of circles) {
+    ctx.beginPath();
+    ctx.arc(x + cx, y + cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 云朵高光（顶部）
+  ctx.fillStyle = `rgba(255,255,255,${baseOpacity * 0.6})`;
+  for (let [cx, cy, r] of circles) {
+    ctx.beginPath();
+    ctx.arc(x + cx - r * 0.1, y + cy - r * 0.2, r * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawDistantMountains(ctx, w, h) {
+  // 多层山脉，从远到近
+  const layers = [
+    { color1: 'rgba(120,150,180,0.25)', color2: 'rgba(100,130,160,0.15)', y: 0.30, height: 0.28, segments: 15, snowLine: 0.3 },
+    { color1: 'rgba(100,140,170,0.35)', color2: 'rgba(80,120,150,0.2)', y: 0.35, height: 0.25, segments: 12, snowLine: 0.4 },
+    { color1: 'rgba(80,130,160,0.45)', color2: 'rgba(60,110,140,0.25)', y: 0.40, height: 0.22, segments: 10, snowLine: 0.5 },
+    { color1: 'rgba(70,120,150,0.55)', color2: 'rgba(50,100,130,0.3)', y: 0.45, height: 0.18, segments: 8, snowLine: 0.6 },
+  ];
+
+  const time = Date.now() * 0.00005;
+
+  for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
+    const layer = layers[layerIdx];
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.5, h * (layer.y + layer.height));
+
+    // 生成山脉轮廓点
+    const points = [];
+    for (let i = 0; i <= layer.segments; i++) {
+      const x = (i / layer.segments) * w * 1.5 - w * 0.25;
+      const baseY = h * layer.y;
+      // 使用多个正弦波叠加生成自然的山脉形状
+      const noise = Math.sin(i * 2.5 + time) * 0.4 +
+                   Math.sin(i * 1.3 + time * 0.7) * 0.3 +
+                   Math.sin(i * 4.1 + time * 1.3) * 0.15;
+      const peakY = baseY - h * layer.height * (0.4 + 0.6 * (noise + 1) / 2);
+      points.push({ x, y: peakY });
+    }
+
+    // 绘制平滑曲线
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length - 1; i++) {
+      const xc = (points[i].x + points[i + 1].x) / 2;
+      const yc = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
+    ctx.lineTo(w * 1.5, h * (layer.y + layer.height));
+    ctx.lineTo(w * 1.5, h);
+    ctx.lineTo(-w * 0.5, h);
+    ctx.closePath();
+
+    // 山体渐变
+    const grad = ctx.createLinearGradient(0, h * layer.y, 0, h * (layer.y + layer.height));
+    grad.addColorStop(0, layer.color1);
+    grad.addColorStop(layer.snowLine, layer.color2);
+    grad.addColorStop(1, 'rgba(60,90,60,0.4)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // 山顶积雪效果（仅对较远的山脉）
+    if (layerIdx < 2) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i++) {
+        if (points[i].y < h * layer.y + h * layer.height * layer.snowLine) {
+          if (i === 0 || points[i-1].y >= h * layer.y + h * layer.height * layer.snowLine) {
+            ctx.moveTo(points[i].x, points[i].y);
+          } else {
+            ctx.lineTo(points[i].x, points[i].y);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawLake(ctx, lake, sx, sy) {
+  if (!lake || !lake.x || !lake.y || !lake.rx || !lake.ry) return;
+  const px = (lake.x - worldOffsetX) * sx;
+  const py = (lake.y - worldOffsetY) * sy;
+  const rx = lake.rx * sx;
+  const ry = lake.ry * sy;
+
+  // 湖泊外围阴影
+  ctx.fillStyle = 'rgba(30,60,80,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(px + 3, py + 3, rx * 1.05, ry * 1.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 湖泊主体渐变
+  const grad = ctx.createRadialGradient(px - rx * 0.3, py - ry * 0.3, 0, px, py, rx);
+  grad.addColorStop(0, 'rgba(180,230,255,0.95)');
+  grad.addColorStop(0.2, 'rgba(140,210,250,0.9)');
+  grad.addColorStop(0.4, 'rgba(100,180,230,0.85)');
+  grad.addColorStop(0.7, 'rgba(60,140,200,0.8)');
+  grad.addColorStop(1, 'rgba(40,100,160,0.75)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 水面波纹效果
+  const time = Date.now() * 0.002;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const waveOffset = Math.sin(time + i * 0.5) * 3;
+    ctx.beginPath();
+    ctx.ellipse(px - rx * 0.15 + waveOffset, py - ry * 0.15 - i * 4, rx * (0.7 - i * 0.12), ry * (0.4 - i * 0.08), -0.15, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // 水面反光
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(px - rx * 0.25, py - ry * 0.25, rx * 0.3, ry * 0.2, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 湖泊边缘
+  ctx.strokeStyle = 'rgba(100,150,100,0.4)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawRoad(ctx, road, sx, sy) {
+  if (!road || !road.points || road.points.length < 2) return;
+
+  // 道路阴影
+  ctx.beginPath();
+  ctx.moveTo((road.points[0][0] - worldOffsetX) * sx + 2, (road.points[0][1] - worldOffsetY) * sy + 2);
+  for (let i = 1; i < road.points.length; i++) {
+    ctx.lineTo((road.points[i][0] - worldOffsetX) * sx + 2, (road.points[i][1] - worldOffsetY) * sy + 2);
+  }
+  ctx.strokeStyle = 'rgba(30,30,30,0.3)';
+  ctx.lineWidth = 16;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // 道路主体
+  ctx.beginPath();
+  ctx.moveTo((road.points[0][0] - worldOffsetX) * sx, (road.points[0][1] - worldOffsetY) * sy);
+  for (let i = 1; i < road.points.length; i++) {
+    ctx.lineTo((road.points[i][0] - worldOffsetX) * sx, (road.points[i][1] - worldOffsetY) * sy);
+  }
+  ctx.strokeStyle = 'rgba(80,80,80,0.8)';
+  ctx.lineWidth = 14;
+  ctx.stroke();
+
+  // 道路边线
+  ctx.strokeStyle = 'rgba(150,150,150,0.6)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 道路中心虚线
+  ctx.beginPath();
+  ctx.moveTo((road.points[0][0] - worldOffsetX) * sx, (road.points[0][1] - worldOffsetY) * sy);
+  for (let i = 1; i < road.points.length; i++) {
+    ctx.lineTo((road.points[i][0] - worldOffsetX) * sx, (road.points[i][1] - worldOffsetY) * sy);
+  }
+  ctx.strokeStyle = 'rgba(255,255,200,0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([15, 20]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawTree(ctx, tree, sx, sy) {
+  if (!tree || !tree.x || !tree.y || !tree.height || !tree.crown) return;
+  const px = (tree.x - worldOffsetX) * sx;
+  const py = (tree.y - worldOffsetY) * sy;
+  const scale = Math.max(0.3, 1 - tree.height / 150);
+  const treeType = tree.type || 0;
+
+  ctx.save();
+  ctx.translate(px, py);
+
+  // 树干阴影
+  ctx.fillStyle = 'rgba(30,20,10,0.3)';
+  ctx.fillRect(-2 * scale + 2, -tree.height * 0.35 * sy + 2, 4 * scale, tree.height * 0.35 * sy);
+
+  // 树干
+  const trunkGrad = ctx.createLinearGradient(-2 * scale, 0, 2 * scale, 0);
+  trunkGrad.addColorStop(0, '#3E2723');
+  trunkGrad.addColorStop(0.5, '#5D4037');
+  trunkGrad.addColorStop(1, '#4E342E');
+  ctx.fillStyle = trunkGrad;
+  ctx.fillRect(-2 * scale, -tree.height * 0.35 * sy, 4 * scale, tree.height * 0.35 * sy);
+
+  // 树干纹理
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-1.5 * scale + i * scale, -tree.height * 0.35 * sy);
+    ctx.lineTo(-1.5 * scale + i * scale, 0);
+    ctx.stroke();
+  }
+
+  // 根据树木类型绘制不同的树冠
+  const crownY = -tree.height * 0.55 * sy;
+  const crownSize = tree.crown * scale;
+
+  if (treeType === 0) {
+    // 圆形树冠（橡树风格）
+    const greenGrad = ctx.createRadialGradient(-crownSize * 0.2, crownY - crownSize * 0.2, 0, 0, crownY, crownSize);
+    greenGrad.addColorStop(0, '#66BB6A');
+    greenGrad.addColorStop(0.4, '#4CAF50');
+    greenGrad.addColorStop(0.7, '#388E3C');
+    greenGrad.addColorStop(1, '#2E7D32');
+    ctx.fillStyle = greenGrad;
+    ctx.beginPath();
+    ctx.arc(0, crownY, crownSize, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 树冠层次
+    ctx.fillStyle = 'rgba(76,175,80,0.6)';
+    ctx.beginPath();
+    ctx.arc(-crownSize * 0.3, crownY - crownSize * 0.2, crownSize * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (treeType === 1) {
+    // 三角形树冠（松树风格）
+    ctx.fillStyle = '#2E7D32';
+    ctx.beginPath();
+    ctx.moveTo(0, crownY - crownSize * 1.2);
+    ctx.lineTo(-crownSize * 0.8, crownY + crownSize * 0.5);
+    ctx.lineTo(crownSize * 0.8, crownY + crownSize * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // 层次感
+    ctx.fillStyle = '#388E3C';
+    ctx.beginPath();
+    ctx.moveTo(0, crownY - crownSize * 0.8);
+    ctx.lineTo(-crownSize * 0.6, crownY + crownSize * 0.3);
+    ctx.lineTo(crownSize * 0.6, crownY + crownSize * 0.3);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#43A047';
+    ctx.beginPath();
+    ctx.moveTo(0, crownY - crownSize * 0.4);
+    ctx.lineTo(-crownSize * 0.4, crownY + crownSize * 0.1);
+    ctx.lineTo(crownSize * 0.4, crownY + crownSize * 0.1);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // 椭圆形树冠（杨树风格）
+    const greenGrad = ctx.createRadialGradient(-crownSize * 0.2, crownY - crownSize * 0.3, 0, 0, crownY, crownSize);
+    greenGrad.addColorStop(0, '#81C784');
+    greenGrad.addColorStop(0.5, '#4CAF50');
+    greenGrad.addColorStop(1, '#2E7D32');
+    ctx.fillStyle = greenGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, crownY, crownSize * 0.7, crownSize * 1.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 树冠高光
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.beginPath();
+  ctx.arc(-crownSize * 0.2, crownY - crownSize * 0.3, crownSize * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBuilding(ctx, building, sx, sy) {
+  if (!building || building.x === undefined || building.y === undefined) return;
+  const px = (building.x - worldOffsetX) * sx;
+  const py = (building.y - worldOffsetY) * sy;
+  const bw = building.width * sx;
+  const bd = building.depth * sy;
+  const bh = building.height * sx;
+
+  ctx.save();
+  ctx.translate(px, py);
+
+  // 建筑阴影
+  ctx.fillStyle = 'rgba(30,30,20,0.3)';
+  ctx.fillRect(-bw * 0.5 + 4, -bd * 0.5 + 4, bw, bd);
+
+  // 建筑侧面（右面 - 3D效果）
+  const sideGrad = ctx.createLinearGradient(bw * 0.3, 0, bw * 0.5, 0);
+  sideGrad.addColorStop(0, darkenColor(building.color, 15));
+  sideGrad.addColorStop(1, darkenColor(building.color, 30));
+  ctx.fillStyle = sideGrad;
+  ctx.beginPath();
+  ctx.moveTo(bw * 0.3, -bh);
+  ctx.lineTo(bw * 0.5, -bh * 0.85);
+  ctx.lineTo(bw * 0.5, bd * 0.3);
+  ctx.lineTo(bw * 0.3, bd * 0.2);
+  ctx.closePath();
+  ctx.fill();
+
+  // 建筑主体正面
+  const frontGrad = ctx.createLinearGradient(-bw * 0.3, -bh, -bw * 0.3, 0);
+  frontGrad.addColorStop(0, lightenColor(building.color, 10));
+  frontGrad.addColorStop(0.3, building.color);
+  frontGrad.addColorStop(0.7, darkenColor(building.color, 5));
+  frontGrad.addColorStop(1, darkenColor(building.color, 15));
+  ctx.fillStyle = frontGrad;
+  ctx.fillRect(-bw * 0.3, -bh, bw * 0.6, bd * 0.2 + bh);
+
+  // 建筑屋顶
+  if (building.type < 2) {
+    // 斜屋顶（住宅）
+    ctx.fillStyle = building.roofColor;
+    ctx.beginPath();
+    ctx.moveTo(-bw * 0.4, -bh);
+    ctx.lineTo(0, -bh - bh * 0.15);
+    ctx.lineTo(bw * 0.4, -bh);
+    ctx.lineTo(bw * 0.55, -bh * 0.85);
+    ctx.lineTo(bw * 0.35, -bh * 0.85);
+    ctx.lineTo(0, -bh * 0.85 - bh * 0.1);
+    ctx.lineTo(-bw * 0.35, -bh * 0.85);
+    ctx.lineTo(-bw * 0.55, -bh * 0.85);
+    ctx.closePath();
+    ctx.fill();
+    // 屋顶高光
+    ctx.fillStyle = lightenColor(building.roofColor, 20);
+    ctx.beginPath();
+    ctx.moveTo(-bw * 0.2, -bh);
+    ctx.lineTo(0, -bh - bh * 0.12);
+    ctx.lineTo(bw * 0.2, -bh);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // 平屋顶（公寓和商业楼）
+    ctx.fillStyle = darkenColor(building.color, 20);
+    ctx.fillRect(-bw * 0.35, -bh - 2, bw * 0.7, 4 + bh * 0.05);
+    ctx.fillRect(-bw * 0.55, -bh * 0.85 - 2, bw * 0.25, 4);
+  }
+
+  // 窗户
+  if (building.windows && building.floors > 0) {
+    const winW = bw * 0.08;
+    const winH = bh / building.floors * 0.35;
+    const floorH = bh / building.floors;
+    const cols = building.windowCols || Math.max(2, Math.floor(bw * 0.6 / (winW * 2.5)));
+    const colSpacing = bw * 0.55 / cols;
+
+    let wIdx = 0;
+    for (let f = 0; f < building.floors; f++) {
+      for (let c = 0; c < cols; c++) {
+        const wx = -bw * 0.25 + c * colSpacing + colSpacing * 0.5;
+        const wy = -bh + f * floorH + floorH * 0.35;
+        const lit = building.windowLit ? building.windowLit[wIdx] : false;
+        wIdx++;
+        ctx.fillStyle = lit ? 'rgba(255,230,150,0.7)' : 'rgba(100,130,170,0.5)';
+        ctx.fillRect(wx, wy, winW, winH);
+        // 窗户边框
+        ctx.strokeStyle = 'rgba(80,80,80,0.4)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(wx, wy, winW, winH);
+        // 亮灯窗户的光晕
+        if (lit) {
+          ctx.fillStyle = 'rgba(255,230,150,0.15)';
+          ctx.beginPath();
+          ctx.arc(wx + winW * 0.5, wy + winH * 0.5, winW * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  // 门（住宅和小楼）
+  if (building.door) {
+    ctx.fillStyle = '#5c3317';
+    const doorW = bw * 0.15;
+    const doorH = bh * 0.3;
+    ctx.fillRect(-doorW * 0.5, -doorH, doorW, doorH);
+    ctx.strokeStyle = '#3d1f0f';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(-doorW * 0.5, -doorH, doorW, doorH);
+  }
+
+  // 建筑边框
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-bw * 0.3, -bh, bw * 0.6, bh + bd * 0.2);
+
+  ctx.restore();
+}
+
+function drawTower(ctx, tower, sx, sy) {
+  if (!tower || tower.x === undefined || tower.y === undefined) return;
+  const px = (tower.x - worldOffsetX) * sx;
+  const py = (tower.y - worldOffsetY) * sy;
+  const th = tower.height * sx;
+
+  ctx.save();
+  ctx.translate(px, py);
+
+  if (tower.type === 0) {
+    // 通信塔 - 细长的铁塔结构
+    const baseW = 12 * sx;
+    const topW = 3 * sx;
+
+    // 塔身阴影
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-baseW * 0.5 + 3, 3);
+    ctx.lineTo(-topW * 0.5 + 3, -th + 3);
+    ctx.lineTo(topW * 0.5 + 3, -th + 3);
+    ctx.lineTo(baseW * 0.5 + 3, 3);
+    ctx.stroke();
+
+    // 塔身主体（渐变变窄）
+    ctx.strokeStyle = tower.color;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    // 左侧
+    ctx.beginPath();
+    ctx.moveTo(-baseW * 0.5, 0);
+    ctx.lineTo(-topW * 0.5, -th);
+    ctx.stroke();
+    // 右侧
+    ctx.beginPath();
+    ctx.moveTo(baseW * 0.5, 0);
+    ctx.lineTo(topW * 0.5, -th);
+    ctx.stroke();
+
+    // 横向支撑（每隔一段距离）
+    const segments = Math.floor(th / (8 * sx));
+    for (let s = 1; s <= segments; s++) {
+      const ratio = s / segments;
+      const currentW = baseW * (1 - ratio) * 0.5 + topW * ratio * 0.5;
+      const segY = -th * ratio;
+      ctx.strokeStyle = tower.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-currentW, segY);
+      ctx.lineTo(currentW, segY);
+      ctx.stroke();
+    }
+
+    // 交叉支撑（X形）
+    ctx.strokeStyle = tower.color;
+    ctx.lineWidth = 0.8;
+    for (let s = 0; s < segments; s++) {
+      const r1 = s / segments;
+      const r2 = (s + 1) / segments;
+      const w1 = (baseW * (1 - r1) + topW * r1) * 0.5;
+      const w2 = (baseW * (1 - r2) + topW * r2) * 0.5;
+      const y1 = -th * r1;
+      const y2 = -th * r2;
+      ctx.beginPath();
+      ctx.moveTo(-w1, y1);
+      ctx.lineTo(w2, y2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(w1, y1);
+      ctx.lineTo(-w2, y2);
+      ctx.stroke();
+    }
+
+    // 天线碟形
+    ctx.fillStyle = '#888';
+    ctx.beginPath();
+    ctx.ellipse(0, -th, topW * 2, topW * 1.2, 0, Math.PI * 0.7, Math.PI * 0.3, true);
+    ctx.fill();
+
+    // 顶部红灯（闪烁）
+    const blink = Math.sin(Date.now() * 0.003 + tower.blinkPhase) > 0;
+    if (blink) {
+      ctx.fillStyle = '#ff0000';
+      ctx.beginPath();
+      ctx.arc(0, -th - 3, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,0,0,0.3)';
+      ctx.beginPath();
+      ctx.arc(0, -th - 3, 8, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#660000';
+      ctx.beginPath();
+      ctx.arc(0, -th - 3, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+  } else if (tower.type === 1) {
+    // 输电塔 - 更宽的格子结构
+    const baseW = 16 * sx;
+    const crossW = 20 * sx;
+    const topW = 6 * sx;
+
+    // 塔身阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.moveTo(-baseW * 0.5 + 3, 3);
+    ctx.lineTo(-topW * 0.5 + 3, -th + 3);
+    ctx.lineTo(topW * 0.5 + 3, -th + 3);
+    ctx.lineTo(baseW * 0.5 + 3, 3);
+    ctx.closePath();
+    ctx.fill();
+
+    // 塔身
+    ctx.strokeStyle = tower.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-baseW * 0.5, 0);
+    ctx.lineTo(-topW * 0.5, -th);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(baseW * 0.5, 0);
+    ctx.lineTo(topW * 0.5, -th);
+    ctx.stroke();
+
+    // 横担（电线支撑臂）
+    const armY = -th * 0.75;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-crossW * 0.5, armY);
+    ctx.lineTo(crossW * 0.5, armY);
+    ctx.stroke();
+    const armY2 = -th * 0.85;
+    ctx.beginPath();
+    ctx.moveTo(-crossW * 0.35, armY2);
+    ctx.lineTo(crossW * 0.35, armY2);
+    ctx.stroke();
+
+    // 横担支撑柱
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-crossW * 0.3, armY - 5);
+    ctx.lineTo(-crossW * 0.5, armY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(crossW * 0.3, armY - 5);
+    ctx.lineTo(crossW * 0.5, armY);
+    ctx.stroke();
+
+    // 电线（悬挂的线缆）
+    ctx.strokeStyle = 'rgba(100,100,100,0.6)';
+    ctx.lineWidth = 1;
+    for (let w = -1; w <= 1; w++) {
+      ctx.beginPath();
+      ctx.moveTo(crossW * 0.45 * w, armY);
+      ctx.quadraticCurveTo(crossW * 0.45 * w, armY + 15, crossW * 0.45 * w + 100, armY + 30);
+      ctx.stroke();
+    }
+
+    // 横向支撑
+    const segments = Math.floor(th / (8 * sx));
+    ctx.lineWidth = 1;
+    for (let s = 1; s <= segments; s++) {
+      const ratio = s / segments;
+      const currentW = (baseW * (1 - ratio) + topW * ratio) * 0.5;
+      const segY = -th * ratio;
+      ctx.beginPath();
+      ctx.moveTo(-currentW, segY);
+      ctx.lineTo(currentW, segY);
+      ctx.stroke();
+    }
+
+    // 顶部红灯
+    const blink = Math.sin(Date.now() * 0.003 + tower.blinkPhase) > 0;
+    ctx.fillStyle = blink ? '#ff0000' : '#660000';
+    ctx.beginPath();
+    ctx.arc(0, -th - 3, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    if (blink) {
+      ctx.fillStyle = 'rgba(255,0,0,0.25)';
+      ctx.beginPath();
+      ctx.arc(0, -th - 3, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+  } else {
+    // 灯塔 / 观光塔
+    const baseW = 10 * sx;
+
+    // 底座
+    ctx.fillStyle = '#ddd';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, baseW * 0.7, baseW * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#aaa';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 塔身（圆柱形）
+    const towerGrad = ctx.createLinearGradient(-baseW * 0.3, 0, baseW * 0.3, 0);
+    towerGrad.addColorStop(0, '#eee');
+    towerGrad.addColorStop(0.3, '#fff');
+    towerGrad.addColorStop(0.7, '#ddd');
+    towerGrad.addColorStop(1, '#ccc');
+    ctx.fillStyle = towerGrad;
+    ctx.beginPath();
+    ctx.moveTo(-baseW * 0.3, 0);
+    ctx.lineTo(-baseW * 0.2, -th);
+    ctx.lineTo(baseW * 0.2, -th);
+    ctx.lineTo(baseW * 0.3, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // 环形装饰
+    ctx.strokeStyle = '#aaa';
+    ctx.lineWidth = 1;
+    const rings = Math.floor(th / (10 * sx));
+    for (let r = 1; r <= rings; r++) {
+      const ry = -th * r / rings;
+      ctx.beginPath();
+      ctx.moveTo(-baseW * (0.3 - 0.1 * r / rings), ry);
+      ctx.lineTo(baseW * (0.3 - 0.1 * r / rings), ry);
+      ctx.stroke();
+    }
+
+    // 顶部观景台 / 灯罩
+    ctx.fillStyle = '#bbb';
+    ctx.beginPath();
+    ctx.ellipse(0, -th - 5, baseW * 0.5, baseW * 0.25, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 灯光（灯塔特有的旋转光束）
+    const lightAngle = (Date.now() * 0.002 + tower.blinkPhase) % (Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,200,0.9)';
+    ctx.beginPath();
+    ctx.arc(0, -th - 5, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // 光束
+    ctx.save();
+    ctx.translate(0, -th - 5);
+    ctx.rotate(lightAngle);
+    ctx.fillStyle = 'rgba(255,255,200,0.15)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(100, -15);
+    ctx.lineTo(100, 15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // 光晕
+    ctx.fillStyle = 'rgba(255,255,200,0.1)';
+    ctx.beginPath();
+    ctx.arc(0, -th - 5, 15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawMountain(ctx, obs, sx, sy) {
+  if (!obs || !obs.x || !obs.y || !obs.r || !obs.h) return;
+  const px = (obs.x - worldOffsetX) * sx;
+  const py = (obs.y - worldOffsetY) * sy;
+  const r = obs.r * sx;
+  const peakHeight = r * 2.5 + obs.h * sx * 0.6;
+
+  ctx.save();
+  ctx.translate(px, py);
+
+  // 山体阴影（更自然）
+  ctx.fillStyle = 'rgba(20,30,20,0.25)';
+  ctx.beginPath();
+  ctx.moveTo(-r * 1.15 + 4, r * 0.55 + 4);
+  ctx.lineTo(-r * 0.55 + 4, -peakHeight * 0.7 + 4);
+  ctx.lineTo(-r * 0.1 + 4, -peakHeight * 0.95 + 4);
+  ctx.lineTo(r * 0.3 + 4, -peakHeight * 0.55 + 4);
+  ctx.lineTo(r * 1.15 + 4, r * 0.55 + 4);
+  ctx.closePath();
+  ctx.fill();
+
+  // 山体主体 - 更真实的分层渐变
+  const grad = ctx.createLinearGradient(0, -peakHeight, 0, r * 0.5);
+  grad.addColorStop(0, 'rgba(220,225,215,0.95)');
+  grad.addColorStop(0.1, 'rgba(195,205,185,0.92)');
+  grad.addColorStop(0.2, 'rgba(170,185,160,0.88)');
+  grad.addColorStop(0.35, 'rgba(140,165,130,0.82)');
+  grad.addColorStop(0.5, 'rgba(110,145,100,0.78)');
+  grad.addColorStop(0.65, 'rgba(85,125,75,0.72)');
+  grad.addColorStop(0.8, 'rgba(65,105,55,0.68)');
+  grad.addColorStop(1, 'rgba(50,85,40,0.6)');
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  // 更自然的山体轮廓 - 不对称形状
+  ctx.moveTo(-r, r * 0.5);
+  ctx.bezierCurveTo(-r * 0.8, -peakHeight * 0.2, -r * 0.6, -peakHeight * 0.6, -r * 0.3, -peakHeight * 0.85);
+  ctx.bezierCurveTo(-r * 0.15, -peakHeight * 0.95, -r * 0.05, -peakHeight, 0, -peakHeight);
+  ctx.bezierCurveTo(r * 0.08, -peakHeight * 0.97, r * 0.2, -peakHeight * 0.8, r * 0.35, -peakHeight * 0.55);
+  ctx.bezierCurveTo(r * 0.5, -peakHeight * 0.35, r * 0.7, -peakHeight * 0.15, r, r * 0.5);
+  ctx.closePath();
+  ctx.fill();
+
+  // 山体右侧阴影面（3D效果）
+  ctx.fillStyle = 'rgba(30,50,20,0.15)';
+  ctx.beginPath();
+  ctx.moveTo(0, -peakHeight);
+  ctx.bezierCurveTo(r * 0.08, -peakHeight * 0.97, r * 0.2, -peakHeight * 0.8, r * 0.35, -peakHeight * 0.55);
+  ctx.bezierCurveTo(r * 0.5, -peakHeight * 0.35, r * 0.7, -peakHeight * 0.15, r, r * 0.5);
+  ctx.lineTo(0, r * 0.5);
+  ctx.bezierCurveTo(-r * 0.1, r * 0.3, -r * 0.05, 0, 0, -peakHeight);
+  ctx.closePath();
+  ctx.fill();
+
+  // 山脊线
+  ctx.strokeStyle = 'rgba(60,80,50,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.3, -peakHeight * 0.85);
+  ctx.bezierCurveTo(-r * 0.15, -peakHeight * 0.95, -r * 0.05, -peakHeight, 0, -peakHeight);
+  ctx.bezierCurveTo(r * 0.08, -peakHeight * 0.97, r * 0.2, -peakHeight * 0.8, r * 0.35, -peakHeight * 0.55);
+  ctx.stroke();
+
+  // 山体纹理 - 岩石层理
+  ctx.strokeStyle = 'rgba(80,90,60,0.2)';
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < 6; i++) {
+    const layerY = -peakHeight * (0.25 + i * 0.1);
+    const layerW = r * (0.3 + i * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(-layerW, layerY);
+    ctx.quadraticCurveTo(-layerW * 0.3, layerY - peakHeight * 0.03, 0, layerY - peakHeight * 0.02);
+    ctx.quadraticCurveTo(layerW * 0.3, layerY - peakHeight * 0.01, layerW, layerY + peakHeight * 0.02);
+    ctx.stroke();
+  }
+
+  // 植被纹理（山腰的树木暗示）
+  ctx.fillStyle = 'rgba(40,80,30,0.15)';
+  for (let i = 0; i < 8; i++) {
+    const treeX = -r * 0.6 + i * r * 0.15;
+    const treeY = -peakHeight * (0.3 + Math.abs(i - 4) * 0.06);
+    const treeSize = r * 0.08;
+    ctx.beginPath();
+    ctx.arc(treeX, treeY, treeSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 山顶积雪（更自然）
+  const snowLine = 0.75;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.25, -peakHeight * snowLine);
+  ctx.bezierCurveTo(-r * 0.2, -peakHeight * 0.9, -r * 0.1, -peakHeight * 0.97, 0, -peakHeight);
+  ctx.bezierCurveTo(r * 0.08, -peakHeight * 0.97, r * 0.15, -peakHeight * 0.88, r * 0.2, -peakHeight * 0.78);
+  ctx.bezierCurveTo(r * 0.15, -peakHeight * 0.72, r * 0.05, -peakHeight * snowLine, -r * 0.1, -peakHeight * (snowLine + 0.02));
+  ctx.closePath();
+  ctx.fill();
+
+  // 积雪阴影
+  ctx.fillStyle = 'rgba(180,195,210,0.4)';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.15, -peakHeight * 0.88);
+  ctx.bezierCurveTo(-r * 0.1, -peakHeight * 0.93, 0, -peakHeight * 0.97, r * 0.05, -peakHeight * 0.92);
+  ctx.bezierCurveTo(r * 0.1, -peakHeight * 0.88, r * 0.15, -peakHeight * 0.82, r * 0.12, -peakHeight * 0.78);
+  ctx.bezierCurveTo(r * 0.05, -peakHeight * 0.82, -r * 0.05, -peakHeight * 0.85, -r * 0.15, -peakHeight * 0.88);
+  ctx.closePath();
+  ctx.fill();
+
+  // 积雪高光
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.1, -peakHeight * 0.95);
+  ctx.lineTo(0, -peakHeight);
+  ctx.lineTo(r * 0.05, -peakHeight * 0.95);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawLeaf(ctx, leaf, sx, sy) {
+  if (!leaf || !leaf.x || !leaf.y || !leaf.z || !leaf.size || !leaf.color || leaf.rotation === undefined) return;
+  const px = (leaf.x - worldOffsetX) * sx;
+  const py = (leaf.y - worldOffsetY - leaf.z * 0.5) * sy;
+  const size = leaf.size * Math.max(0.3, 1 - leaf.z / 120);
+  const leafType = leaf.type || 0;
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(leaf.rotation);
+
+  // 叶子阴影
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(1, 1, size, size * 0.45, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 叶子主体
+  const leafGrad = ctx.createLinearGradient(-size, 0, size, 0);
+  leafGrad.addColorStop(0, darkenColor(leaf.color, 10));
+  leafGrad.addColorStop(0.5, leaf.color);
+  leafGrad.addColorStop(1, darkenColor(leaf.color, 15));
+  ctx.fillStyle = leafGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size, size * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 叶脉
+  ctx.strokeStyle = darkenColor(leaf.color, 25);
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.9, 0);
+  ctx.lineTo(size * 0.9, 0);
+  ctx.stroke();
+
+  // 侧叶脉
+  for (let i = -2; i <= 2; i++) {
+    if (i !== 0) {
+      ctx.beginPath();
+      ctx.moveTo(i * size * 0.3, 0);
+      ctx.lineTo(i * size * 0.3 + (i > 0 ? size * 0.2 : -size * 0.2), (i > 0 ? size * 0.15 : -size * 0.15));
+      ctx.stroke();
+    }
+  }
+
+  // 叶子高光
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.2, -size * 0.1, size * 0.3, size * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawRock(ctx, rock, sx, sy) {
+  if (!rock || !rock.x || !rock.y || !rock.z || !rock.size) return;
+  const px = (rock.x - worldOffsetX) * sx;
+  const py = (rock.y - worldOffsetY - rock.z * 0.5) * sy;
+  const size = rock.size * Math.max(0.3, 1 - rock.z / 120);
+
+  ctx.save();
+  ctx.translate(px, py);
+
+  // 落石阴影（动态大小）
+  const shadowScale = Math.min(1, rock.z / 50);
+  ctx.fillStyle = `rgba(0,0,0,${0.2 * shadowScale})`;
+  ctx.beginPath();
+  ctx.ellipse(0, rock.z * sy * 0.1, size * 1.5 * shadowScale, size * 0.5 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 石头主体
+  const rockGrad = ctx.createRadialGradient(-size * 0.2, -size * 0.2, 0, 0, 0, size);
+  rockGrad.addColorStop(0, '#9E9E9E');
+  rockGrad.addColorStop(0.4, '#757575');
+  rockGrad.addColorStop(0.8, '#616161');
+  rockGrad.addColorStop(1, '#424242');
+  ctx.fillStyle = rockGrad;
+
+  // 不规则石头形状
+  ctx.beginPath();
+  ctx.moveTo(-size, size * 0.3);
+  ctx.quadraticCurveTo(-size * 0.8, -size * 0.8, -size * 0.2, -size);
+  ctx.quadraticCurveTo(size * 0.3, -size * 0.9, size * 0.8, -size * 0.4);
+  ctx.quadraticCurveTo(size, size * 0.2, size * 0.6, size * 0.7);
+  ctx.quadraticCurveTo(size * 0.1, size, -size * 0.5, size * 0.8);
+  ctx.quadraticCurveTo(-size, size * 0.6, -size, size * 0.3);
+  ctx.fill();
+
+  // 石头高光
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.3, -size * 0.3, size * 0.35, size * 0.25, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 石头纹理
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.3, -size * 0.2);
+  ctx.lineTo(size * 0.2, size * 0.1);
+  ctx.stroke();
+
+  // 运动模糊效果（快速下落时）
+  if (rock.vz < -3) {
+    const blurAlpha = Math.min(0.3, Math.abs(rock.vz) * 0.05);
+    ctx.fillStyle = `rgba(100,100,100,${blurAlpha})`;
+    ctx.beginPath();
+    ctx.ellipse(0, -size * 0.5, size * 0.8, size * 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawBird(ctx, bird, sx, sy) {
+  if (!bird || !bird.x || !bird.y || !bird.z || !bird.size || !bird.color || bird.wingPhase === undefined) return;
+  const px = (bird.x - worldOffsetX) * sx;
+  const py = (bird.y - worldOffsetY - bird.z * 0.5) * sy;
+  const size = bird.size * Math.max(0.4, 1 - bird.z / 100);
+  const wingAngle = Math.sin(bird.wingPhase) * 0.7;
+  const birdType = bird.type || 0;
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.scale(size * 0.18, size * 0.18);
+
+  // 飞行方向
+  const flyAngle = Math.atan2(bird.vy, bird.vx);
+  ctx.rotate(flyAngle);
+
+  // 身体阴影
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(1, 1, 14, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 身体
+  const bodyGrad = ctx.createRadialGradient(-3, -1, 0, 0, 0, 15);
+  bodyGrad.addColorStop(0, lightenColor(bird.color, 20));
+  bodyGrad.addColorStop(0.5, bird.color);
+  bodyGrad.addColorStop(1, darkenColor(bird.color, 20));
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 14, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 翅膀（动态扇动）
+  ctx.fillStyle = bird.color;
+  // 左翅膀
+  ctx.save();
+  ctx.translate(-8, 0);
+  ctx.rotate(wingAngle);
+  ctx.beginPath();
+  ctx.ellipse(0, -4, 10, 4, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // 翅膀高光
+  ctx.fillStyle = lightenColor(bird.color, 15);
+  ctx.beginPath();
+  ctx.ellipse(-2, -5, 6, 2, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 右翅膀
+  ctx.save();
+  ctx.translate(-8, 0);
+  ctx.rotate(-wingAngle);
+  ctx.beginPath();
+  ctx.ellipse(0, 4, 10, 4, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = lightenColor(bird.color, 15);
+  ctx.beginPath();
+  ctx.ellipse(-2, 5, 6, 2, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 尾巴
+  ctx.fillStyle = darkenColor(bird.color, 10);
+  ctx.beginPath();
+  ctx.moveTo(-14, 0);
+  ctx.lineTo(-20, -3);
+  ctx.lineTo(-20, 3);
+  ctx.closePath();
+  ctx.fill();
+
+  // 头部
+  ctx.fillStyle = bird.color;
+  ctx.beginPath();
+  ctx.ellipse(12, 0, 5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 眼睛
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.beginPath();
+  ctx.arc(14, -1, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 眼睛高光
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath();
+  ctx.arc(14.3, -1.3, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 喙
+  ctx.fillStyle = '#FFA000';
+  ctx.beginPath();
+  ctx.moveTo(17, 0);
+  ctx.lineTo(22, 0);
+  ctx.lineTo(17, 1);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawCar(ctx, car, sx, sy) {
+  if (!car || car.x === undefined || car.y === undefined) return;
+  const px = (car.x - worldOffsetX) * sx;
+  const py = (car.y - worldOffsetY) * sy;
+  const scale = sx * 0.8;
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate((car.angle || 0) * Math.PI / 180);
+
+  // 汽车阴影
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(2, 2, car.length * scale, 4 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 汽车主体
+  const carWidth = car.type === 2 ? 6 : 5; // 卡车更宽
+  const carHeight = car.length;
+
+  // 车身
+  ctx.fillStyle = car.color;
+  ctx.beginPath();
+  ctx.roundRect(-carHeight * scale * 0.5, -carWidth * scale * 0.5, carHeight * scale, carWidth * scale, 3 * scale);
+  ctx.fill();
+
+  // 车顶（轿车和SUV有，卡车没有）
+  if (car.type !== 2) {
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.roundRect(-carHeight * scale * 0.2, -carWidth * scale * 0.35, carHeight * scale * 0.4, carWidth * scale * 0.7, 2 * scale);
+    ctx.fill();
+  }
+
+  // 车窗
+  ctx.fillStyle = 'rgba(100,150,200,0.7)';
+  if (car.type === 0) {
+    // 轿车
+    ctx.fillRect(-carHeight * scale * 0.15, -carWidth * scale * 0.3, carHeight * scale * 0.3, carWidth * scale * 0.6);
+  } else if (car.type === 1) {
+    // SUV
+    ctx.fillRect(-carHeight * scale * 0.2, -carWidth * scale * 0.25, carHeight * scale * 0.35, carWidth * scale * 0.5);
+  } else {
+    // 卡车货箱
+    ctx.fillStyle = 'rgba(60,60,60,0.8)';
+    ctx.fillRect(-carHeight * scale * 0.35, -carWidth * scale * 0.35, carHeight * scale * 0.5, carWidth * scale * 0.7);
+  }
+
+  // 车灯
+  ctx.fillStyle = '#ffff00';
+  ctx.beginPath();
+  ctx.arc(carHeight * scale * 0.45, -carWidth * scale * 0.3, 1.5 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(carHeight * scale * 0.45, carWidth * scale * 0.3, 1.5 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 尾灯
+  ctx.fillStyle = '#ff0000';
+  ctx.beginPath();
+  ctx.arc(-carHeight * scale * 0.45, -carWidth * scale * 0.3, 1 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(-carHeight * scale * 0.45, carWidth * scale * 0.3, 1 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawPerson(ctx, person, sx, sy) {
+  if (!person || person.x === undefined || person.y === undefined) return;
+  const px = (person.x - worldOffsetX) * sx;
+  const py = (person.y - worldOffsetY) * sy;
+  const scale = person.size * sx * 0.5;
+
+  // 行走方向
+  const walkAngle = Math.atan2(person.vy, person.vx);
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.scale(scale, scale);
+
+  // 阴影
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(1, 1, 4, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 腿部（行走动画）
+  const legSwing = Math.sin(person.walkPhase) * 0.3;
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+
+  // 左腿
+  ctx.beginPath();
+  ctx.moveTo(-0.8, 2);
+  ctx.lineTo(-0.8 + legSwing * 3, 6);
+  ctx.stroke();
+
+  // 右腿
+  ctx.beginPath();
+  ctx.moveTo(0.8, 2);
+  ctx.lineTo(0.8 - legSwing * 3, 6);
+  ctx.stroke();
+
+  // 身体
+  ctx.fillStyle = person.shirtColor;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 2.5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 头部
+  ctx.fillStyle = '#ffcc99';
+  ctx.beginPath();
+  ctx.arc(0, -4, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 头发
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(0, -5, 2.5, Math.PI, 0, true);
+  ctx.fill();
+
+  // 手臂（行走动画）
+  ctx.strokeStyle = '#ffcc99';
+  ctx.lineWidth = 1.2;
+
+  // 左臂
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -0.5);
+  ctx.lineTo(-2.5 - legSwing * 2, 2);
+  ctx.stroke();
+
+  // 右臂
+  ctx.beginPath();
+  ctx.moveTo(2.5, -0.5);
+  ctx.lineTo(2.5 + legSwing * 2, 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawHomePoint(ctx, x, y, sx, sy) {
+  if (x === undefined || y === undefined) return;
+  const px = (x - worldOffsetX) * sx;
+  const py = (y - worldOffsetY) * sy;
+
+  ctx.fillStyle = 'rgba(255,149,0,0.3)';
+  ctx.beginPath();
+  ctx.arc(px, py, 15, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ff9500';
+  ctx.font = '16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏠', px, py);
+}
+
+function drawSafePoint(ctx, sp, idx, sx, sy) {
+  if (!sp || sp.x === undefined || sp.y === undefined) return;
+  const px = (sp.x - worldOffsetX) * sx;
+  const py = (sp.y - worldOffsetY) * sy;
+
+  ctx.beginPath();
+  ctx.arc(px, py, 8, 0, Math.PI * 2);
+  ctx.strokeStyle = sp.set ? '#4caf50' : 'rgba(76,175,80,0.5)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = sp.set ? '#4caf50' : 'rgba(76,175,80,0.3)';
+  ctx.fill();
+
+  ctx.fillStyle = sp.set ? '#fff' : '#aaa';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(sp.set ? '✓' : (idx + 1), px, py);
+}
+
+function drawDroneShadow(ctx, x, y, z, sx, sy) {
+  if (x === undefined || y === undefined || z === undefined) return;
+  const px = (x - worldOffsetX) * sx;
+  const py = (y - worldOffsetY) * sy;
+  const shadowScale = Math.max(0.2, 1 - z / 150);
+  const shadowAlpha = Math.max(0.1, 0.4 - z / 200);
+
+  ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
+  ctx.beginPath();
+  ctx.ellipse(px, py + z * sy * 0.3, 20 * shadowScale, 10 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawDJIMavicDrone(ctx, x, y, z, angle, pitch, roll, color, type, sx, sy) {
+  if (x === undefined || y === undefined || z === undefined || !color || !type) return;
+  const px = (x - worldOffsetX) * sx;
+  const py = (y - worldOffsetY) * sy;
+  const scale = Math.max(0.5, 1.5 - z / 100);
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.scale(scale, scale);
+  ctx.rotate(angle * Math.PI / 180);
+  ctx.rotate(roll * Math.PI / 180 * 0.2);
+
+  // DJI真实机型参数 - 基于实际比例
+  const config = {
+    air3: { armLength: 38, bodyW: 20, bodyH: 10, armW: 3.5, rotorR: 15, armFoldAngle: 0.15, color2: '#cc7700', legW: 2 },
+    mavic3: { armLength: 44, bodyW: 24, bodyH: 12, armW: 4, rotorR: 18, armFoldAngle: 0.1, color2: '#cc2020', legW: 2.5 },
+    mini4: { armLength: 30, bodyW: 16, bodyH: 8, armW: 2.8, rotorR: 12, armFoldAngle: 0.2, color2: '#a0a0a0', legW: 2 }
+  };
+  const cfg = config[type] || config.air3;
+
+  // ====== 起落架 ======
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = cfg.legW;
+  ctx.lineCap = 'round';
+  // 前起落架（DJI标志性折叠式）
+  ctx.beginPath();
+  ctx.moveTo(-cfg.bodyW * 0.35, -cfg.bodyH * 0.5);
+  ctx.lineTo(-cfg.bodyW * 0.55, cfg.bodyH * 1.0);
+  ctx.lineTo(-cfg.bodyW * 0.75, cfg.bodyH * 1.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cfg.bodyW * 0.35, -cfg.bodyH * 0.5);
+  ctx.lineTo(cfg.bodyW * 0.55, cfg.bodyH * 1.0);
+  ctx.lineTo(cfg.bodyW * 0.75, cfg.bodyH * 1.1);
+  ctx.stroke();
+  // 后起落架
+  ctx.beginPath();
+  ctx.moveTo(-cfg.bodyW * 0.25, cfg.bodyH * 0.5);
+  ctx.lineTo(-cfg.bodyW * 0.5, cfg.bodyH * 1.1);
+  ctx.lineTo(-cfg.bodyW * 0.7, cfg.bodyH * 1.2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cfg.bodyW * 0.25, cfg.bodyH * 0.5);
+  ctx.lineTo(cfg.bodyW * 0.5, cfg.bodyH * 1.1);
+  ctx.lineTo(cfg.bodyW * 0.7, cfg.bodyH * 1.2);
+  ctx.stroke();
+  // 起落架脚垫
+  ctx.fillStyle = '#222';
+  for (let fx of [-0.75, 0.75]) {
+    ctx.beginPath();
+    ctx.ellipse(cfg.bodyW * fx, cfg.bodyH * 1.1, 4, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ====== 机臂（DJI标志性折叠臂） ======
+  const armAngles = [
+    { sx: -1, sy: -1, rx: -0.9, ry: -0.55 },
+    { sx: 1, sy: -1, rx: 0.9, ry: -0.55 },
+    { sx: -1, sy: 1, rx: -0.9, ry: 0.55 },
+    { sx: 1, sy: 1, rx: 0.9, ry: 0.55 }
+  ];
+
+  for (let i = 0; i < armAngles.length; i++) {
+    const arm = armAngles[i];
+    const rotorX = cfg.armLength * arm.rx;
+    const rotorY = cfg.armLength * arm.ry;
+    const startX = cfg.bodyW * 0.45 * arm.sx;
+    const startY = cfg.bodyH * 0.35 * arm.sy;
+
+    // 机臂阴影
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = cfg.armW + 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(startX + 1, startY + 1);
+    ctx.lineTo(rotorX + 1, rotorY + 1);
+    ctx.stroke();
+
+    // 机臂主体 - 渐变色
+    const armGrad = ctx.createLinearGradient(startX, startY, rotorX, rotorY);
+    armGrad.addColorStop(0, darkenColor(color, 10));
+    armGrad.addColorStop(0.5, darkenColor(color, 20));
+    armGrad.addColorStop(1, darkenColor(color, 30));
+    ctx.strokeStyle = armGrad;
+    ctx.lineWidth = cfg.armW;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(rotorX, rotorY);
+    ctx.stroke();
+
+    // 机臂折叠关节（DJI标志性圆形关节）
+    ctx.fillStyle = '#555';
+    ctx.beginPath();
+    ctx.arc(startX, startY, cfg.armW * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#777';
+    ctx.beginPath();
+    ctx.arc(startX, startY, cfg.armW * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 电机外壳（圆柱形）
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath();
+    ctx.arc(rotorX, rotorY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#444';
+    ctx.beginPath();
+    ctx.arc(rotorX, rotorY, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    // 电机顶部细节
+    ctx.fillStyle = '#555';
+    ctx.beginPath();
+    ctx.arc(rotorX, rotorY, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ====== 螺旋桨 ======
+    const throttle = Math.abs(leftY) + Math.abs(rightX) + Math.abs(rightY);
+    const totalThrottle = 0.3 + throttle * 0.7;
+    const rotorSpeed = 2 + totalThrottle * 6;
+    const rotorTime = Date.now() / rotorSpeed;
+    const blurIntensity = 0.05 + totalThrottle * 0.3;
+    const bladeOpacity = Math.max(0.15, 0.9 - totalThrottle * 0.75);
+
+    ctx.save();
+    ctx.translate(rotorX, rotorY);
+
+    // 螺旋桨旋转模糊圆盘
+    const blurGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, cfg.rotorR * 1.15);
+    blurGrad.addColorStop(0, `rgba(180,180,180,${blurIntensity * 0.2})`);
+    blurGrad.addColorStop(0.3, `rgba(160,160,160,${blurIntensity * 0.7})`);
+    blurGrad.addColorStop(0.6, `rgba(140,140,140,${blurIntensity * 0.5})`);
+    blurGrad.addColorStop(0.85, `rgba(120,120,120,${blurIntensity * 0.2})`);
+    blurGrad.addColorStop(1, 'rgba(100,100,100,0)');
+    ctx.fillStyle = blurGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, cfg.rotorR * 1.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 螺旋桨叶片
+    const rotationDir = i % 2 === 0 ? 1 : -1;
+    ctx.save();
+    ctx.rotate(rotorTime * rotationDir);
+    for (let j = 0; j < 2; j++) {
+      ctx.save();
+      ctx.rotate(j * Math.PI);
+      // 叶片 - DJI标志性弧形叶片
+      const bladeGrad = ctx.createLinearGradient(0, -3, 0, 3);
+      bladeGrad.addColorStop(0, `rgba(80,80,80,${bladeOpacity})`);
+      bladeGrad.addColorStop(0.5, `rgba(60,60,60,${bladeOpacity * 0.95})`);
+      bladeGrad.addColorStop(1, `rgba(40,40,40,${bladeOpacity * 0.9})`);
+      ctx.fillStyle = bladeGrad;
+      ctx.beginPath();
+      ctx.moveTo(2, 0);
+      ctx.bezierCurveTo(cfg.rotorR * 0.3, -3, cfg.rotorR * 0.7, -3, cfg.rotorR * 0.95, -1.5);
+      ctx.lineTo(cfg.rotorR * 0.95, 1.5);
+      ctx.bezierCurveTo(cfg.rotorR * 0.7, 3, cfg.rotorR * 0.3, 3, 2, 0);
+      ctx.closePath();
+      ctx.fill();
+      // 叶片高光
+      ctx.fillStyle = `rgba(255,255,255,${bladeOpacity * 0.3})`;
+      ctx.beginPath();
+      ctx.moveTo(3, -0.5);
+      ctx.lineTo(cfg.rotorR * 0.7, -1);
+      ctx.lineTo(cfg.rotorR * 0.7, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // 电机中心盖
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#555';
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ====== 机身主体 - DJI流线型设计 ======
+  // 机身阴影
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.moveTo(-cfg.bodyW * 0.95 + 2, 2);
+  ctx.bezierCurveTo(-cfg.bodyW * 0.95 + 2, -cfg.bodyH * 0.65 + 2, -cfg.bodyW * 0.5 + 2, -cfg.bodyH * 1.05 + 2, 2, -cfg.bodyH * 1.05 + 2);
+  ctx.bezierCurveTo(cfg.bodyW * 0.5 + 2, -cfg.bodyH * 1.05 + 2, cfg.bodyW * 0.95 + 2, -cfg.bodyH * 0.65 + 2, cfg.bodyW * 0.95 + 2, 2);
+  ctx.bezierCurveTo(cfg.bodyW * 0.95 + 2, cfg.bodyH * 0.65 + 2, cfg.bodyW * 0.5 + 2, cfg.bodyH * 1.05 + 2, 2, cfg.bodyH * 1.05 + 2);
+  ctx.bezierCurveTo(-cfg.bodyW * 0.5 + 2, cfg.bodyH * 1.05 + 2, -cfg.bodyW * 0.95 + 2, cfg.bodyH * 0.65 + 2, -cfg.bodyW * 0.95 + 2, 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // 机身渐变 - 更真实的DJI配色
+  const bodyGrad = ctx.createRadialGradient(-cfg.bodyW * 0.2, -cfg.bodyH * 0.3, 0, 0, 0, cfg.bodyW * 1.2);
+  bodyGrad.addColorStop(0, lightenColor(color, 50));
+  bodyGrad.addColorStop(0.2, lightenColor(color, 30));
+  bodyGrad.addColorStop(0.5, color);
+  bodyGrad.addColorStop(0.8, darkenColor(color, 15));
+  bodyGrad.addColorStop(1, darkenColor(color, 30));
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.moveTo(-cfg.bodyW * 0.95, 0);
+  ctx.bezierCurveTo(-cfg.bodyW * 0.95, -cfg.bodyH * 0.65, -cfg.bodyW * 0.5, -cfg.bodyH * 1.05, 0, -cfg.bodyH * 1.05);
+  ctx.bezierCurveTo(cfg.bodyW * 0.5, -cfg.bodyH * 1.05, cfg.bodyW * 0.95, -cfg.bodyH * 0.65, cfg.bodyW * 0.95, 0);
+  ctx.bezierCurveTo(cfg.bodyW * 0.95, cfg.bodyH * 0.65, cfg.bodyW * 0.5, cfg.bodyH * 1.05, 0, cfg.bodyH * 1.05);
+  ctx.bezierCurveTo(-cfg.bodyW * 0.5, cfg.bodyH * 1.05, -cfg.bodyW * 0.95, cfg.bodyH * 0.65, -cfg.bodyW * 0.95, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // 机身边缘高光线
+  ctx.strokeStyle = lightenColor(color, 40);
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // 机身顶部面板（DJI标志性散热格栅区域）
+  ctx.fillStyle = darkenColor(color, 8);
+  ctx.beginPath();
+  ctx.ellipse(0, -cfg.bodyH * 0.2, cfg.bodyW * 0.35, cfg.bodyH * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 散热格栅线条
+  ctx.strokeStyle = darkenColor(color, 20);
+  ctx.lineWidth = 0.5;
+  for (let gi = -3; gi <= 3; gi++) {
+    ctx.beginPath();
+    ctx.moveTo(-cfg.bodyW * 0.3, -cfg.bodyH * 0.2 + gi * cfg.bodyH * 0.08);
+    ctx.lineTo(cfg.bodyW * 0.3, -cfg.bodyH * 0.2 + gi * cfg.bodyH * 0.08);
+    ctx.stroke();
+  }
+
+  // 机身底部面板
+  ctx.fillStyle = darkenColor(color, 15);
+  ctx.beginPath();
+  ctx.ellipse(0, cfg.bodyH * 0.3, cfg.bodyW * 0.3, cfg.bodyH * 0.25, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // DJI标志 - 更精致
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.font = `bold ${Math.max(6, cfg.bodyW * 0.28)}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('DJI', -cfg.bodyW * 0.05, -cfg.bodyH * 0.15);
+
+  // ====== 云台摄像头系统 - DJI标志性哈苏摄像头 ======
+  const gimbalX = cfg.bodyW * 0.65;
+
+  // 云台支架（DJI三轴稳定器）
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(gimbalX - 1.5, -cfg.bodyH * 0.4, 3, cfg.bodyH * 0.4);
+
+  // 云台主体
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  const gx = gimbalX - 5, gy = -6, gw = 14, gh = 12, gr = 3;
+  ctx.moveTo(gx + gr, gy);
+  ctx.lineTo(gx + gw - gr, gy);
+  ctx.quadraticCurveTo(gx + gw, gy, gx + gw, gy + gr);
+  ctx.lineTo(gx + gw, gy + gh - gr);
+  ctx.quadraticCurveTo(gx + gw, gy + gh, gx + gw - gr, gy + gh);
+  ctx.lineTo(gx + gr, gy + gh);
+  ctx.quadraticCurveTo(gx, gy + gh, gx, gy + gh - gr);
+  ctx.lineTo(gx, gy + gr);
+  ctx.quadraticCurveTo(gx, gy, gx + gr, gy);
+  ctx.closePath();
+  ctx.fill();
+
+  // 主摄像头（哈苏标志性的大镜头）
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.arc(gimbalX + 4, 0, 6, 0, Math.PI * 2);
+  ctx.fill();
+  // 镜头多层结构
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(gimbalX + 4, 0, 5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(gimbalX + 4, 0, 4, 0, Math.PI * 2);
+  ctx.stroke();
+  // 镜头玻璃反光
+  const lensGrad = ctx.createRadialGradient(gimbalX + 2, -2, 0, gimbalX + 4, 0, 5);
+  lensGrad.addColorStop(0, 'rgba(120,170,220,0.7)');
+  lensGrad.addColorStop(0.3, 'rgba(80,120,180,0.5)');
+  lensGrad.addColorStop(0.6, 'rgba(40,60,100,0.3)');
+  lensGrad.addColorStop(1, 'rgba(20,30,50,0.1)');
+  ctx.fillStyle = lensGrad;
+  ctx.beginPath();
+  ctx.arc(gimbalX + 4, 0, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+  // 镜头中心点
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.arc(gimbalX + 3, -1, 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 副摄像头（Air 3双摄 / Mavic 3 Pro三摄）
+  if (type === 'air3' || type === 'mavic3') {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(gimbalX + 4, -8, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(80,120,160,0.5)';
+    ctx.beginPath();
+    ctx.arc(gimbalX + 4, -8, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.arc(gimbalX + 3.5, -8.5, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (type === 'mavic3') {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(gimbalX + 4, 8, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(80,120,160,0.5)';
+    ctx.beginPath();
+    ctx.arc(gimbalX + 4, 8, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.arc(gimbalX + 3.5, 7.5, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    // 哈苏标志
+    ctx.fillStyle = 'rgba(255,200,0,0.6)';
+    ctx.font = '4px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('H', gimbalX + 4, 0);
+  }
+
+  // ====== LED指示灯系统 ======
+  // 前方LED（绿色 - DJI标志性）
+  const ledPulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.005);
+  ctx.fillStyle = `rgba(0,255,0,${ledPulse})`;
+  ctx.beginPath();
+  ctx.arc(cfg.bodyW * 0.88, -cfg.bodyH * 0.3, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  // LED光晕
+  ctx.fillStyle = `rgba(0,255,0,${ledPulse * 0.3})`;
+  ctx.beginPath();
+  ctx.arc(cfg.bodyW * 0.88, -cfg.bodyH * 0.3, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(0,255,0,${ledPulse * 0.1})`;
+  ctx.beginPath();
+  ctx.arc(cfg.bodyW * 0.88, -cfg.bodyH * 0.3, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 后方LED（红色）
+  ctx.fillStyle = `rgba(255,0,0,${ledPulse})`;
+  ctx.beginPath();
+  ctx.arc(-cfg.bodyW * 0.88, -cfg.bodyH * 0.3, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(255,0,0,${ledPulse * 0.3})`;
+  ctx.beginPath();
+  ctx.arc(-cfg.bodyW * 0.88, -cfg.bodyH * 0.3, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(255,0,0,${ledPulse * 0.1})`;
+  ctx.beginPath();
+  ctx.arc(-cfg.bodyW * 0.88, -cfg.bodyH * 0.3, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 底部LED（闪烁）
+  const blinkOn = Math.floor(Date.now() / 500) % 2 === 0;
+  if (blinkOn) {
+    ctx.fillStyle = 'rgba(255,100,0,0.9)';
+    ctx.beginPath();
+    ctx.arc(0, cfg.bodyH * 0.6, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,100,0,0.3)';
+    ctx.beginPath();
+    ctx.arc(0, cfg.bodyH * 0.6, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ====== 电池指示灯（尾部4颗） ======
+  const batteryLevel = battery / 100;
+  for (let bi = 0; bi < 4; bi++) {
+    const on = batteryLevel > bi * 0.25;
+    ctx.fillStyle = on ? (batteryLevel < 0.25 ? '#ff0000' : '#4caf50') : '#333';
+    ctx.beginPath();
+    ctx.arc(-cfg.bodyW * 0.6 + bi * 5, cfg.bodyH * 0.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function lightenColor(color, percent) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.min(255, (num >> 16) + amt);
+  const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+  const B = Math.min(255, (num & 0x0000FF) + amt);
+  return `rgb(${R},${G},${B})`;
+}
+
+function darkenColor(color, percent) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.max(0, (num >> 16) - amt);
+  const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
+  const B = Math.max(0, (num & 0x0000FF) - amt);
+  return `rgb(${R},${G},${B})`;
+}
+
+function updateUI() {
+  const speed = Math.sqrt(droneVX**2 + droneVY**2);
+  const distHome = Math.sqrt((droneX-rthTargetX)**2 + (droneY-rthTargetY)**2);
+  const alt = droneZ;
+
+  const teleAlt = document.getElementById('teleAlt');
+  const teleSpd = document.getElementById('teleSpd');
+  const teleDis = document.getElementById('teleDis');
+  const teleDist = document.getElementById('teleDist');
+  const teleHdg = document.getElementById('teleHdg');
+  const signalVal = document.getElementById('signalVal');
+  const gpsVal = document.getElementById('gpsVal');
+
+  if (teleAlt) teleAlt.textContent = alt.toFixed(1);
+  if (teleSpd) teleSpd.textContent = speed.toFixed(1);
+  if (teleDis) teleDis.textContent = distHome.toFixed(1);
+  if (teleDist) teleDist.textContent = (totalDist/1000).toFixed(2);
+  if (teleHdg) teleHdg.textContent = Math.round((droneAngle % 360 + 360) % 360);
+  if (signalVal) signalVal.textContent = Math.round(80 + Math.random()*20);
+  if (gpsVal) gpsVal.textContent = Math.round(18 + Math.random()*8);
+}
+
+function selectDrone(idx) {
+  drone = DRONES[idx];
+  document.querySelectorAll('.drone-card').forEach((c, i) => {
+    c.classList.toggle('active', i === idx);
+  });
+  notify(`已切换至 ${drone.icon} ${drone.name}`, 2000);
+}
+
+function updateSafePointsUI() {
+  const container = document.getElementById('safePoints');
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 0; i < SAFE_POINTS.length; i++) {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:#12121a;border:1px solid rgba(76,175,80,0.3);color:#aaa;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;';
+    btn.textContent = SAFE_POINTS[i].set ? `✓ 安全点${i+1}` : `○ 安全点${i+1}`;
+    btn.style.color = SAFE_POINTS[i].set ? '#4caf50' : '#888';
+    btn.style.borderColor = SAFE_POINTS[i].set ? '#4caf50' : 'rgba(76,175,80,0.3)';
+    container.appendChild(btn);
+  }
+}
+
+function triggerRTH() {
+  const btnRTH = document.getElementById('btnRTH');
+  const flightMode = document.getElementById('flightMode');
+  if (isRTH) {
+    isRTH = false;
+    notify('已取消返航', 2000);
+    if (btnRTH) btnRTH.classList.remove('active');
+  } else {
+    isRTH = true;
+    rthTargetX = 500; rthTargetY = 500;
+    notify('🏠 正在返航...', 3000);
+    if (btnRTH) btnRTH.classList.add('active');
+    if (flightMode) flightMode.textContent = 'RTH';
+  }
+}
+
+function toggleObstacle() {
+  obstacleEnabled = !obstacleEnabled;
+  const btnOBS = document.getElementById('btnOBS');
+  if (btnOBS) {
+    btnOBS.classList.toggle('active', obstacleEnabled);
+    btnOBS.innerHTML = obstacleEnabled
+      ? '<span class="icon">🛡️</span><span>避障</span>'
+      : '<span class="icon">🚫</span><span>避障关</span>';
+  }
+  notify(obstacleEnabled ? '🛡️ 避障已开启' : '🚫 避障已关闭', 2000);
+}
+
+function setGear(gear) {
+  currentGear = gear;
+
+  // 更新按钮状态
+  const gearC = document.getElementById('gearC');
+  const gearN = document.getElementById('gearN');
+  const gearS = document.getElementById('gearS');
+  if (gearC) gearC.classList.toggle('active', gear === 'C');
+  if (gearN) gearN.classList.toggle('active', gear === 'N');
+  if (gearS) gearS.classList.toggle('active', gear === 'S');
+
+  // 更新档位描述
+  const gearDesc = document.getElementById('gearDesc');
+  if (gearDesc) {
+    const descriptions = {
+      'C': '平稳档 · 慢速飞行',
+      'N': '普通档 · 均衡飞行',
+      'S': '运动档 · 高速飞行'
+    };
+    gearDesc.textContent = descriptions[gear];
+  }
+
+  // 更新顶部状态栏档位显示
+  const flightMode = document.getElementById('flightMode');
+  if (flightMode) {
+    flightMode.textContent = gear + '档';
+  }
+
+  // 通知
+  const gearNames = { 'C': '平稳档', 'N': '普通档', 'S': '运动档' };
+  notify('已切换至 ' + gearNames[gear], 2000);
+}
+
+function getGearSpeedMultiplier() {
+  // C档: 0.4倍速度, N档: 1倍速度, S档: 1.5倍速度
+  const multipliers = { 'C': 0.4, 'N': 1.0, 'S': 1.5 };
+  return multipliers[currentGear] || 1.0;
+}
+
+function getGearTurnSpeedMultiplier() {
+  // C档: 0.5倍转弯速度, N档: 1倍转弯速度, S档: 2倍转弯速度
+  const multipliers = { 'C': 0.5, 'N': 1.0, 'S': 2.0 };
+  return multipliers[currentGear] || 1.0;
+}
+
+function toggleFPV() {
+  fpvMode = !fpvMode;
+  mapScale = fpvMode ? 0.5 : 1;
+  const btnFPV = document.getElementById('btnFPV');
+  if (btnFPV) {
+    btnFPV.classList.toggle('active', fpvMode);
+    btnFPV.innerHTML = fpvMode
+      ? '<span class="icon">🗺️</span><span>地图</span>'
+      : '<span class="icon">👁️</span><span>视角</span>';
+  }
+}
+
+function toggleCruise() {
+  const btnCruise = document.getElementById('btnCruise');
+
+  if (isCruise) {
+    // 关闭定速巡航
+    isCruise = false;
+    cruiseWaitingForInput = false;
+    cruiseSpeed = 0;
+    if (btnCruise) {
+      btnCruise.classList.remove('active');
+      btnCruise.innerHTML = '<span class="icon">🚀</span><span>巡航</span>';
+    }
+    notify('🚀 定速巡航已关闭', 2000);
+  } else if (cruiseWaitingForInput) {
+    // 取消等待输入
+    cruiseWaitingForInput = false;
+    if (btnCruise) {
+      btnCruise.classList.remove('active');
+      btnCruise.innerHTML = '<span class="icon">🚀</span><span>巡航</span>';
+    }
+    notify('已取消定速巡航', 2000);
+  } else {
+    // 开始等待摇杆输入
+    cruiseWaitingForInput = true;
+    if (btnCruise) {
+      btnCruise.classList.add('active');
+      btnCruise.innerHTML = '<span class="icon">⏳</span><span>等待</span>';
+    }
+    notify('🚀 请拨动摇杆设定巡航方向', 3000);
+  }
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  const btnPause = document.getElementById('btnPause');
+  if (btnPause) {
+    btnPause.innerHTML = isPaused
+      ? '<span class="icon">▶️</span><span>继续</span>'
+      : '<span class="icon">⏸️</span><span>暂停</span>';
+  }
+  notify(isPaused ? '⏸️ 已暂停' : '▶️ 继续飞行', 2000);
+}
+
+function notify(msg, duration) {
+  const el = document.getElementById('notification');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+window.addEventListener('resize', initCanvas);
+
+const startBtn = document.getElementById('startBtn');
+if (startBtn) {
+  startBtn.addEventListener('click', startGame);
+  startBtn.addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });
+}
+
+initCanvas();
+</script>
+</body>
+</html>

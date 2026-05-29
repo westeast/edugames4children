@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>儿童教育游戏 - 首页</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: white;
+            font-size: 36px;
+            margin: 40px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .games-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1000px;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .game-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .game-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        }
+
+        .game-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .game-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .game-description {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .play-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .play-button:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+
+        footer {
+            margin-top: 40px;
+            color: white;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 28px;
+            }
+
+            .games-container {
+                grid-template-columns: 1fr;
+            }
+
+            .game-card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 儿童教育游戏</h1>
+    
+    <div class="games-container">
+        <div class="game-card">
+            <div class="game-icon">♟️</div>
+            <h2 class="game-title">五子棋学习游戏</h2>
+            <p class="game-description">在玩五子棋的同时学习数字、拼音和英文字母，带有声音和动画效果，适合儿童学习使用。</p>
+            <a href="gomoku/index.html" class="play-button">开始游戏</a>
+        </div>
+        
+        <div class="game-card">
+            <div class="game-icon">🐍</div>
+            <h2 class="game-title">贪吃蛇学习游戏</h2>
+            <p class="game-description">在玩贪吃蛇的同时学习数字、拼音和英文字母，带有声音和动画效果，适合儿童学习使用。</p>
+            <a href="snake/index.html" class="play-button">开始游戏</a>
+        </div>
+        
+        <div class="game-card">
+            <div class="game-icon">🦕</div>
+            <h2 class="game-title">恐龙跳跳游戏</h2>
+            <p class="game-description">在玩恐龙跑酷的同时学习汉字、拼音和英文字母，带有彩色画面和教育元素，适合儿童学习使用。</p>
+            <a href="dinosaur-game/index.html" class="play-button">开始游戏</a>
+        </div>
+        
+        <div class="game-card">
+            <div class="game-icon">🚁</div>
+            <h2 class="game-title">大疆虚拟飞行</h2>
+            <p class="game-description">体验大疆无人机虚拟飞行，模拟真实飞行操作，支持多款机型和避障功能，适合儿童航空知识学习。</p>
+            <a href="flight/dji-flight-simulator.html" class="play-button">开始游戏</a>
+        </div>
+        
+        <div class="game-card">
+            <div class="game-icon">⚫⚪</div>
+            <h2 class="game-title">围棋读诗游戏</h2>
+            <p class="game-description">标准 19 路围棋，支持提子规则、实时步数、垃圾桶显示、双人对战与 1-10 级电脑难度。</p>
+            <a href="weiqi/index.html" class="play-button">开始游戏</a>
+        </div>
+
+        <div class="game-card">
+            <div class="game-icon">🔄</div>
+            <h2 class="game-title">更多游戏即将推出</h2>
+            <p class="game-description">我们正在开发更多有趣的教育游戏，敬请期待！</p>
+            <button class="play-button" disabled>敬请期待</button>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2026 儿童教育游戏 - 让学习更有趣</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>儿童五子棋 - 学习游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 28px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .game-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        select, button {
+            padding: 8px 15px;
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        select {
+            background: white;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            height: 40px;
+            padding: 0 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .game-content {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .game-content {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        .info-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            min-width: 200px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .info-item {
+            margin-bottom: 15px;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 18px;
+            color: #333;
+        }
+
+        .board-container {
+            display: flex;
+            justify-content: center;
+        }
+
+        .board {
+            position: relative;
+            background: #F5DEB3;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90vw;
+            max-width: 600px;
+            aspect-ratio: 1;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(14, 1fr);
+            grid-template-rows: repeat(14, 1fr);
+            gap: 0;
+        }
+
+        .grid-line {
+            border: 0.5px solid #8B4513;
+        }
+
+        .intersection {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 1;
+        }
+
+        .intersection:hover {
+            background: rgba(139, 69, 19, 0.1);
+            border-radius: 50%;
+        }
+
+        .piece {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            animation: dropIn 0.3s ease-out;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 2;
+        }
+
+        @keyframes dropIn {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
+            70% {
+                transform: translate(-50%, -50%) scale(1.1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .piece.black {
+            background: #333;
+            color: white;
+        }
+
+        .piece.white {
+            background: white;
+            color: #333;
+            border: 2px solid #333;
+        }
+
+        .danger-point {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: red;
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .status {
+            margin: 20px 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .winner-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .winner-content {
+            text-align: center;
+            color: white;
+        }
+
+        .winner-flag {
+            width: 150px;
+            height: 100px;
+            background: #e74c3c;
+            position: relative;
+            margin: 0 auto 20px;
+            animation: wave 2s ease-in-out infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes wave {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .winner-flag::after {
+            content: '';
+            position: absolute;
+            left: -30px;
+            top: 0;
+            width: 30px;
+            height: 100%;
+            background: #333;
+        }
+
+        .five-star-red-flag {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .star {
+            position: absolute;
+            color: #ffde00;
+            font-size: 20px;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .star.large {
+            top: 25%;
+            left: 25%;
+            font-size: 30px;
+        }
+
+        .star.small {
+            font-size: 15px;
+        }
+
+        .star:nth-child(2) {
+            top: 15%;
+            right: 30%;
+        }
+
+        .star:nth-child(3) {
+            top: 35%;
+            right: 20%;
+        }
+
+        .star:nth-child(4) {
+            top: 55%;
+            right: 25%;
+        }
+
+        .star:nth-child(5) {
+            top: 45%;
+            right: 45%;
+        }
+
+        .winner-text {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .winner-subtext {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+
+        .firework {
+            position: absolute;
+            border-radius: 50%;
+            animation: explode 1.5s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+        .firework-particle {
+            position: absolute;
+            border-radius: 50%;
+            animation: particle 1s ease-out forwards;
+        }
+
+        @keyframes particle {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0) translateY(50px);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .button-group {
+                flex-direction: column;
+                width: 100%;
+                align-items: center;
+            }
+
+            .button-group button {
+                width: 200px;
+            }
+
+            .board {
+                width: 95vw;
+            }
+
+            .piece {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 儿童五子棋 - 学习游戏</h1>
+    
+    <div style="display: flex; gap: 20px; justify-content: center; align-items: flex-start; flex-wrap: nowrap; max-width: 1000px; margin: 0 auto;">
+        <div class="info-panel">
+            <div class="info-item">
+                <div class="info-label">黑棋步数</div>
+                <div class="info-value" id="blackCount">0</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">白棋步数</div>
+                <div class="info-value" id="whiteCount">0</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">下一步</div>
+                <div class="info-value" id="nextPlayer">黑棋</div>
+            </div>
+        </div>
+        
+        <div class="game-container">
+            <div class="controls">
+                <div class="control-group">
+                    <label for="displayType">显示类型：</label>
+                    <select id="displayType">
+                        <option value="number">1. 数字</option>
+                        <option value="initial">2. 拼音声母</option>
+                        <option value="final">3. 拼音韵母</option>
+                        <option value="uppercase">4. 大写字母</option>
+                        <option value="lowercase">5. 小写字母</option>
+                    </select>
+                </div>
+                <div class="button-group">
+                    <button id="startBtn">开始</button>
+                    <button id="pauseBtn">暂停</button>
+                    <button id="endBtn">结束</button>
+                    <button id="fullscreenBtn">全屏</button>
+                    <button id="restartBtn">重新开始</button>
+                </div>
+            </div>
+
+            <div class="status" id="status">轮到黑棋</div>
+            
+            <div class="board-container">
+                <div class="board" id="board"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 游戏状态
+        const gameState = {
+            board: Array(15).fill().map(() => Array(15).fill(null)),
+            currentPlayer: 'black',
+            gameOver: false,
+            paused: false,
+            moveCount: 0,
+            blackCount: 0,
+            whiteCount: 0,
+            displayType: 'number'
+        };
+
+        // 显示内容数据
+        const displayData = {
+            number: Array.from({length: 255}, (_, i) => (i + 1).toString()),
+            initial: ['b', 'p', 'm', 'f', 'd', 't', 'n', 'l', 'g', 'k', 'h', 'j', 'q', 'x', 'zh', 'ch', 'sh', 'r', 'z', 'c', 's', 'y', 'w'],
+            final: ['a', 'o', 'e', 'i', 'u', 'ü', 'ai', 'ei', 'ui', 'ao', 'ou', 'iu', 'ie', 'üe', 'er', 'an', 'en', 'in', 'un', 'ün', 'ang', 'eng', 'ing', 'ong'],
+            uppercase: Array.from({length: 26}, (_, i) => String.fromCharCode(65 + i)),
+            lowercase: Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i))
+        };
+
+        // 声音对象
+        const sounds = {
+            place: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAD'),
+            win: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAD'),
+            danger: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAD'),
+            firework: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAD')
+        };
+
+        // 初始化棋盘
+        function initBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            // 创建网格线
+            const grid = document.createElement('div');
+            grid.className = 'grid';
+            for (let i = 0; i < 14; i++) {
+                for (let j = 0; j < 14; j++) {
+                    const gridLine = document.createElement('div');
+                    gridLine.className = 'grid-line';
+                    grid.appendChild(gridLine);
+                }
+            }
+            board.appendChild(grid);
+            
+            // 创建交叉点
+            for (let i = 0; i < 15; i++) {
+                for (let j = 0; j < 15; j++) {
+                    const intersection = document.createElement('div');
+                    intersection.className = 'intersection';
+                    intersection.dataset.row = i;
+                    intersection.dataset.col = j;
+                    intersection.style.left = `${(j / 14) * 100}%`;
+                    intersection.style.top = `${(i / 14) * 100}%`;
+                    intersection.addEventListener('click', () => handleCellClick(i, j));
+                    board.appendChild(intersection);
+                }
+            }
+        }
+
+        // 处理交叉点点击
+        function handleCellClick(row, col) {
+            if (gameState.gameOver || gameState.paused || gameState.board[row][col]) return;
+
+            // 放置棋子
+            gameState.board[row][col] = gameState.currentPlayer;
+            const piece = createPiece(row, col, gameState.currentPlayer);
+            const intersection = document.querySelector(`.intersection[data-row="${row}"][data-col="${col}"]`);
+            intersection.appendChild(piece);
+
+            // 增加对应玩家的步数
+            if (gameState.currentPlayer === 'black') {
+                gameState.blackCount++;
+            } else {
+                gameState.whiteCount++;
+            }
+
+            // 播放放置声音
+            playSound('place');
+
+            // 检查胜利
+            if (checkWin(row, col)) {
+                gameState.gameOver = true;
+                showWinner(gameState.currentPlayer);
+                updateStatus();
+                return;
+            }
+
+            // 检查危险
+            checkDanger();
+
+            // 切换玩家
+            gameState.currentPlayer = gameState.currentPlayer === 'black' ? 'white' : 'black';
+            gameState.moveCount++;
+            updateStatus();
+        }
+
+        // 创建棋子
+        function createPiece(row, col, player) {
+            const piece = document.createElement('div');
+            piece.className = `piece ${player}`;
+            
+            // 根据显示类型设置内容
+            const content = getDisplayContent();
+            piece.textContent = content;
+            
+            // 播放棋子内容的语音
+            speakContent(content);
+            
+            return piece;
+        }
+
+        // 获取显示内容
+        function getDisplayContent() {
+            const type = gameState.displayType;
+            const data = displayData[type];
+            const index = gameState.moveCount % data.length;
+            return data[index];
+        }
+
+        // 检查胜利
+        function checkWin(row, col) {
+            const player = gameState.board[row][col];
+            const directions = [
+                [0, 1],   // 水平
+                [1, 0],   // 垂直
+                [1, 1],   // 对角线
+                [1, -1]   // 反对角线
+            ];
+
+            for (const [dx, dy] of directions) {
+                let count = 1;
+                
+                // 向正方向检查
+                for (let i = 1; i < 5; i++) {
+                    const newRow = row + i * dx;
+                    const newCol = col + i * dy;
+                    if (isValidPosition(newRow, newCol) && gameState.board[newRow][newCol] === player) {
+                        count++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // 向反方向检查
+                for (let i = 1; i < 5; i++) {
+                    const newRow = row - i * dx;
+                    const newCol = col - i * dy;
+                    if (isValidPosition(newRow, newCol) && gameState.board[newRow][newCol] === player) {
+                        count++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                if (count >= 5) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // 检查危险
+        function checkDanger() {
+            // 清除之前的危险点
+            document.querySelectorAll('.danger-point').forEach(point => point.remove());
+            
+            // 检查双方的危险情况
+            ['black', 'white'].forEach(player => {
+                for (let i = 0; i < 15; i++) {
+                    for (let j = 0; j < 15; j++) {
+                        if (!gameState.board[i][j]) {
+                            // 模拟放置棋子
+                            gameState.board[i][j] = player;
+                            if (checkWin(i, j)) {
+                                // 显示危险点
+                                showDangerPoint(i, j);
+                                playSound('danger');
+                            }
+                            // 撤销模拟
+                            gameState.board[i][j] = null;
+                        }
+                    }
+                }
+            });
+        }
+
+        // 显示危险点
+        function showDangerPoint(row, col) {
+            const intersection = document.querySelector(`.intersection[data-row="${row}"][data-col="${col}"]`);
+            const point = document.createElement('div');
+            point.className = 'danger-point';
+            intersection.appendChild(point);
+        }
+
+        // 显示胜利者
+        function showWinner(player) {
+            const overlay = document.createElement('div');
+            overlay.className = 'winner-overlay';
+            
+            const content = document.createElement('div');
+            content.className = 'winner-content';
+            
+            const flag = document.createElement('div');
+            flag.className = 'winner-flag';
+            
+            // 添加五星红旗
+            const fiveStarFlag = document.createElement('div');
+            fiveStarFlag.className = 'five-star-red-flag';
+            
+            // 大五角星
+            const largeStar = document.createElement('div');
+            largeStar.className = 'star large';
+            largeStar.textContent = '★';
+            fiveStarFlag.appendChild(largeStar);
+            
+            // 四颗小五角星
+            for (let i = 0; i < 4; i++) {
+                const smallStar = document.createElement('div');
+                smallStar.className = 'star small';
+                smallStar.textContent = '★';
+                fiveStarFlag.appendChild(smallStar);
+            }
+            
+            flag.appendChild(fiveStarFlag);
+            
+            const text = document.createElement('div');
+            text.className = 'winner-text';
+            text.textContent = player === 'black' ? '黑棋胜利！' : '白棋胜利！';
+            
+            const subtext = document.createElement('div');
+            subtext.className = 'winner-subtext';
+            subtext.textContent = player === 'black' ? 'Black Wins!' : 'White Wins!';
+            
+            content.appendChild(flag);
+            content.appendChild(text);
+            content.appendChild(subtext);
+            overlay.appendChild(content);
+            
+            document.body.appendChild(overlay);
+            
+            // 播放胜利声音
+            playSound('win');
+            
+            // 生成烟花
+            createFireworks();
+            
+            // 3秒后移除覆盖层
+            setTimeout(() => {
+                overlay.remove();
+            }, 5000);
+        }
+
+        // 创建烟花
+        function createFireworks() {
+            for (let i = 0; i < 30; i++) {
+                setTimeout(() => {
+                    // 随机位置
+                    const x = Math.random() * window.innerWidth;
+                    const y = Math.random() * window.innerHeight;
+                    
+                    // 随机颜色
+                    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff9900', '#9900ff'];
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    // 创建主烟花
+                    const firework = document.createElement('div');
+                    firework.className = 'firework';
+                    firework.style.left = x + 'px';
+                    firework.style.top = y + 'px';
+                    firework.style.width = '20px';
+                    firework.style.height = '20px';
+                    firework.style.background = color;
+                    document.body.appendChild(firework);
+                    
+                    // 播放烟花声音
+                    playSound('firework');
+                    
+                    // 创建粒子效果
+                    setTimeout(() => {
+                        createFireworkParticles(x, y, color);
+                        firework.remove();
+                    }, 300);
+                    
+                }, i * 200);
+            }
+        }
+
+        // 创建烟花粒子
+        function createFireworkParticles(x, y, color) {
+            const particleCount = 20;
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'firework-particle';
+                
+                // 随机角度和距离
+                const angle = (Math.PI * 2 / particleCount) * i;
+                const distance = Math.random() * 100 + 50;
+                const particleX = x + Math.cos(angle) * distance;
+                const particleY = y + Math.sin(angle) * distance;
+                
+                // 粒子样式
+                particle.style.left = x + 'px';
+                particle.style.top = y + 'px';
+                particle.style.width = Math.random() * 5 + 3 + 'px';
+                particle.style.height = particle.style.width;
+                particle.style.background = color;
+                particle.style.transition = 'all 1s ease-out';
+                
+                document.body.appendChild(particle);
+                
+                // 触发动画
+                setTimeout(() => {
+                    particle.style.left = particleX + 'px';
+                    particle.style.top = particleY + 'px';
+                    particle.style.opacity = '0';
+                    particle.style.transform = 'scale(0)';
+                }, 10);
+                
+                // 移除粒子
+                setTimeout(() => {
+                    particle.remove();
+                }, 1000);
+            }
+        }
+
+        // 检查位置是否有效
+        function isValidPosition(row, col) {
+            return row >= 0 && row < 15 && col >= 0 && col < 15;
+        }
+
+        // 更新状态
+        function updateStatus() {
+            const status = document.getElementById('status');
+            if (gameState.paused) {
+                status.textContent = '游戏暂停';
+            } else if (gameState.gameOver) {
+                status.textContent = '游戏结束';
+            } else {
+                status.textContent = `轮到${gameState.currentPlayer === 'black' ? '黑' : '白'}棋`;
+            }
+            
+            // 更新步数统计
+            document.getElementById('blackCount').textContent = gameState.blackCount;
+            document.getElementById('whiteCount').textContent = gameState.whiteCount;
+            
+            // 更新下一步提示
+            if (!gameState.gameOver && !gameState.paused) {
+                document.getElementById('nextPlayer').textContent = gameState.currentPlayer === 'black' ? '黑棋' : '白棋';
+            } else if (gameState.gameOver) {
+                document.getElementById('nextPlayer').textContent = '游戏结束';
+            } else {
+                document.getElementById('nextPlayer').textContent = '游戏暂停';
+            }
+        }
+
+        // 播放声音
+        function playSound(type) {
+            if (sounds[type]) {
+                sounds[type].currentTime = 0;
+                sounds[type].play().catch(e => console.log('Error playing sound:', e));
+            }
+        }
+
+        // 朗读内容（优化发音）
+        function speakContent(content) {
+            if ('speechSynthesis' in window) {
+                // 为汉语拼音声母和韵母提供正确的发音
+                const pinyinMap = {
+                    // 声母
+                    'b': '玻', 'p': '坡', 'm': '摸', 'f': '佛',
+                    'd': '得', 't': '特', 'n': '讷', 'l': '勒',
+                    'g': '哥', 'k': '科', 'h': '喝',
+                    'j': '基', 'q': '欺', 'x': '希',
+                    'zh': '知', 'ch': '吃', 'sh': '诗', 'r': '日',
+                    'z': '资', 'c': '雌', 's': '思', 'y': '衣', 'w': '乌',
+                    // 韵母
+                    'a': '啊', 'o': '喔', 'e': '鹅', 'i': '衣', 'u': '乌', 'ü': '迂',
+                    'ai': '爱', 'ei': '诶', 'ui': '威', 'ao': '熬', 'ou': '欧', 'iu': '优',
+                    'ie': '耶', 'üe': '约', 'er': '儿',
+                    'an': '安', 'en': '恩', 'in': '因', 'un': '温', 'ün': '晕',
+                    'ang': '昂', 'eng': '亨', 'ing': '英', 'ong': '轰'
+                };
+                
+                // 检查是否是汉语拼音
+                let speakContent = content;
+                if (pinyinMap[content]) {
+                    speakContent = pinyinMap[content];
+                }
+                
+                const utterance = new SpeechSynthesisUtterance(speakContent);
+                // 优化发音 - 使用中文语音
+                utterance.lang = 'zh-CN';
+                utterance.rate = 0.9; // 稍微放慢语速，更适合儿童
+                utterance.pitch = 1.1; // 稍微提高音调，更有趣
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        // 重新开始游戏
+        function restartGame() {
+            gameState.board = Array(15).fill().map(() => Array(15).fill(null));
+            gameState.currentPlayer = 'black';
+            gameState.gameOver = false;
+            gameState.paused = false;
+            gameState.moveCount = 0;
+            gameState.blackCount = 0;
+            gameState.whiteCount = 0;
+            initBoard();
+            updateStatus();
+            document.querySelectorAll('.danger-point').forEach(point => point.remove());
+        }
+
+        // 开始游戏
+        function startGame() {
+            gameState.paused = false;
+            updateStatus();
+        }
+
+        // 暂停游戏
+        function pauseGame() {
+            gameState.paused = true;
+            updateStatus();
+        }
+
+        // 结束游戏
+        function endGame() {
+            gameState.gameOver = true;
+            updateStatus();
+        }
+
+        // 全屏切换
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // 事件监听
+        document.getElementById('restartBtn').addEventListener('click', restartGame);
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('pauseBtn').addEventListener('click', pauseGame);
+        document.getElementById('endBtn').addEventListener('click', endGame);
+        document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
+        document.getElementById('displayType').addEventListener('change', function() {
+            gameState.displayType = this.value;
+        });
+
+        // 初始化游戏
+        initBoard();
+        updateStatus();
+    </script>
+</body>
+</html>
