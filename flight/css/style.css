@@ -1,0 +1,149 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+  background: #0a0a0f; 
+  color: #fff; 
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; 
+  overflow: hidden; 
+  user-select: none; 
+}
+
+/* 碰撞红色叠加层 */
+#crashOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0); z-index: 150; pointer-events: none; transition: background 0.5s; }
+#crashOverlay.show { background: rgba(255,0,0,0.3); }
+
+/* 警告边框叠加层 */
+#warningOverlay { position: fixed; inset: 0; pointer-events: none; z-index: 50; display: none; }
+#warningOverlay.show { display: block; }
+.warning-border { position: absolute; inset: 0; border: 6px solid transparent; transition: border-color 0.2s; }
+.warning-border.red { border-color: rgba(244,67,54,0.6); animation: pulse-red 0.4s infinite alternate; }
+@keyframes pulse-red { from { border-color: rgba(244,67,54,0.3); } to { border-color: rgba(244,67,54,0.8); } }
+
+/* 顶部状态栏 */
+#topBar { 
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  height: 38px; 
+  background: rgba(10,10,15,0.85); 
+  border-bottom: 1px solid rgba(255,149,0,0.3); 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  padding: 0 16px; 
+  z-index: 100; 
+}
+.status-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ccc; }
+.status-item .val { color: #fff; font-weight: 600; }
+.status-item .unit { color: #888; font-size: 10px; }
+.battery-bar { width: 60px; height: 14px; background: #1a1a25; border-radius: 7px; overflow: hidden; border: 1px solid #333; }
+.battery-fill { height: 100%; background: #4caf50; border-radius: 7px; transition: width 0.5s, background 0.3s; }
+.battery-fill.low { background: #f44336; }
+.battery-fill.mid { background: #ff9800; }
+
+/* 左侧面板 */
+#leftPanel { 
+  position: fixed; 
+  left: 12px; 
+  top: 50px; 
+  width: 200px; 
+  background: rgba(10,10,15,0.88); 
+  border-radius: 12px; 
+  border: 1px solid rgba(255,149,0,0.25); 
+  padding: 12px; 
+  z-index: 90; 
+  max-height: calc(100vh - 300px); 
+  overflow-y: auto; 
+}
+.panel-title { font-size: 11px; color: #ff9500; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.drone-card { background: #12121a; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s; }
+.drone-card:hover { border-color: rgba(255,149,0,0.5); }
+.drone-card.active { border-color: #ff9500; background: #1a1500; }
+.drone-card .name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.drone-card .specs { font-size: 10px; color: #888; }
+.drone-card .stats { margin-top: 6px; display: flex; gap: 8px; }
+.drone-card .stat { font-size: 10px; color: #aaa; }
+.drone-card .stat span { color: #ff9500; font-weight: 600; }
+
+/* 右侧面板 */
+#rightPanel { 
+  position: fixed; 
+  right: 12px; 
+  top: 50px; 
+  width: 140px; 
+  background: rgba(10,10,15,0.88); 
+  border-radius: 12px; 
+  border: 1px solid rgba(255,149,0,0.25); 
+  padding: 12px; 
+  z-index: 90; 
+}
+.obstacle-indicator { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 3px; width: 100px; margin: 0 auto; }
+.ob-cell { width: 100%; aspect-ratio: 1; border-radius: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); transition: all 0.1s; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+.ob-cell.active-safe { background: rgba(76,175,80,0.5); border-color: #4caf50; }
+.ob-cell.active-warn { background: rgba(255,152,0,0.5); border-color: #ff9800; }
+.ob-cell.active-danger { background: rgba(244,67,54,0.7); border-color: #f44336; }
+
+/* 底部遥测面板 */
+#bottomPanel { 
+  position: fixed; 
+  bottom: 12px; 
+  left: 50%; 
+  transform: translateX(-50%); 
+  display: flex; 
+  gap: 10px; 
+  z-index: 90; 
+}
+.tele-panel { background: rgba(10,10,15,0.92); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25); padding: 10px 14px; min-width: 100px; text-align: center; }
+.tele-panel .label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.tele-panel .value { font-size: 20px; font-weight: 700; color: #fff; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.tele-panel .unit { font-size: 10px; color: #888; margin-top: 1px; }
+
+/* 虚拟摇杆 */
+#joystickLeft { position: fixed; bottom: 80px; left: 20px; width: 130px; height: 130px; z-index: 90; }
+#joystickRight { position: fixed; bottom: 80px; right: 20px; width: 130px; height: 130px; z-index: 90; }
+.joystick-base { width: 130px; height: 130px; border-radius: 50%; background: rgba(20,20,30,0.85); border: 2px solid rgba(255,149,0,0.4); position: relative; touch-action: none; cursor: pointer; }
+.joystick-thumb { width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff9500, #cc5500); border: 2px solid #ff9500; box-shadow: 0 0 12px rgba(255,149,0,0.5); position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: box-shadow 0.1s; }
+.joystick-label { text-align: center; font-size: 10px; color: #888; margin-top: 4px; }
+
+/* 控制按钮 */
+#ctrlButtons { position: fixed; bottom: 80px; right: 170px; display: flex; flex-direction: column; gap: 8px; z-index: 90; }
+.ctrl-btn { width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255,149,0,0.5); background: rgba(20,20,30,0.85); color: #ff9500; font-size: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.ctrl-btn:hover, .ctrl-btn:active { background: rgba(255,149,0,0.2); border-color: #ff9500; }
+.ctrl-btn.active { background: rgba(255,149,0,0.3); box-shadow: 0 0 10px rgba(255,149,0,0.4); }
+.ctrl-btn .icon { font-size: 16px; }
+
+.gear-btn { width: 36px; height: 28px; border-radius: 6px; border: 1.5px solid rgba(255,149,0,0.4); background: rgba(20,20,30,0.85); color: #888; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.gear-btn:hover { border-color: rgba(255,149,0,0.6); color: #aaa; }
+.gear-btn.active { background: rgba(255,149,0,0.25); border-color: #ff9500; color: #ff9500; box-shadow: 0 0 8px rgba(255,149,0,0.3); }
+
+/* 通知 */
+#notification { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); background: rgba(10,10,15,0.95); border: 1px solid rgba(255,149,0,0.5); border-radius: 8px; padding: 8px 20px; font-size: 13px; color: #ff9500; z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+#notification.show { opacity: 1; }
+
+/* 开始界面 */
+#startScreen { position: fixed; inset: 0; background: rgba(10,10,15,0.97); z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
+#startScreen h1 { font-size: 32px; color: #ff9500; letter-spacing: 2px; text-shadow: 0 0 20px rgba(255,149,0,0.4); }
+#startScreen p { color: #888; font-size: 14px; }
+.start-btn { padding: 14px 48px; background: #ff9500; color: #000; border: none; border-radius: 30px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.start-btn:hover { background: #ffad33; transform: scale(1.05); }
+.rc-preview { width: 280px; height: 160px; background: #1a1a25; border-radius: 16px; border: 2px solid rgba(255,149,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; color: #555; }
+
+/* 加载提示 */
+#loadingText { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff9500; font-size: 18px; z-index: 400; }
+
+/* 响应式 */
+@media (max-width: 768px) {
+  #leftPanel { width: 160px; left: 6px; top: 44px; padding: 8px; font-size: 11px; }
+  #rightPanel { width: 120px; right: 6px; top: 44px; padding: 8px; }
+  #bottomPanel { gap: 4px; }
+  .tele-panel { padding: 6px 8px; min-width: 70px; }
+  .tele-panel .value { font-size: 16px; }
+  .tele-panel .label { font-size: 8px; }
+  #joystickLeft { bottom: 60px; left: 10px; }
+  #joystickRight { bottom: 60px; right: 10px; }
+  .joystick-base { width: 100px; height: 100px; }
+  .joystick-thumb { width: 40px; height: 40px; }
+  #ctrlButtons { bottom: 60px; right: 130px; }
+  .ctrl-btn { width: 40px; height: 40px; font-size: 8px; }
+  .ctrl-btn .icon { font-size: 14px; }
+}

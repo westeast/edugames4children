@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>大疆虚拟飞行 3D - DJI Flight Simulator</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="crashOverlay"></div>
+<div id="warningOverlay"><div class="warning-border" id="warnBorder"></div></div>
+<div id="loadingText">正在加载 3D 资源...</div>
+
+<div id="startScreen" style="display:none">
+  <div style="font-size:48px;">🚁</div>
+  <h1>大疆虚拟飞行 3D</h1>
+  <p>DJI Flight Simulator · Three.js Powered</p>
+  <div class="rc-preview">
+    <div style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:8px;">🎮</div>
+      <div>RC Pro 2 遥控器</div>
+      <div style="font-size:11px;color:#666;margin-top:4px;">沉浸式 3D 飞行体验</div>
+    </div>
+  </div>
+  <div style="font-size:12px;color:#555;text-align:center;line-height:1.8;">
+    无限 3D 世界 · 程序化地形 · 沉浸式飞行<br>
+    3款大疆机型可选 · 避开飞鸟防止炸机<br>
+    真实地貌 · 飞鸟穿行 · 车辆行人
+  </div>
+  <button class="start-btn" id="startBtn">▶ 开始飞行</button>
+</div>
+
+<div id="topBar" style="display:none">
+  <div class="status-item"><span>📶</span><span class="val" id="signalVal">5</span></div>
+  <div class="status-item" style="gap:10px;">
+    <span style="font-size:11px;color:#888;">电池</span>
+    <div class="battery-bar"><div class="battery-fill" id="batteryFill" style="width:100%"></div></div>
+    <span class="val" id="batteryVal">100%</span>
+  </div>
+  <div class="status-item"><span>🛰️</span><span class="val" id="gpsVal">23</span><span class="unit">GPS</span></div>
+  <div style="font-size:11px;color:#ff9500;font-weight:600;" id="flightMode">N档</div>
+</div>
+
+<div id="leftPanel" style="display:none">
+  <div class="panel-title">选择机型</div>
+  <div class="drone-card active" onclick="selectDrone(0)" id="droneCard0">
+    <div class="name">🟠 Air 3</div>
+    <div class="specs">中端旗舰 · 双摄系统</div>
+    <div class="stats"><div class="stat">极速 <span>21m/s</span></div><div class="stat">续航 <span>46min</span></div></div>
+  </div>
+  <div class="drone-card" onclick="selectDrone(1)" id="droneCard1">
+    <div class="name">🔴 Mavic 3 Pro</div>
+    <div class="specs">专业旗舰 · 三摄系统</div>
+    <div class="stats"><div class="stat">极速 <span>19m/s</span></div><div class="stat">续航 <span>43min</span></div></div>
+  </div>
+  <div class="drone-card" onclick="selectDrone(2)" id="droneCard2">
+    <div class="name">⚪ Mini 4 Pro</div>
+    <div class="specs">轻量旗舰 · 单摄系统</div>
+    <div class="stats"><div class="stat">极速 <span>16m/s</span></div><div class="stat">续航 <span>34min</span></div></div>
+  </div>
+  <div class="panel-title" style="margin-top:14px;">操作说明</div>
+  <div style="font-size:10px;color:#666;line-height:1.8;">
+    左遥杆：升降 / 转向<br>
+    右遥杆：前后 / 左右<br>
+    避开飞鸟 · 安全飞行<br><br>
+    键盘：WASD移动<br>
+    Q/E转向 Space升 Shift降<br>
+    V视角 H返航 P暂停<br>
+    C巡航 O避障 1/2/3机型
+  </div>
+</div>
+
+<div id="rightPanel" style="display:none">
+  <div class="panel-title">飞行档位</div>
+  <div style="display:flex;gap:4px;margin-bottom:10px;">
+    <button class="gear-btn" id="gearC" onclick="setGear('C')">C</button>
+    <button class="gear-btn active" id="gearN" onclick="setGear('N')">N</button>
+    <button class="gear-btn" id="gearS" onclick="setGear('S')">S</button>
+  </div>
+  <div style="font-size:9px;color:#666;margin-bottom:8px;text-align:center;">
+    <span id="gearDesc">普通档 · 均衡飞行</span>
+  </div>
+  <div class="panel-title">避障感知</div>
+  <div class="obstacle-indicator" id="obIndicator">
+    <div class="ob-cell" id="ob-tl"></div><div class="ob-cell" id="ob-tc"></div><div class="ob-cell" id="ob-tr"></div>
+    <div class="ob-cell" id="ob-ml"></div><div class="ob-cell" id="ob-drone-icon" style="font-size:16px;">🚁</div><div class="ob-cell" id="ob-mr"></div>
+    <div class="ob-cell" id="ob-bl"></div><div class="ob-cell" id="ob-bc"></div><div class="ob-cell" id="ob-br"></div>
+  </div>
+  <div style="margin-top:10px;font-size:10px;color:#666;text-align:center;">
+    <div style="margin-bottom:3px;">🔴 危险 &lt;3m</div>
+    <div style="margin-bottom:3px;">🟡 警告 &lt;8m</div>
+    <div>🟢 安全 &gt;8m</div>
+  </div>
+</div>
+
+<div id="ctrlButtons" style="display:none">
+  <button class="ctrl-btn" id="btnCruise" onclick="toggleCruise()"><span class="icon">🚀</span><span>巡航</span></button>
+  <button class="ctrl-btn" id="btnRTH" onclick="triggerRTH()"><span class="icon">🏠</span><span>返航</span></button>
+  <button class="ctrl-btn" id="btnOBS" onclick="toggleObstacle()"><span class="icon">🛡️</span><span>避障</span></button>
+  <button class="ctrl-btn" id="btnFPV" onclick="toggleFPV()"><span class="icon">👁️</span><span>视角</span></button>
+  <button class="ctrl-btn" id="btnPause" onclick="togglePause()"><span class="icon">⏸️</span><span>暂停</span></button>
+</div>
+
+<div id="bottomPanel" style="display:none">
+  <div class="tele-panel"><div class="label">高度 ALT</div><div class="value" id="teleAlt">0.0</div><div class="unit">m</div></div>
+  <div class="tele-panel"><div class="label">速度 SPD</div><div class="value" id="teleSpd">0.0</div><div class="unit">m/s</div></div>
+  <div class="tele-panel"><div class="label">距离 DIS</div><div class="value" id="teleDis">0.0</div><div class="unit">m</div></div>
+  <div class="tele-panel"><div class="label">里程 DIST</div><div class="value" id="teleDist">0.0</div><div class="unit">km</div></div>
+  <div class="tele-panel"><div class="label">航向 HDG</div><div class="value" id="teleHdg">0</div><div class="unit">°</div></div>
+</div>
+
+<div id="joystickLeft" style="display:none">
+  <div class="joystick-base" id="baseL"><div class="joystick-thumb" id="thumbL"></div></div>
+  <div class="joystick-label">左摇杆 · 高度/方向</div>
+</div>
+<div id="joystickRight" style="display:none">
+  <div class="joystick-base" id="baseR"><div class="joystick-thumb" id="thumbR"></div></div>
+  <div class="joystick-label">右摇杆 · 俯仰/横滚</div>
+</div>
+
+<div id="notification"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module" src="js/game.js"></script>
+
+</body>
+</html>
