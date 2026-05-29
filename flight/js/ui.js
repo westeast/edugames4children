@@ -23,9 +23,14 @@ export function updateCamera(gameStarted = false) {
   sunLight.target.updateMatrixWorld();
 
   if (state.fpvMode) {
-    camera.position.copy(state.dronePos).add(new THREE.Vector3(0, 0.3, 0));
-    const lookDir = new THREE.Vector3(-Math.sin(state.droneYaw), state.dronePitch * 0.3, -Math.cos(state.droneYaw));
-    camera.lookAt(state.dronePos.clone().add(lookDir));
+    // FPV camera position: at the drone's camera gimbal (front-bottom)
+    // Camera is at (0, -0.25, 0.5) in drone local coordinates
+    const camOffset = new THREE.Vector3(0, -0.3, 0.6);
+    camOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
+    camera.position.copy(state.dronePos).add(camOffset);
+    // Look forward with slight pitch influence
+    const lookDir = new THREE.Vector3(-Math.sin(state.droneYaw), -0.1 + state.dronePitch * 0.2, -Math.cos(state.droneYaw)).normalize();
+    camera.lookAt(camera.position.clone().add(lookDir.multiplyScalar(100)));
   } else {
     const offset = new THREE.Vector3(0, 8, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     const targetCamPos = state.dronePos.clone().add(offset);
