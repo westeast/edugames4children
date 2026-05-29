@@ -4,19 +4,35 @@ import * as THREE from 'three';
 export const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x87CEEB, 0.0015);
 
-export const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.5, 2000);
+// Initialize with safe defaults, will be corrected on resize
+export const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2000);
 camera.position.set(0, 50, 30);
 camera.lookAt(0, 0, 0);
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(800, 600);  // Safe initial size
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
-document.body.insertBefore(renderer.domElement, document.body.firstChild);
-renderer.domElement.style.cssText = 'position:fixed;top:0;left:0;z-index:0;';
+
+// Wait for DOM ready before inserting canvas
+function initRenderer() {
+  const w = window.innerWidth || 800;
+  const h = window.innerHeight || 600;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  document.body.insertBefore(renderer.domElement, document.body.firstChild);
+  renderer.domElement.style.cssText = 'position:fixed;top:0;left:0;z-index:0;';
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initRenderer);
+} else {
+  initRenderer();
+}
 
 // Lighting
 scene.add(new THREE.AmbientLight(0x6688cc, 0.6));
@@ -65,9 +81,13 @@ const skyMat = new THREE.ShaderMaterial({
 export const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 32, 32), skyMat);
 scene.add(skyMesh);
 
-// Resize handler
+// Resize handler - force update on any size change
 window.addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  const w = window.innerWidth || 800;
+  const h = window.innerHeight || 600;
+  if (w > 0 && h > 0) {
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
 });
