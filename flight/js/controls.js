@@ -40,7 +40,7 @@ export function setupJoystick(baseId, thumbId, stickObj) {
     const nx = Math.cos(angle) * clampDist / maxR;
     const ny = Math.sin(angle) * clampDist / maxR;
     stickObj.x = nx; stickObj.y = -ny;
-    thumb.style.transform = `translate(${-50 + nx * 50}%, ${-50 + stickObj.y * 50}%)`;
+    thumb.style.transform = `translate(${-50 + nx * 50}%, ${-50 + ny * 50}%)`;
     e.preventDefault();
   };
   const onEnd = () => { active = false; stickObj.x = 0; stickObj.y = 0; thumb.style.transform = 'translate(-50%, -50%)'; };

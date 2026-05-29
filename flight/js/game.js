@@ -36,7 +36,19 @@ function gameLoop(time) {
 
 function init() {
   document.getElementById('loadingText').style.display = 'none';
-  document.getElementById('startScreen').style.display = 'flex';
+  document.getElementById('startScreen').style.display = 'none';
+
+  // Auto-start game immediately
+  ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'ctrlButtons', 'joystickLeft', 'joystickRight'].forEach(id => {
+    document.getElementById(id).style.display = '';
+  });
+  state.gameStarted = true;
+  createDroneModel(state.currentDroneIdx);
+  spawnBirds(); spawnCars(); spawnPeople(); spawnClouds();
+  updateTerrainChunks();
+  setupJoystick('baseL', 'thumbL', state.leftStick);
+  setupJoystick('baseR', 'thumbR', state.rightStick);
+  showNotif('🛫 起飞！祝飞行愉快', 5);
 
   // Force landscape orientation hint on mobile
   if (/Mobi|Android/i.test(navigator.userAgent)) {
@@ -56,19 +68,7 @@ function init() {
     window.addEventListener('orientationchange', checkOrient);
   }
 
-  document.getElementById('startBtn').addEventListener('click', () => {
-    document.getElementById('startScreen').style.display = 'none';
-    ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'ctrlButtons', 'joystickLeft', 'joystickRight'].forEach(id => {
-      document.getElementById(id).style.display = '';
-    });
-    state.gameStarted = true;
-    createDroneModel(state.currentDroneIdx);
-    spawnBirds(); spawnCars(); spawnPeople(); spawnClouds();
-    updateTerrainChunks();
-    setupJoystick('baseL', 'thumbL', state.leftStick);
-    setupJoystick('baseR', 'thumbR', state.rightStick);
-    showNotif('🛫 起飞！祝飞行愉快', 5);
-  });
+
 
   lastTime = performance.now();
   requestAnimationFrame(gameLoop);
