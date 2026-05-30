@@ -23,6 +23,7 @@ function gameLoop(time) {
     updateClouds(dt);
     updateTerrainChunks();
     if (droneGroup) {
+      droneGroup.visible = !state.fpvMode;
       droneGroup.position.copy(state.dronePos);
       droneGroup.rotation.set(state.dronePitch, state.droneYaw, state.droneRoll);
       propellers.forEach((p, i) => { p.rotation.y += state.propSpeed * dt * (i % 2 === 0 ? 1 : -1); });

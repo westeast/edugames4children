@@ -22,25 +22,27 @@ window.addEventListener('keyup', e => { state.keys[e.key] = false; });
 export function setupJoystick(baseId, thumbId, stickObj) {
   const base = document.getElementById(baseId), thumb = document.getElementById(thumbId);
   if (!base || !thumb) return;
-  let active = false, startX, startY;
+  let active = false, startX, startY, maxR;
   const onStart = e => {
     active = true;
     const t = e.touches ? e.touches[0] : e;
     const r = base.getBoundingClientRect();
     startX = r.left + r.width / 2; startY = r.top + r.height / 2;
+    maxR = r.width / 2 - 25; // Leave room for thumb radius
     e.preventDefault();
   };
   const onMove = e => {
     if (!active) return;
     const t = e.touches ? e.touches[0] : e;
     const dx = t.clientX - startX, dy = t.clientY - startY;
-    const maxR = 50, dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.sqrt(dx * dx + dy * dy);
     const clampDist = Math.min(dist, maxR);
     const angle = Math.atan2(dy, dx);
-    const nx = Math.cos(angle) * clampDist / maxR;
-    const ny = Math.sin(angle) * clampDist / maxR;
-    stickObj.x = nx; stickObj.y = -ny;
-    thumb.style.transform = `translate(${-50 + nx * 50}%, ${-50 + ny * 50}%)`;
+    const px = Math.cos(angle) * clampDist;
+    const py = Math.sin(angle) * clampDist;
+    stickObj.x = px / maxR; stickObj.y = -py / maxR;
+    // Use pixel offsets from center; CSS top:50%;left:50% centers thumb, px/py move it
+    thumb.style.transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`;
     e.preventDefault();
   };
   const onEnd = () => { active = false; stickObj.x = 0; stickObj.y = 0; thumb.style.transform = 'translate(-50%, -50%)'; };
