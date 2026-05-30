@@ -49,7 +49,24 @@ function init() {
   updateTerrainChunks();
   
   // Force camera to correct position immediately to center the drone
-  updateCamera(false);
+  // Use setTimeout to ensure renderer has correct size after DOM is fully ready
+  function forceCameraUpdate() {
+    const w = window.innerWidth || 800;
+    const h = window.innerHeight || 600;
+    if (w > 0 && h > 0) {
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    updateCamera(false);
+  }
+  
+  // Immediate update
+  forceCameraUpdate();
+  
+  // Delayed update to handle any async rendering
+  setTimeout(forceCameraUpdate, 100);
+  setTimeout(forceCameraUpdate, 500);
   
   // Listen for window resize to re-center camera and fix rendering issues
   window.addEventListener('game-resize', () => {
