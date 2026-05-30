@@ -89,5 +89,7 @@ window.addEventListener('resize', () => {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
+    // Dispatch a custom event so game.js can re-center the camera
+    window.dispatchEvent(new Event('game-resize'));
   }
 });

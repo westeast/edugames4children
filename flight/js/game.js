@@ -50,6 +50,12 @@ function init() {
   
   // Force camera to correct position immediately to center the drone
   updateCamera(false);
+  
+  // Listen for window resize to re-center camera and fix rendering issues
+  window.addEventListener('game-resize', () => {
+    updateCamera(false);
+  });
+  
   setupJoystick('baseL', 'thumbL', state.leftStick);
   setupJoystick('baseR', 'thumbR', state.rightStick);
   showNotif('🛫 起飞！祝飞行愉快', 5);
