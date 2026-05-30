@@ -91,6 +91,11 @@ window.toggleObstacle = function() {
 window.toggleFPV = function() {
   state.fpvMode = !state.fpvMode;
   document.getElementById('btnFPV').classList.toggle('active', state.fpvMode);
+  // Show/hide crosshair in FPV mode
+  const crosshair = document.getElementById('crosshair');
+  if (crosshair) {
+    crosshair.style.display = state.fpvMode ? '' : 'none';
+  }
   showNotif(state.fpvMode ? '👁️ FPV 第一人称' : '第三人称视角');
 };
 
