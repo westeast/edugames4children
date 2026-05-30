@@ -56,13 +56,24 @@ export function updateBirds(dt) {
 // ---- CARS ----
 function createCarMesh(color) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 4), new THREE.MeshLambertMaterial({ color }));
-  body.position.y = 0.6; g.add(body);
-  const top = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 2), new THREE.MeshLambertMaterial({ color: 0xaaddff, transparent: true, opacity: 0.6 }));
-  top.position.y = 1.2; g.add(top);
-  const wg = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8); wg.rotateZ(Math.PI / 2);
+  // Lower body (main chassis)
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 4), new THREE.MeshLambertMaterial({ color }));
+  body.position.y = 0.55; g.add(body);
+  // Upper body (cabin)
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 2.2), new THREE.MeshLambertMaterial({ color: 0xaaddff, transparent: true, opacity: 0.6 }));
+  top.position.y = 1.15; g.add(top);
+  // Wheels
+  const wg = new THREE.CylinderGeometry(0.28, 0.28, 0.18, 8); wg.rotateZ(Math.PI / 2);
   const wm = new THREE.MeshLambertMaterial({ color: 0x222222 });
-  [[-1, 0.3, 1.2], [1, 0.3, 1.2], [-1, 0.3, -1.2], [1, 0.3, -1.2]].forEach(p => { const w = new THREE.Mesh(wg, wm); w.position.set(...p); g.add(w); });
+  [[-1.05, 0.28, 1.2], [1.05, 0.28, 1.2], [-1.05, 0.28, -1.2], [1.05, 0.28, -1.2]].forEach(p => { const w = new THREE.Mesh(wg, wm); w.position.set(...p); g.add(w); });
+  // Headlights
+  const hlMat = new THREE.MeshLambertMaterial({ color: 0xffffcc });
+  const hl1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), hlMat); hl1.position.set(-0.5, 0.6, 2.01); g.add(hl1);
+  const hl2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), hlMat); hl2.position.set(0.5, 0.6, 2.01); g.add(hl2);
+  // Taillights
+  const tlMat = new THREE.MeshLambertMaterial({ color: 0xff3333 });
+  const tl1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.1), tlMat); tl1.position.set(-0.5, 0.65, -2.01); g.add(tl1);
+  const tl2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.1), tlMat); tl2.position.set(0.5, 0.65, -2.01); g.add(tl2);
   return g;
 }
 
@@ -84,7 +95,17 @@ export function updateCars(dt) {
   const { dronePos } = state;
   cars.forEach(car => {
     car.position.x += car.userData.vx * dt; car.position.z += car.userData.vz * dt;
-    car.position.y = getTerrainHeight(car.position.x, car.position.z) + 0.3;
+    // Sample terrain at multiple points to align car with slope
+    const tx = car.position.x, tz = car.position.z;
+    const h = getTerrainHeight(tx, tz);
+    const hFront = getTerrainHeight(tx + Math.sin(car.rotation.y) * 2, tz + Math.cos(car.rotation.y) * 2);
+    const hRight = getTerrainHeight(tx + Math.sin(car.rotation.y + Math.PI/2) * 1, tz + Math.cos(car.rotation.y + Math.PI/2) * 1);
+    // Calculate pitch and roll based on terrain slope
+    const pitch = Math.atan2(hFront - h, 2);
+    const roll = Math.atan2(hRight - h, 1);
+    car.position.y = h + 0.3;
+    car.rotation.x = pitch;
+    car.rotation.z = roll;
     if (car.position.distanceTo(dronePos) > 300) {
       const a = Math.random() * Math.PI * 2, nd = 50 + Math.random() * 150;
       car.position.x = dronePos.x + Math.cos(a) * nd; car.position.z = dronePos.z + Math.sin(a) * nd;
@@ -96,13 +117,22 @@ export function updateCars(dt) {
 // ---- PEOPLE ----
 function createPersonMesh(shirtColor) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.0, 6), new THREE.MeshLambertMaterial({ color: shirtColor }));
-  body.position.y = 0.8; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 6), new THREE.MeshLambertMaterial({ color: 0xddbb88 }));
-  head.position.y = 1.5; g.add(head);
-  const lg = new THREE.CylinderGeometry(0.08, 0.08, 0.6, 4), lm = new THREE.MeshLambertMaterial({ color: 0x333355 });
-  const ll = new THREE.Mesh(lg, lm); ll.position.set(-0.1, 0.3, 0); ll.name = 'leftLeg'; g.add(ll);
-  const rl = new THREE.Mesh(lg, lm); rl.position.set(0.1, 0.3, 0); rl.name = 'rightLeg'; g.add(rl);
+  // Torso
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: shirtColor }));
+  body.position.y = 1.0; g.add(body);
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), new THREE.MeshLambertMaterial({ color: 0xddbb88 }));
+  head.position.y = 1.45; g.add(head);
+  // Arms
+  const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.45, 4);
+  const armMat = new THREE.MeshLambertMaterial({ color: shirtColor });
+  const leftArm = new THREE.Mesh(armGeo, armMat); leftArm.position.set(-0.25, 1.05, 0); leftArm.name = 'leftArm'; g.add(leftArm);
+  const rightArm = new THREE.Mesh(armGeo, armMat); rightArm.position.set(0.25, 1.05, 0); rightArm.name = 'rightArm'; g.add(rightArm);
+  // Legs
+  const legGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.55, 4);
+  const legMat = new THREE.MeshLambertMaterial({ color: 0x333355 });
+  const leftLeg = new THREE.Mesh(legGeo, legMat); leftLeg.position.set(-0.1, 0.45, 0); leftLeg.name = 'leftLeg'; g.add(leftLeg);
+  const rightLeg = new THREE.Mesh(legGeo, legMat); rightLeg.position.set(0.1, 0.45, 0); rightLeg.name = 'rightLeg'; g.add(rightLeg);
   return g;
 }
 
@@ -125,8 +155,21 @@ export function updatePeople(dt) {
   people.forEach(p => {
     p.userData.walkPhase += 8 * dt;
     p.position.x += p.userData.vx * dt; p.position.z += p.userData.vz * dt;
-    p.position.y = getTerrainHeight(p.position.x, p.position.z);
+    // Align person with terrain
+    const tx = p.position.x, tz = p.position.z;
+    const h = getTerrainHeight(tx, tz);
+    const hFront = getTerrainHeight(tx + Math.sin(p.rotation.y) * 0.5, tz + Math.cos(p.rotation.y) * 0.5);
+    const hRight = getTerrainHeight(tx + Math.sin(p.rotation.y + Math.PI/2) * 0.3, tz + Math.cos(p.rotation.y + Math.PI/2) * 0.3);
+    const pitch = Math.atan2(hFront - h, 0.5);
+    const roll = Math.atan2(hRight - h, 0.3);
+    p.position.y = h;
+    p.rotation.x = pitch;
+    p.rotation.z = roll;
+    // Animate limbs
+    const la = p.getObjectByName('leftArm'), ra = p.getObjectByName('rightArm');
     const ll = p.getObjectByName('leftLeg'), rl = p.getObjectByName('rightLeg');
+    if (la) la.rotation.x = Math.sin(p.userData.walkPhase) * 0.5;
+    if (ra) ra.rotation.x = -Math.sin(p.userData.walkPhase) * 0.5;
     if (ll) ll.rotation.x = Math.sin(p.userData.walkPhase) * 0.4;
     if (rl) rl.rotation.x = -Math.sin(p.userData.walkPhase) * 0.4;
     if (p.position.distanceTo(dronePos) > 200) {

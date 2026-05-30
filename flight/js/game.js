@@ -47,6 +47,9 @@ function init() {
   createDroneModel(state.currentDroneIdx);
   spawnBirds(); spawnCars(); spawnPeople(); spawnClouds();
   updateTerrainChunks();
+  
+  // Force camera to correct position immediately to center the drone
+  updateCamera(false);
   setupJoystick('baseL', 'thumbL', state.leftStick);
   setupJoystick('baseR', 'thumbR', state.rightStick);
   showNotif('🛫 起飞！祝飞行愉快', 5);

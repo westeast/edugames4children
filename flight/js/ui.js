@@ -24,19 +24,16 @@ export function updateCamera(gameStarted = false) {
 
   if (state.fpvMode) {
     // FPV camera position: at the drone's camera gimbal (front-bottom)
-    // Drone body center at y=0, propellers at y=0.25, gimbal at y=-0.2
-    // Place camera at gimbal position, looking forward - no propellers in view
     const camOffset = new THREE.Vector3(0, -0.25, 0.6);
     camOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     camera.position.copy(state.dronePos).add(camOffset);
-    // Look forward with slight pitch influence
     const lookDir = new THREE.Vector3(-Math.sin(state.droneYaw), -0.1 + state.dronePitch * 0.3, -Math.cos(state.droneYaw)).normalize();
     camera.lookAt(camera.position.clone().add(lookDir.multiplyScalar(100)));
   } else {
     const offset = new THREE.Vector3(0, 8, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     const targetCamPos = state.dronePos.clone().add(offset);
-    // Use lerp after game started for smooth camera, snap immediately before
-    if (gameStarted) {
+    // Use lerp after game started for smooth camera, snap immediately before or on first frame
+    if (gameStarted && state.lastTime > 0) {
       camera.position.lerp(targetCamPos, 0.05);
     } else {
       camera.position.copy(targetCamPos);

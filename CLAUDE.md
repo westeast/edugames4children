@@ -4,54 +4,78 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-儿童教育游戏合集 - A collection of educational games for children. Each game is a standalone HTML application with embedded CSS and JavaScript.
+儿童教育游戏合集 - A collection of educational games for children. Each game is a standalone HTML/CSS/JS application with no build system.
 
 ## Games
 
-| Game | Directory | Description |
-|------|-----------|-------------|
-| 五子棋 | `gomoku/` | Gomoku with pinyin/letter learning |
-| 贪吃蛇 | `snake/` | Snake game with educational elements |
-| 恐龙跳跳 | `dinosaur-game/` | Dinosaur runner with Chinese characters |
-| 大疆虚拟飞行 | `flight/` | DJI drone flight simulator |
-| 围棋读诗 | `weiqi/` | 19x19 Go game with Tang poetry recitation |
+| Game | Directory | URL Path | Description |
+|------|-----------|----------|-------------|
+| 首页 | `/` | `/` | Game listing portal |
+| 五子棋 | `gomoku/` | `/gomoku/` | Gomoku with pinyin/letter learning |
+| 贪吃蛇 | `snake/` | `/snake/` | Snake game with educational elements |
+| 恐龙跳跳 | `dinosaur-game/` | `/dinosaur-game/` | Dinosaur runner with Chinese characters |
+| 大疆虚拟飞行 | `flight/` | `/flight/` | DJI drone flight simulator (Three.js) |
+| 围棋读诗 | `weiqi/` | `/weiqi/` | 19x19 Go game with Tang poetry recitation |
 
-## Testing
+## Development Workflow
 
-Each game can be tested for JavaScript errors using puppeteer:
+1. **Local test server** (needed for ES module games like flight):
+   ```bash
+   npx --yes http-server -p 8765 --cors -c-1 &>/dev/null &
+   ```
+   Then open `http://localhost:8765/flight/index.html` etc.
 
-```bash
-source ~/.nvm/nvm.sh && nvm use 18 && node -e "
-const puppeteer = require('puppeteer-core');
-(async () => {
-    const browser = await puppeteer.launch({
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        headless: 'new'
-    });
-    const page = await browser.newPage();
-    const errors = [];
-    page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
-    page.on('pageerror', err => errors.push(err.message));
-    await page.goto('file://' + process.cwd() + '/weiqi/index.html');
-    await new Promise(r => setTimeout(r, 2000));
-    console.log('Console errors:', errors.length);
-    if (errors.length > 0) errors.forEach(e => console.log('  - ' + e));
-    else console.log('No errors!');
-    await browser.close();
-})();
-"
-```
+2. **Playwright test** (check for JS errors after changes):
+   ```js
+   import { chromium } from 'playwright';
+   // launch browser, load page via http://localhost:8765/<game>/index.html
+   // listen for console errors and pageerror
+   // filter out browser extension errors ("message channel closed", "inject-api")
+   ```
+
+3. **Deploy to server** after testing:
+   ```bash
+   scp -r <game-dir> root@nuwaos.cn:/home/wwwroot/edugame.nuwaos.cn/
+   ```
+   Live URL: `https://edugame.nuwaos.cn/<game-dir>/`
+
+4. **Git commit and push** after successful deploy.
 
 ## Architecture
 
 - **No build system** - All games are plain HTML/CSS/JS, opened directly in browser
-- **No dependencies** - Games use CDN libraries (e.g., WGo.js for Go game) or vanilla JS
-- **Self-contained** - Each game directory contains its own files, no shared components
-- **Single-page apps** - Each game is a single HTML file with embedded styles and scripts
+- **No dependencies** - Games use CDN libraries (Three.js, WGo.js) or vanilla JS
+- **Self-contained** - Each game directory is independent, no shared components
+- **Single-page apps** - Most games are a single HTML file; flight uses modular JS with ES imports
 
-## Weiqi (围棋) Specific Notes
+### Flight Simulator Architecture (`flight/`)
 
-See `weiqi/CLAUDE.md` for Go game specific documentation including:
+The only game with a modular structure. Uses ES module `importmap` for Three.js from CDN.
+
+```
+flight/js/
+  game.js      - Entry point: init() + game loop
+  engine.js    - Three.js renderer, scene, camera, sky, lighting
+  config.js    - State object, drone specs, gear settings
+  controls.js  - Keyboard input, virtual joystick setup
+  physics.js   - Drone movement, velocity, RTH autopilot
+  terrain.js   - Procedural terrain chunks (Perlin noise)
+  entities.js  - Birds, cars, people, clouds spawning & updates
+  drone-model.js - 3D drone mesh with propellers
+  ui.js        - Camera tracking, telemetry panel, notifications
+  noise.js     - Perlin noise implementation
+  world.js     - World generation utilities
+```
+
+Key state: `state.fpvMode` toggles FPV camera (hides drone model, moves camera to gimbal). Joystick uses pixel-based `calc()` transforms for thumb position.
+
+### Weiqi (围棋) Specific Notes
+
+See `weiqi/CLAUDE.md` for Go game details including:
 - Chinese rules with 3.75 komi (贴目)
 - AI difficulty levels 1-10
 - Poetry recitation system
+
+## Related Projects
+
+- 网易龙虾项目: `/c/Users/admin/git/LobsterAI`
