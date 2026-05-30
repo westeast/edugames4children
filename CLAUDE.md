@@ -69,6 +69,15 @@ flight/js/
 
 Key state: `state.fpvMode` toggles FPV camera (hides drone model, moves camera to gimbal). Joystick uses pixel-based `calc()` transforms for thumb position.
 
+### Flight Simulator Version History
+
+| Version | Date | Files Changed | Description |
+|---------|------|---------------|-------------|
+| v1.0 | 2026-05-30 | Initial | First release with drone, terrain, entities |
+| v1.1 | 2026-05-30 | `game.js`, `ui.js` | Fix drone centering on page load and resize |
+| v1.2 | 2026-05-30 | `game.js`, `engine.js` | Fix window resize camera position issue |
+| v1.3 | 2026-05-30 | `index.html`, `css/style.css`, `js/controls.js` | Add FPV crosshair for first-person view |
+
 ### Weiqi (围棋) Specific Notes
 
 See `weiqi/CLAUDE.md` for Go game details including:
