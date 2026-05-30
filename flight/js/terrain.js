@@ -6,6 +6,8 @@ import { CHUNK_SIZE, CHUNK_RES, VIEW_DIST, TERRAIN_SCALE, TERRAIN_HEIGHT, state 
 import { populateChunk } from './world.js';
 
 const noise = new SimplexNoise(42);
+// Road noise - same seed as entities.js for consistency
+const roadNoise = new SimplexNoise(123);
 export const terrainChunks = new Map();
 export const terrainGroup = new THREE.Group();
 export const chunkObjects = new Map();
@@ -22,6 +24,14 @@ export function getTerrainHeight(wx, wz) {
 
 export function chunkKey(cx, cz) { return cx + ',' + cz; }
 
+// Check if position is on road (same logic as entities.js)
+function isOnRoad(wx, wz) {
+  const nx = wx / 200, nz = wz / 200;
+  const n1 = roadNoise.fbm(nx * 0.5, nz * 0.5, 2, 2, 0.5);
+  const n2 = roadNoise.fbm(nx * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
+  return Math.abs(n1) < 0.07 || Math.abs(n2) < 0.07;
+}
+
 export function createTerrainChunk(cx, cz) {
   const key = chunkKey(cx, cz);
   if (terrainChunks.has(key)) return;
@@ -34,12 +44,19 @@ export function createTerrainChunk(cx, cz) {
     const wx = ox + pos.getX(i), wz = oz + pos.getZ(i);
     const h = getTerrainHeight(wx, wz);
     pos.setY(i, h);
+    
     let r, g, b;
-    if (h < -5) { r = 0.15; g = 0.3; b = 0.55; }
+    
+    // Check if on road first
+    if (isOnRoad(wx, wz)) {
+      // Road color - gray asphalt
+      r = 0.35; g = 0.35; b = 0.38;
+    } else if (h < -5) { r = 0.15; g = 0.3; b = 0.55; }
     else if (h < 2) { r = 0.65; g = 0.6; b = 0.4; }
     else if (h < 30) { const n = (h + TERRAIN_HEIGHT) / (TERRAIN_HEIGHT * 3); r = 0.2 + n * 0.1; g = 0.45 + n * 0.15; b = 0.15; }
     else if (h < 60) { r = 0.35; g = 0.3; b = 0.2; }
     else { r = 0.85; g = 0.88; b = 0.92; }
+    
     colors[i * 3] = r; colors[i * 3 + 1] = g; colors[i * 3 + 2] = b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));

@@ -3,11 +3,72 @@ import * as THREE from 'three';
 import { scene } from './engine.js';
 import { state } from './config.js';
 import { getTerrainHeight } from './terrain.js';
+import { SimplexNoise } from './noise.js';
 
 export const birds = [];
 export const cars = [];
 export const people = [];
 export const clouds = [];
+
+// Noise for road generation
+const roadNoise = new SimplexNoise(123);
+const ROAD_WIDTH = 8;
+
+// Check if position is on a road
+function isOnRoad(x, z) {
+  const nx = x / 200;
+  const nz = z / 200;
+  // Create road network using noise
+  const n1 = roadNoise.fbm(nx * 0.5, nz * 0.5, 2, 2, 0.5);
+  const n2 = roadNoise.fbm(nx * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
+  // Roads are where noise is near zero (like contour lines)
+  return Math.abs(n1) < 0.07 || Math.abs(n2) < 0.07;
+}
+
+// Get nearest point on road
+function getNearestRoadPoint(x, z) {
+  for (let r = 0; r <= 40; r += 5) {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+      const testX = x + Math.cos(a) * r;
+      const testZ = z + Math.sin(a) * r;
+      if (isOnRoad(testX, testZ)) {
+        return { x: testX, z: testZ };
+      }
+    }
+  }
+  return null;
+}
+
+// Get road direction at a point (perpendicular to noise gradient)
+function getRoadDirection(x, z) {
+  const nx = x / 200;
+  const nz = z / 200;
+  const n1 = roadNoise.fbm(nx * 0.5, nz * 0.5, 2, 2, 0.5);
+  const n2 = roadNoise.fbm(nx * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
+  
+  // Calculate gradient of the dominant noise to find road direction
+  // Road direction is perpendicular to gradient (along the "contour line")
+  const delta = 0.01;
+  
+  if (Math.abs(n1) < 0.07) {
+    // Road 1: calculate gradient of n1
+    const n1_dx = roadNoise.fbm((nx + delta) * 0.5, nz * 0.5, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.5, nz * 0.5, 2, 2, 0.5);
+    const n1_dz = roadNoise.fbm(nx * 0.5, (nz + delta) * 0.5, 2, 2, 0.5) - roadNoise.fbm(nx * 0.5, (nz - delta) * 0.5, 2, 2, 0.5);
+    // Road direction is perpendicular to gradient
+    // gradient = (n1_dx, n1_dz), road direction = (-n1_dz, n1_dx) or (n1_dz, -n1_dx)
+    const gradAngle = Math.atan2(n1_dx, n1_dz);
+    return gradAngle + Math.PI / 2; // Perpendicular
+  } else if (Math.abs(n2) < 0.07) {
+    // Road 2: calculate gradient of n2
+    const n2_dx = roadNoise.fbm((nx + delta) * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
+    const n2_dz = roadNoise.fbm(nx * 0.3 + 50, (nz + delta) * 0.3 + 50, 2, 2, 0.5) - roadNoise.fbm(nx * 0.3 + 50, (nz - delta) * 0.3 + 50, 2, 2, 0.5);
+    const gradAngle = Math.atan2(n2_dx, n2_dz);
+    return gradAngle + Math.PI / 2;
+  }
+  
+  // Fallback: random direction
+  return Math.random() * Math.PI * 2;
+}
 
 // ---- BIRDS ----
 function createBirdMesh() {
@@ -56,60 +117,190 @@ export function updateBirds(dt) {
 // ---- CARS ----
 function createCarMesh(color) {
   const g = new THREE.Group();
-  // Lower body (main chassis)
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 4), new THREE.MeshLambertMaterial({ color }));
-  body.position.y = 0.55; g.add(body);
-  // Upper body (cabin)
-  const top = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 2.2), new THREE.MeshLambertMaterial({ color: 0xaaddff, transparent: true, opacity: 0.6 }));
-  top.position.y = 1.15; g.add(top);
-  // Wheels
-  const wg = new THREE.CylinderGeometry(0.28, 0.28, 0.18, 8); wg.rotateZ(Math.PI / 2);
-  const wm = new THREE.MeshLambertMaterial({ color: 0x222222 });
-  [[-1.05, 0.28, 1.2], [1.05, 0.28, 1.2], [-1.05, 0.28, -1.2], [1.05, 0.28, -1.2]].forEach(p => { const w = new THREE.Mesh(wg, wm); w.position.set(...p); g.add(w); });
-  // Headlights
-  const hlMat = new THREE.MeshLambertMaterial({ color: 0xffffcc });
-  const hl1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), hlMat); hl1.position.set(-0.5, 0.6, 2.01); g.add(hl1);
-  const hl2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), hlMat); hl2.position.set(0.5, 0.6, 2.01); g.add(hl2);
-  // Taillights
-  const tlMat = new THREE.MeshLambertMaterial({ color: 0xff3333 });
-  const tl1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.1), tlMat); tl1.position.set(-0.5, 0.65, -2.01); g.add(tl1);
-  const tl2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.1), tlMat); tl2.position.set(0.5, 0.65, -2.01); g.add(tl2);
+  
+  // Main body - more realistic car shape
+  const bodyMat = new THREE.MeshLambertMaterial({ color: color });
+  
+  // Lower body (chassis)
+  const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 3.8), bodyMat);
+  lowerBody.position.y = 0.45;
+  g.add(lowerBody);
+  
+  // Hood (front)
+  const hood = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, 1.2), bodyMat);
+  hood.position.set(0, 0.65, 1.4);
+  g.add(hood);
+  
+  // Trunk (back)
+  const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.2, 0.8), bodyMat);
+  trunk.position.set(0, 0.6, -1.4);
+  g.add(trunk);
+  
+  // Cabin (windows)
+  const cabinMat = new THREE.MeshLambertMaterial({ color: 0x88bbdd, transparent: true, opacity: 0.75 });
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 1.4), cabinMat);
+  cabin.position.set(0, 0.95, -0.1);
+  g.add(cabin);
+  
+  // Roof
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 1.2), bodyMat);
+  roof.position.set(0, 1.25, -0.1);
+  g.add(roof);
+  
+  // Wheels - larger, more visible
+  const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 12);
+  wheelGeo.rotateZ(Math.PI / 2);
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+  const wheelPositions = [
+    [-0.95, 0.32, 1.2], [0.95, 0.32, 1.2],
+    [-0.95, 0.32, -1.2], [0.95, 0.32, -1.2]
+  ];
+  wheelPositions.forEach(pos => {
+    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.position.set(...pos);
+    wheel.name = 'wheel';
+    g.add(wheel);
+  });
+  
+  // Headlights (front - round)
+  const hlGeo = new THREE.SphereGeometry(0.1, 8, 8);
+  const hlMat = new THREE.MeshLambertMaterial({ color: 0xffffee, emissive: 0xffffaa, emissiveIntensity: 0.4 });
+  const hl1 = new THREE.Mesh(hlGeo, hlMat); hl1.position.set(-0.6, 0.5, 1.91);
+  g.add(hl1);
+  const hl2 = new THREE.Mesh(hlGeo, hlMat); hl2.position.set(0.6, 0.5, 1.91);
+  g.add(hl2);
+  
+  // Taillights (back)
+  const tlGeo = new THREE.BoxGeometry(0.35, 0.12, 0.06);
+  const tlMat = new THREE.MeshLambertMaterial({ color: 0xff2222, emissive: 0xff0000, emissiveIntensity: 0.3 });
+  const tl1 = new THREE.Mesh(tlGeo, tlMat); tl1.position.set(-0.55, 0.5, -1.91);
+  g.add(tl1);
+  const tl2 = new THREE.Mesh(tlGeo, tlMat); tl2.position.set(0.55, 0.5, -1.91);
+  g.add(tl2);
+  
+  // Side mirrors
+  const mirrorMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+  const mirrorGeo = new THREE.BoxGeometry(0.08, 0.06, 0.15);
+  const ml = new THREE.Mesh(mirrorGeo, mirrorMat); ml.position.set(-0.98, 0.75, 0.3);
+  g.add(ml);
+  const mr = new THREE.Mesh(mirrorGeo, mirrorMat); mr.position.set(0.98, 0.75, 0.3);
+  g.add(mr);
+  
   return g;
 }
 
 export function spawnCars() {
   const { dronePos } = state;
-  const cc = [0xe53935, 0x1e88e5, 0x43a047, 0xfdd835, 0xff9800, 0x8e24aa];
-  for (let i = 0; i < 12; i++) {
+  const cc = [0xe53935, 0x1e88e5, 0x43a047, 0xfdd835, 0xff9800, 0x8e24aa, 0x00acc1, 0x5e35b1, 0x3949ab, 0xd81b60];
+  
+  for (let i = 0; i < 15; i++) {
     const car = createCarMesh(cc[Math.floor(Math.random() * cc.length)]);
-    const a = Math.random() * Math.PI * 2, d = 30 + Math.random() * 200;
-    const cx = dronePos.x + Math.cos(a) * d, cz = dronePos.z + Math.sin(a) * d;
-    car.position.set(cx, getTerrainHeight(cx, cz) + 0.3, cz);
-    const dir = Math.random() * Math.PI * 2, sp = 8 + Math.random() * 15;
-    car.userData = { vx: Math.cos(dir) * sp, vz: Math.sin(dir) * sp };
-    car.rotation.y = dir; scene.add(car); cars.push(car);
+    
+    // Place car on road
+    const a = Math.random() * Math.PI * 2;
+    const d = 40 + Math.random() * 180;
+    let cx = dronePos.x + Math.cos(a) * d;
+    let cz = dronePos.z + Math.sin(a) * d;
+    
+    const roadPoint = getNearestRoadPoint(cx, cz);
+    if (roadPoint) {
+      cx = roadPoint.x;
+      cz = roadPoint.z;
+    }
+    
+    car.position.set(cx, getTerrainHeight(cx, cz) + 0.35, cz);
+    
+    // Determine movement direction along road
+    let dir;
+    if (roadPoint) {
+      dir = getRoadDirection(cx, cz);
+      // Randomly go forward or backward along road
+      if (Math.random() > 0.5) dir += Math.PI;
+    } else {
+      dir = Math.random() * Math.PI * 2;
+    }
+    
+    const sp = 12 + Math.random() * 10;
+    // Car model faces +Z by default, rotation.y = 0
+    // Movement: vx = sin(dir), vz = cos(dir)
+    car.userData = {
+      vx: Math.sin(dir) * sp,
+      vz: Math.cos(dir) * sp,
+      speed: sp,
+      onRoad: !!roadPoint
+    };
+    
+    // Set rotation so car faces movement direction
+    // Car's front is +Z (hood at z=1.4), so rotation.y should match movement direction
+    car.rotation.y = dir;
+    
+    scene.add(car);
+    cars.push(car);
   }
 }
 
 export function updateCars(dt) {
   const { dronePos } = state;
+  
   cars.forEach(car => {
-    car.position.x += car.userData.vx * dt; car.position.z += car.userData.vz * dt;
-    // Sample terrain at multiple points to align car with slope
-    const tx = car.position.x, tz = car.position.z;
+    // Move car
+    car.position.x += car.userData.vx * dt;
+    car.position.z += car.userData.vz * dt;
+    
+    // Get terrain height and slope
+    const tx = car.position.x;
+    const tz = car.position.z;
     const h = getTerrainHeight(tx, tz);
-    const hFront = getTerrainHeight(tx + Math.sin(car.rotation.y) * 2, tz + Math.cos(car.rotation.y) * 2);
-    const hRight = getTerrainHeight(tx + Math.sin(car.rotation.y + Math.PI/2) * 1, tz + Math.cos(car.rotation.y + Math.PI/2) * 1);
-    // Calculate pitch and roll based on terrain slope
-    const pitch = Math.atan2(hFront - h, 2);
+    
+    // Calculate movement direction
+    const moveAngle = Math.atan2(car.userData.vx, car.userData.vz);
+    
+    // Sample points for slope alignment
+    const hFront = getTerrainHeight(tx + Math.sin(moveAngle) * 1.5, tz + Math.cos(moveAngle) * 1.5);
+    const hRight = getTerrainHeight(tx + Math.sin(moveAngle + Math.PI/2) * 1, tz + Math.cos(moveAngle + Math.PI/2) * 1);
+    
+    const pitch = Math.atan2(hFront - h, 1.5);
     const roll = Math.atan2(hRight - h, 1);
-    car.position.y = h + 0.3;
-    car.rotation.x = pitch;
-    car.rotation.z = roll;
-    if (car.position.distanceTo(dronePos) > 300) {
-      const a = Math.random() * Math.PI * 2, nd = 50 + Math.random() * 150;
-      car.position.x = dronePos.x + Math.cos(a) * nd; car.position.z = dronePos.z + Math.sin(a) * nd;
-      car.position.y = getTerrainHeight(car.position.x, car.position.z) + 0.3;
+    
+    car.position.y = h + 0.35;
+    car.rotation.x = pitch * 0.4;
+    car.rotation.z = -roll * 0.4;
+    
+    // Rotate wheels
+    car.children.forEach(child => {
+      if (child.name === 'wheel') {
+        child.rotation.x += car.userData.speed * dt * 0.6;
+      }
+    });
+    
+    // Respawn if too far
+    if (car.position.distanceTo(dronePos) > 280) {
+      const a = Math.random() * Math.PI * 2;
+      const nd = 50 + Math.random() * 150;
+      let nx = dronePos.x + Math.cos(a) * nd;
+      let nz = dronePos.z + Math.sin(a) * nd;
+      
+      const roadPoint = getNearestRoadPoint(nx, nz);
+      if (roadPoint) {
+        nx = roadPoint.x;
+        nz = roadPoint.z;
+      }
+      
+      car.position.x = nx;
+      car.position.z = nz;
+      car.position.y = getTerrainHeight(nx, nz) + 0.35;
+      
+      let dir;
+      if (roadPoint) {
+        dir = getRoadDirection(nx, nz);
+        if (Math.random() > 0.5) dir += Math.PI;
+      } else {
+        dir = Math.random() * Math.PI * 2;
+      }
+      
+      car.userData.vx = Math.sin(dir) * car.userData.speed;
+      car.userData.vz = Math.cos(dir) * car.userData.speed;
+      car.rotation.y = dir;
     }
   });
 }
@@ -117,65 +308,221 @@ export function updateCars(dt) {
 // ---- PEOPLE ----
 function createPersonMesh(shirtColor) {
   const g = new THREE.Group();
+  const skinColor = 0xddbb88;
+  const pantsColor = 0x2a3a5a;
+  
   // Torso
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: shirtColor }));
-  body.position.y = 1.0; g.add(body);
-  // Head
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), new THREE.MeshLambertMaterial({ color: 0xddbb88 }));
-  head.position.y = 1.45; g.add(head);
+  const bodyGeo = new THREE.BoxGeometry(0.32, 0.42, 0.16);
+  const bodyMat = new THREE.MeshLambertMaterial({ color: shirtColor });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.92;
+  g.add(body);
+  
+  // Head (more realistic proportions)
+  const headGeo = new THREE.SphereGeometry(0.12, 10, 8);
+  const headMat = new THREE.MeshLambertMaterial({ color: skinColor });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.26;
+  g.add(head);
+  
+  // Neck
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.06, 6), headMat);
+  neck.position.y = 1.14;
+  g.add(neck);
+  
   // Arms
-  const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.45, 4);
+  const armGeo = new THREE.CylinderGeometry(0.04, 0.035, 0.36, 6);
   const armMat = new THREE.MeshLambertMaterial({ color: shirtColor });
-  const leftArm = new THREE.Mesh(armGeo, armMat); leftArm.position.set(-0.25, 1.05, 0); leftArm.name = 'leftArm'; g.add(leftArm);
-  const rightArm = new THREE.Mesh(armGeo, armMat); rightArm.position.set(0.25, 1.05, 0); rightArm.name = 'rightArm'; g.add(rightArm);
+  
+  const leftArm = new THREE.Mesh(armGeo, armMat);
+  leftArm.position.set(-0.22, 0.88, 0);
+  leftArm.name = 'leftArm';
+  g.add(leftArm);
+  
+  const rightArm = new THREE.Mesh(armGeo, armMat);
+  rightArm.position.set(0.22, 0.88, 0);
+  rightArm.name = 'rightArm';
+  g.add(rightArm);
+  
+  // Hands
+  const handGeo = new THREE.SphereGeometry(0.04, 6, 5);
+  const leftHand = new THREE.Mesh(handGeo, headMat);
+  leftHand.position.set(-0.22, 0.66, 0);
+  leftHand.name = 'leftHand';
+  g.add(leftHand);
+  
+  const rightHand = new THREE.Mesh(handGeo, headMat);
+  rightHand.position.set(0.22, 0.66, 0);
+  rightHand.name = 'rightHand';
+  g.add(rightHand);
+  
   // Legs
-  const legGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.55, 4);
-  const legMat = new THREE.MeshLambertMaterial({ color: 0x333355 });
-  const leftLeg = new THREE.Mesh(legGeo, legMat); leftLeg.position.set(-0.1, 0.45, 0); leftLeg.name = 'leftLeg'; g.add(leftLeg);
-  const rightLeg = new THREE.Mesh(legGeo, legMat); rightLeg.position.set(0.1, 0.45, 0); rightLeg.name = 'rightLeg'; g.add(rightLeg);
+  const legGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.46, 6);
+  const legMat = new THREE.MeshLambertMaterial({ color: pantsColor });
+  
+  const leftLeg = new THREE.Mesh(legGeo, legMat);
+  leftLeg.position.set(-0.09, 0.36, 0);
+  leftLeg.name = 'leftLeg';
+  g.add(leftLeg);
+  
+  const rightLeg = new THREE.Mesh(legGeo, legMat);
+  rightLeg.position.set(0.09, 0.36, 0);
+  rightLeg.name = 'rightLeg';
+  g.add(rightLeg);
+  
+  // Feet
+  const footGeo = new THREE.BoxGeometry(0.09, 0.05, 0.16);
+  const footMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+  
+  const leftFoot = new THREE.Mesh(footGeo, footMat);
+  leftFoot.position.set(-0.09, 0.08, 0.02);
+  g.add(leftFoot);
+  
+  const rightFoot = new THREE.Mesh(footGeo, footMat);
+  rightFoot.position.set(0.09, 0.08, 0.02);
+  g.add(rightFoot);
+  
   return g;
 }
 
 export function spawnPeople() {
   const { dronePos } = state;
-  for (let i = 0; i < 15; i++) {
-    const shirt = new THREE.Color().setHSL(Math.random(), 0.6, 0.5).getHex();
+  
+  for (let i = 0; i < 25; i++) {
+    // Random shirt color
+    const shirt = new THREE.Color().setHSL(
+      Math.random(),
+      0.5 + Math.random() * 0.3,
+      0.35 + Math.random() * 0.25
+    ).getHex();
+    
     const p = createPersonMesh(shirt);
-    const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 150;
-    const px = dronePos.x + Math.cos(a) * d, pz = dronePos.z + Math.sin(a) * d;
+    
+    // Place people near roads (on the side)
+    const a = Math.random() * Math.PI * 2;
+    const d = 25 + Math.random() * 150;
+    let px = dronePos.x + Math.cos(a) * d;
+    let pz = dronePos.z + Math.sin(a) * d;
+    
+    const roadPoint = getNearestRoadPoint(px, pz);
+    if (roadPoint) {
+      // Place on side of road
+      const roadDir = getRoadDirection(roadPoint.x, roadPoint.z);
+      const sideOffset = (Math.random() > 0.5 ? 1 : -1) * (ROAD_WIDTH * 0.5 + Math.random() * 3);
+      px = roadPoint.x + Math.cos(roadDir + Math.PI/2) * sideOffset;
+      pz = roadPoint.z + Math.sin(roadDir + Math.PI/2) * sideOffset;
+    }
+    
     p.position.set(px, getTerrainHeight(px, pz), pz);
-    const dir = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
-    p.userData = { vx: Math.cos(dir) * sp, vz: Math.sin(dir) * sp, walkPhase: Math.random() * Math.PI * 2 };
-    p.rotation.y = dir; scene.add(p); people.push(p);
+    
+    // Walk direction
+    let dir;
+    if (roadPoint) {
+      // Walk along road
+      dir = getRoadDirection(roadPoint.x, roadPoint.z);
+      if (Math.random() > 0.5) dir += Math.PI;
+    } else {
+      dir = Math.random() * Math.PI * 2;
+    }
+    
+    const sp = 0.7 + Math.random() * 1.2;
+    p.userData = {
+      vx: Math.sin(dir) * sp,
+      vz: Math.cos(dir) * sp,
+      walkPhase: Math.random() * Math.PI * 2,
+      onRoad: !!roadPoint
+    };
+    
+    // Person faces movement direction
+    p.rotation.y = dir;
+    
+    scene.add(p);
+    people.push(p);
   }
 }
 
 export function updatePeople(dt) {
   const { dronePos } = state;
+  
   people.forEach(p => {
-    p.userData.walkPhase += 8 * dt;
-    p.position.x += p.userData.vx * dt; p.position.z += p.userData.vz * dt;
-    // Align person with terrain
-    const tx = p.position.x, tz = p.position.z;
+    // Walk animation
+    p.userData.walkPhase += 10 * dt;
+    
+    // Move
+    p.position.x += p.userData.vx * dt;
+    p.position.z += p.userData.vz * dt;
+    
+    // Terrain alignment
+    const tx = p.position.x;
+    const tz = p.position.z;
     const h = getTerrainHeight(tx, tz);
-    const hFront = getTerrainHeight(tx + Math.sin(p.rotation.y) * 0.5, tz + Math.cos(p.rotation.y) * 0.5);
-    const hRight = getTerrainHeight(tx + Math.sin(p.rotation.y + Math.PI/2) * 0.3, tz + Math.cos(p.rotation.y + Math.PI/2) * 0.3);
-    const pitch = Math.atan2(hFront - h, 0.5);
-    const roll = Math.atan2(hRight - h, 0.3);
+    
+    const moveAngle = Math.atan2(p.userData.vx, p.userData.vz);
+    const hFront = getTerrainHeight(tx + Math.sin(moveAngle) * 0.25, tz + Math.cos(moveAngle) * 0.25);
+    const hRight = getTerrainHeight(tx + Math.sin(moveAngle + Math.PI/2) * 0.15, tz + Math.cos(moveAngle + Math.PI/2) * 0.15);
+    
+    const pitch = Math.atan2(hFront - h, 0.25);
+    const roll = Math.atan2(hRight - h, 0.15);
+    
     p.position.y = h;
-    p.rotation.x = pitch;
-    p.rotation.z = roll;
+    p.rotation.x = pitch * 0.25;
+    p.rotation.z = -roll * 0.25;
+    
     // Animate limbs
-    const la = p.getObjectByName('leftArm'), ra = p.getObjectByName('rightArm');
-    const ll = p.getObjectByName('leftLeg'), rl = p.getObjectByName('rightLeg');
-    if (la) la.rotation.x = Math.sin(p.userData.walkPhase) * 0.5;
-    if (ra) ra.rotation.x = -Math.sin(p.userData.walkPhase) * 0.5;
-    if (ll) ll.rotation.x = Math.sin(p.userData.walkPhase) * 0.4;
-    if (rl) rl.rotation.x = -Math.sin(p.userData.walkPhase) * 0.4;
-    if (p.position.distanceTo(dronePos) > 200) {
-      const a = Math.random() * Math.PI * 2, nd = 30 + Math.random() * 100;
-      p.position.x = dronePos.x + Math.cos(a) * nd; p.position.z = dronePos.z + Math.sin(a) * nd;
-      p.position.y = getTerrainHeight(p.position.x, p.position.z);
+    const swing = Math.sin(p.userData.walkPhase);
+    
+    const la = p.getObjectByName('leftArm');
+    const ra = p.getObjectByName('rightArm');
+    const ll = p.getObjectByName('leftLeg');
+    const rl = p.getObjectByName('rightLeg');
+    const lh = p.getObjectByName('leftHand');
+    const rh = p.getObjectByName('rightHand');
+    
+    if (la) la.rotation.x = swing * 0.55;
+    if (ra) ra.rotation.x = -swing * 0.55;
+    if (ll) ll.rotation.x = swing * 0.45;
+    if (rl) rl.rotation.x = -swing * 0.45;
+    
+    // Move hands with arms
+    if (lh) {
+      lh.position.y = 0.66 - swing * 0.03;
+      lh.position.z = swing * 0.02;
+    }
+    if (rh) {
+      rh.position.y = 0.66 + swing * 0.03;
+      rh.position.z = -swing * 0.02;
+    }
+    
+    // Respawn if too far
+    if (p.position.distanceTo(dronePos) > 180) {
+      const a = Math.random() * Math.PI * 2;
+      const nd = 30 + Math.random() * 100;
+      let nx = dronePos.x + Math.cos(a) * nd;
+      let nz = dronePos.z + Math.sin(a) * nd;
+      
+      const roadPoint = getNearestRoadPoint(nx, nz);
+      if (roadPoint) {
+        const roadDir = getRoadDirection(roadPoint.x, roadPoint.z);
+        const sideOffset = (Math.random() > 0.5 ? 1 : -1) * (ROAD_WIDTH * 0.5 + Math.random() * 2);
+        nx = roadPoint.x + Math.cos(roadDir + Math.PI/2) * sideOffset;
+        nz = roadPoint.z + Math.sin(roadDir + Math.PI/2) * sideOffset;
+      }
+      
+      p.position.x = nx;
+      p.position.z = nz;
+      p.position.y = getTerrainHeight(nx, nz);
+      
+      let dir;
+      if (roadPoint) {
+        dir = getRoadDirection(roadPoint.x, roadPoint.z);
+        if (Math.random() > 0.5) dir += Math.PI;
+      } else {
+        dir = Math.random() * Math.PI * 2;
+      }
+      
+      p.userData.vx = Math.sin(dir) * 0.9;
+      p.userData.vz = Math.cos(dir) * 0.9;
+      p.rotation.y = dir;
     }
   });
 }
