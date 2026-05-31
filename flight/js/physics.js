@@ -115,7 +115,8 @@ export function updateDrone(dt) {
   }
   
   const targetPropSpeed = (basePropSpeed + horizontalSpeedRatio * (maxPropSpeed - basePropSpeed)) * propSpeedMultiplier;
-  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? Math.min(targetPropSpeed, maxPropSpeed * 1.5) : 0, 5 * dt);
+  // Propeller speed responds quickly to velocity changes
+  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? Math.min(targetPropSpeed, maxPropSpeed * 1.5) : 0, 15 * dt);
 
   // Distance tracking
   const moved = state.dronePos.distanceTo(prevPos);
