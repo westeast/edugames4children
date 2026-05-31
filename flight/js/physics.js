@@ -5,6 +5,7 @@ import { state, DRONES, GEAR_MULT } from './config.js';
 import { getTerrainHeight, terrainGroup } from './terrain.js';
 import { birds } from './entities.js';
 import { showNotif } from './ui.js';
+import { createRTHPath, removeRTHPath, isLanding } from './rth-path.js';
 
 export function updateDrone(dt) {
   if (state.isCrashed || state.isPaused || !state.gameStarted) return;
@@ -33,13 +34,27 @@ export function updateDrone(dt) {
   if (state.isRTH) {
     const toHome = new THREE.Vector3().subVectors(state.homePos, state.dronePos);
     const dist = toHome.length();
-    if (dist < 3) { state.isRTH = false; state.droneVel.set(0, 0, 0); showNotif('已返航到家'); return; }
+    
+    // Create RTH path visualization
+    createRTHPath();
+    
+    if (dist < 3) {
+      state.isRTH = false;
+      state.droneVel.set(0, 0, 0);
+      removeRTHPath();
+      showNotif('✅ 已返航到家，降落完成');
+      return;
+    }
+    
     toHome.normalize();
     inputF = 1;
     inputR = toHome.x * Math.cos(state.droneYaw) - toHome.z * Math.sin(state.droneYaw);
     inputYaw = Math.atan2(toHome.x, toHome.z) - state.droneYaw;
     if (dist < 20) inputUp = (state.homePos.y - state.dronePos.y) * 0.1;
     else if (state.dronePos.y < 30) inputUp = 0.5;
+  } else {
+    // Remove RTH path if not in RTH mode
+    removeRTHPath();
   }
 
   // Yaw rotation

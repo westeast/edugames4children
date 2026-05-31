@@ -7,6 +7,7 @@ import { createDroneModel, droneGroup, propellers } from './drone-model.js';
 import { updateDrone } from './physics.js';
 import { setupJoystick } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
+import { updateRTHPath, isLanding } from './rth-path.js';
 
 let lastTime = 0;
 
@@ -22,6 +23,17 @@ function gameLoop(time) {
     updatePeople(dt);
     updateClouds(dt);
     updateTerrainChunks();
+    
+    // Update RTH path visualization
+    if (state.isRTH) {
+      updateRTHPath();
+      
+      // Show landing notification when close to home
+      if (isLanding()) {
+        showNotif('📍 自动降落中...', 2);
+      }
+    }
+    
     if (droneGroup) {
       droneGroup.visible = !state.fpvMode;
       droneGroup.position.copy(state.dronePos);
