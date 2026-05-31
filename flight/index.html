@@ -426,7 +426,11 @@ function findDrone() {
 }
 
 function toggleEmergencyStop() {
-  showNotif('⚠️ 紧急停桨功能已启用');
+  showNotif('⚠️ 紧急停桨！飞机正在坠落...');
+  // 触发紧急停桨 - 调用全局函数
+  if (typeof window.emergencyStop === 'function') {
+    window.emergencyStop();
+  }
 }
 
 // Fullscreen toggle

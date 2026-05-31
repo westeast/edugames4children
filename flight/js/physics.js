@@ -139,15 +139,53 @@ export function updateDrone(dt) {
 
 export function crash() {
   state.isCrashed = true;
+  state.propSpeed = 0; // Stop propellers
   document.getElementById('crashOverlay').classList.add('show');
   setTimeout(() => {
     state.isCrashed = false;
     state.dronePos.copy(state.homePos); state.droneVel.set(0, 0, 0);
     state.droneYaw = 0; state.dronePitch = 0; state.droneRoll = 0;
     state.battery = 100; state.totalDist = 0;
+    state.propSpeed = 15;
     document.getElementById('crashOverlay').classList.remove('show');
     showNotif('已重置到家园点');
   }, 2000);
+}
+
+// Emergency stop - immediately stop propellers and crash
+export function emergencyStop() {
+  if (!state.gameStarted || state.isCrashed) return;
+  
+  state.propSpeed = 0; // Stop propellers immediately
+  state.isEmergencyStop = true;
+  showNotif('💥 紧急停桨！飞机坠落！');
+  
+  // Let drone fall with gravity
+  const fallLoop = () => {
+    if (state.isCrashed) return;
+    
+    // Apply gravity
+    state.droneVel.y -= 9.8 * 0.016; // Gravity acceleration
+    state.droneVel.x *= 0.98; // Air resistance
+    state.droneVel.z *= 0.98;
+    
+    // Update position
+    state.dronePos.add(state.droneVel.clone().multiplyScalar(0.016));
+    
+    // Check ground collision
+    const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+    if (state.dronePos.y <= groundH) {
+      state.dronePos.y = groundH;
+      state.isEmergencyStop = false;
+      crash();
+      showNotif('💥 紧急停桨导致炸机！');
+      return;
+    }
+    
+    requestAnimationFrame(fallLoop);
+  };
+  
+  fallLoop();
 }
 
 function updateObstacleIndicator() {

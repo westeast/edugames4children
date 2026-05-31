@@ -4,10 +4,13 @@ import { state } from './config.js';
 import { updateTerrainChunks } from './terrain.js';
 import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds } from './entities.js';
 import { createDroneModel, droneGroup, propellers } from './drone-model.js';
-import { updateDrone } from './physics.js';
+import { updateDrone, emergencyStop } from './physics.js';
 import { setupJoystick } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
 import { updateRTHPath, isLanding } from './rth-path.js';
+
+// Export emergency stop to global scope for HTML onclick
+window.emergencyStop = emergencyStop;
 
 let lastTime = 0;
 
