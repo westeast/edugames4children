@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { scene } from './engine.js';
 import { state } from './config.js';
-import { getTerrainHeight, ROAD_WIDTH } from './terrain.js';
+import { getTerrainHeight, ROAD_WIDTH, getRoadDirectionAt } from './terrain.js';
 import { SimplexNoise } from './noise.js';
 
 export const birds = [];
@@ -13,29 +13,48 @@ export const clouds = [];
 // Noise for road generation - same seed as terrain.js
 const roadNoise = new SimplexNoise(123);
 
-// Check if position is on road (same logic as terrain.js)
+// Check if position is on mountain road (same logic as terrain.js)
 function isOnRoad(x, z) {
-  const nx = x / 200, nz = z / 200;
-
   const h = getTerrainHeight(x, z);
+
+  if (h < 5 || h > 80) return false;
+
   const delta = 5;
   const h_dx = getTerrainHeight(x + delta, z) - h;
   const h_dz = getTerrainHeight(x, z + delta) - h;
   const slope = Math.sqrt(h_dx * h_dx + h_dz * h_dz) / delta;
+  if (slope > 0.8) return false;
 
-  if (slope > 0.6) return false;
+  // Mountain roads at elevation bands
+  const elevationBands = [
+    { base: 15, range: 8 },
+    { base: 30, range: 8 },
+    { base: 50, range: 8 },
+  ];
 
-  const n1 = roadNoise.fbm(nx * 0.3, nz * 0.3, 2, 2, 0.5);
-  const n2 = roadNoise.fbm(nx * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
+  for (const band of elevationBands) {
+    const heightDiff = Math.abs(h - band.base);
+    if (heightDiff < band.range) {
+      const nx = x / 100, nz = z / 100;
+      const winding = roadNoise.noise2D(nx * 0.5, nz * 0.5);
+      const spiralFactor = Math.sin(x * 0.02 + winding * 5) * Math.cos(z * 0.02 + winding * 5);
+      if (Math.abs(spiralFactor + winding * 0.3) < 0.25) {
+        return true;
+      }
+    }
+  }
 
-  const elevBias = Math.sin(h * 0.03) * 0.05;
+  return false;
+}
 
-  return Math.abs(n1 + elevBias) < 0.15 || Math.abs(n2 - elevBias) < 0.15;
+// Get road direction - use terrain gradient (along contour)
+function getRoadDirection(x, z) {
+  return getRoadDirectionAt(x, z);
 }
 
 // Get nearest point on road
 function getNearestRoadPoint(x, z) {
-  for (let r = 0; r <= 40; r += 5) {
+  for (let r = 0; r <= 60; r += 8) {
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
       const testX = x + Math.cos(a) * r;
       const testZ = z + Math.sin(a) * r;
@@ -45,40 +64,6 @@ function getNearestRoadPoint(x, z) {
     }
   }
   return null;
-}
-
-// Get road direction at a point (perpendicular to noise gradient)
-function getRoadDirection(x, z) {
-  const nx = x / 200, nz = z / 200;
-
-  const n1 = roadNoise.fbm(nx * 0.3, nz * 0.3, 2, 2, 0.5);
-  const n2 = roadNoise.fbm(nx * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
-
-  // Calculate gradient of the dominant noise to find road direction
-  // Road direction is perpendicular to gradient (along the "contour line")
-  const delta = 0.01;
-
-  // Check which road network we're on
-  const absN1 = Math.abs(n1);
-  const absN2 = Math.abs(n2);
-
-  if (absN1 < 0.15) {
-    // Road 1: calculate gradient of n1
-    const n1_dx = roadNoise.fbm((nx + delta) * 0.3, nz * 0.3, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.3, nz * 0.3, 2, 2, 0.5);
-    const n1_dz = roadNoise.fbm(nx * 0.3, (nz + delta) * 0.3, 2, 2, 0.5) - roadNoise.fbm(nx * 0.3, (nz - delta) * 0.3, 2, 2, 0.5);
-    // Road direction is perpendicular to gradient
-    const gradAngle = Math.atan2(n1_dx, n1_dz);
-    return gradAngle + Math.PI / 2;
-  } else if (absN2 < 0.15) {
-    // Road 2: calculate gradient of n2
-    const n2_dx = roadNoise.fbm((nx + delta) * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
-    const n2_dz = roadNoise.fbm(nx * 0.2 + 100, (nz + delta) * 0.2 + 100, 2, 2, 0.5) - roadNoise.fbm(nx * 0.2 + 100, (nz - delta) * 0.2 + 100, 2, 2, 0.5);
-    const gradAngle = Math.atan2(n2_dx, n2_dz);
-    return gradAngle + Math.PI / 2;
-  }
-
-  // Fallback: random direction
-  return Math.random() * Math.PI * 2;
 }
 
 // ---- BIRDS ----

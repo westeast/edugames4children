@@ -28,35 +28,71 @@ export function chunkKey(cx, cz) { return cx + ',' + cz; }
 const CAR_WIDTH = 2;
 const ROAD_WIDTH = CAR_WIDTH * 3; // 6 meters - allows 2 cars to pass
 
-// Check if position is on road (same logic as entities.js)
-// Roads follow terrain contours, avoiding steep slopes
+// Mountain road generation: roads follow elevation contours (盘山公路)
+// Roads spiral around mountains at specific elevation bands
 function isOnRoad(wx, wz) {
-  const nx = wx / 200, nz = wz / 200;
-
-  // Get terrain height and slope at this position
   const h = getTerrainHeight(wx, wz);
+
+  // Skip very low areas (water/flat ground) and very high peaks
+  if (h < 5 || h > 80) return false;
+
+  // Check slope - roads avoid steep cliffs
   const delta = 5;
   const h_dx = getTerrainHeight(wx + delta, wz) - h;
   const h_dz = getTerrainHeight(wx, wz + delta) - h;
   const slope = Math.sqrt(h_dx * h_dx + h_dz * h_dz) / delta;
+  if (slope > 0.8) return false;
 
-  // Roads avoid very steep areas (slope > 0.6)
-  if (slope > 0.6) return false;
+  // Create winding mountain roads at multiple elevation bands
+  // Each band represents a "layer" of the mountain road
+  const elevationBands = [
+    { base: 15, range: 8 },   // Lower mountain road
+    { base: 30, range: 8 },   // Mid mountain road
+    { base: 50, range: 8 },   // Upper mountain road
+  ];
 
-  // Create winding road network using noise
-  // Increased threshold for more visible roads
-  const n1 = roadNoise.fbm(nx * 0.3, nz * 0.3, 2, 2, 0.5);
-  const n2 = roadNoise.fbm(nx * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
+  for (const band of elevationBands) {
+    // Check if height is within this band
+    const heightDiff = Math.abs(h - band.base);
+    if (heightDiff < band.range) {
+      // Use noise to create winding pattern along the contour
+      // The noise varies with position to create curves
+      const nx = wx / 100, nz = wz / 100;
+      const winding = roadNoise.noise2D(nx * 0.5, nz * 0.5);
 
-  // Add elevation-based bias - roads prefer certain elevation bands
-  const elevBias = Math.sin(h * 0.03) * 0.05;
+      // Road exists where winding pattern creates a path
+      // Use sin/cos of position to create spiral-like pattern
+      const spiralFactor = Math.sin(wx * 0.02 + winding * 5) * Math.cos(wz * 0.02 + winding * 5);
 
-  // Wider roads (threshold 0.15 instead of 0.07)
-  return Math.abs(n1 + elevBias) < 0.15 || Math.abs(n2 - elevBias) < 0.15;
+      // Combine winding with spiral for mountain road shape
+      if (Math.abs(spiralFactor + winding * 0.3) < 0.25) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
-// Export road width for entities.js
-export { ROAD_WIDTH };
+// Get road direction along mountain contour (perpendicular to gradient)
+function getRoadDirectionAt(x, z) {
+  // Road follows contour (constant elevation) - perpendicular to height gradient
+  const delta = 2;
+  const h = getTerrainHeight(x, z);
+  const h_dx = getTerrainHeight(x + delta, z) - h;
+  const h_dz = getTerrainHeight(x, z + delta) - h;
+
+  // Gradient direction
+  const gradAngle = Math.atan2(h_dx, h_dz);
+
+  // Road direction is perpendicular to gradient (along contour)
+  // Also add some winding from noise
+  const winding = roadNoise.noise2D(x / 100 * 0.5, z / 100 * 0.5);
+  return gradAngle + Math.PI / 2 + winding * 0.3;
+}
+
+// Export road width and direction function for entities.js
+export { ROAD_WIDTH, getRoadDirectionAt };
 
 export function createTerrainChunk(cx, cz) {
   const key = chunkKey(cx, cz);
