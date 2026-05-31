@@ -228,6 +228,24 @@ body {
 }
 .settings-btn:hover { background: rgba(255,149,0,0.4); }
 
+/* 全屏按钮 */
+.fullscreen-btn { 
+  width: 28px; 
+  height: 28px; 
+  border-radius: 50%; 
+  border: none; 
+  background: rgba(255,149,0,0.2); 
+  color: #ff9500; 
+  font-size: 14px; 
+  cursor: pointer; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  transition: all 0.2s; 
+  margin-right: 6px;
+}
+.fullscreen-btn:hover { background: rgba(255,149,0,0.4); }
+
 /* 设置弹窗 */
 #settingsModal {
   position: fixed;

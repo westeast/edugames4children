@@ -40,6 +40,7 @@
   </div>
   <div class="status-item"><span>🛰️</span><span class="val" id="gpsVal">23</span><span class="unit">GPS</span></div>
   <div style="font-size:11px;color:#ff9500;font-weight:600;" id="flightMode">N档</div>
+  <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
   <button class="settings-btn" onclick="openSettings()">⋮</button>
 </div>
 
@@ -426,6 +427,17 @@ function findDrone() {
 
 function toggleEmergencyStop() {
   showNotif('⚠️ 紧急停桨功能已启用');
+}
+
+// Fullscreen toggle
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(err => {
+      showNotif('无法进入全屏模式');
+    });
+  } else {
+    document.exitFullscreen();
+  }
 }
 
 // Initialize on DOM ready
