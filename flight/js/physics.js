@@ -152,40 +152,53 @@ export function crash() {
   }, 2000);
 }
 
-// Emergency stop - immediately stop propellers and crash
+// Emergency stop - immediately stop propellers and crash with tumbling
 export function emergencyStop() {
   if (!state.gameStarted || state.isCrashed) return;
   
   state.propSpeed = 0; // Stop propellers immediately
   state.isEmergencyStop = true;
-  showNotif('💥 紧急停桨！飞机坠落！');
+  showNotif('💥 紧急停桨！飞机正在坠落！');
   
-  // Let drone fall with gravity
-  const fallLoop = () => {
-    if (state.isCrashed) return;
-    
-    // Apply gravity
-    state.droneVel.y -= 9.8 * 0.016; // Gravity acceleration
-    state.droneVel.x *= 0.98; // Air resistance
-    state.droneVel.z *= 0.98;
-    
-    // Update position
-    state.dronePos.add(state.droneVel.clone().multiplyScalar(0.016));
-    
-    // Check ground collision
-    const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
-    if (state.dronePos.y <= groundH) {
-      state.dronePos.y = groundH;
-      state.isEmergencyStop = false;
-      crash();
-      showNotif('💥 紧急停桨导致炸机！');
-      return;
-    }
-    
-    requestAnimationFrame(fallLoop);
-  };
+  // Random tumble direction - fast and chaotic tumbling
+  state.tumblePitch = (Math.random() - 0.5) * 15; // Fast pitch rotation
+  state.tumbleRoll = (Math.random() - 0.5) * 18;  // Fast roll rotation
+  state.tumbleYaw = (Math.random() - 0.5) * 10;   // Fast yaw rotation
   
-  fallLoop();
+  // Store initial horizontal velocity for tumbling movement
+  state.tumbleVelX = state.droneVel.x * 0.8;
+  state.tumbleVelZ = state.droneVel.z * 0.8;
+}
+
+// Update emergency stop falling - call from game loop
+export function updateEmergencyStop(dt) {
+  if (!state.isEmergencyStop || state.isCrashed) return;
+  
+  // Apply gravity - very fast fall
+  state.droneVel.y -= 25 * dt; // Much heavier fall
+  
+  // Horizontal movement with tumbling
+  state.droneVel.x = state.tumbleVelX;
+  state.droneVel.z = state.tumbleVelZ;
+  state.tumbleVelX *= 0.98; // Slow down
+  state.tumbleVelZ *= 0.98;
+  
+  // Update position
+  state.dronePos.add(state.droneVel.clone().multiplyScalar(dt));
+  
+  // Tumble the drone (rotation)
+  state.dronePitch += state.tumblePitch * dt;
+  state.droneRoll += state.tumbleRoll * dt;
+  state.droneYaw += state.tumbleYaw * dt;
+  
+  // Check ground collision
+  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  if (state.dronePos.y <= groundH) {
+    state.dronePos.y = groundH;
+    state.isEmergencyStop = false;
+    crash();
+    showNotif('💥 紧急停桨导致炸机！');
+  }
 }
 
 function updateObstacleIndicator() {

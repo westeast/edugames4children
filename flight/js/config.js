@@ -42,4 +42,11 @@ export const state = {
   rightStick: { x: 0, y: 0 },
   lastTime: 0,
   notifTimer: 0,
+  // Emergency stop tumble state
+  isEmergencyStop: false,
+  tumblePitch: 0,
+  tumbleRoll: 0,
+  tumbleYaw: 0,
+  tumbleVelX: 0,
+  tumbleVelZ: 0,
 };

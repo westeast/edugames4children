@@ -23,17 +23,24 @@ export function updateCamera(gameStarted = false) {
   sunLight.target.updateMatrixWorld();
 
   if (state.fpvMode) {
-    // FPV camera position: at the drone's camera gimbal (front-bottom)
+    // FPV camera position: at the drone's camera gimbal (Front-bottom)
     const camOffset = new THREE.Vector3(0, -0.25, 0.6);
     camOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     camera.position.copy(state.dronePos).add(camOffset);
     const lookDir = new THREE.Vector3(-Math.sin(state.droneYaw), -0.1 + state.dronePitch * 0.3, -Math.cos(state.droneYaw)).normalize();
     camera.lookAt(camera.position.clone().add(lookDir.multiplyScalar(100)));
   } else {
+    // Third-person camera with offset based on drone yaw
     const offset = new THREE.Vector3(0, 8, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     const targetCamPos = state.dronePos.clone().add(offset);
-    // Use lerp after game started for smooth camera, snap immediately before or on first frame
-    if (gameStarted && state.lastTime > 0) {
+    
+    // During emergency stop, camera still follows but stays more stable to watch the tumble
+    if (state.isEmergencyStop) {
+      // Keep camera closer to see the tumbling drone better
+      const emergencyOffset = new THREE.Vector3(0, 5, 12).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
+      const emergencyCamPos = state.dronePos.clone().add(emergencyOffset);
+      camera.position.lerp(emergencyCamPos, 0.08);
+    } else if (gameStarted && state.lastTime > 0) {
       camera.position.lerp(targetCamPos, 0.05);
     } else {
       camera.position.copy(targetCamPos);

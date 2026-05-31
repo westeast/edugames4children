@@ -4,7 +4,7 @@ import { state } from './config.js';
 import { updateTerrainChunks } from './terrain.js';
 import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds } from './entities.js';
 import { createDroneModel, droneGroup, propellers } from './drone-model.js';
-import { updateDrone, emergencyStop } from './physics.js';
+import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
 import { updateRTHPath, isLanding } from './rth-path.js';
@@ -20,7 +20,12 @@ function gameLoop(time) {
   lastTime = time;
 
   if (state.gameStarted && !state.isPaused) {
-    updateDrone(dt);
+    // Handle emergency stop tumbling crash
+    if (state.isEmergencyStop) {
+      updateEmergencyStop(dt);
+    } else {
+      updateDrone(dt);
+    }
     updateBirds(dt);
     updateCars(dt);
     updatePeople(dt);
