@@ -5,6 +5,7 @@ import { DRONES, state } from './config.js';
 
 export let droneGroup = null;
 export let propellers = [];
+export let propBlurs = []; // Blur disks for high speed
 
 export function createDroneModel(droneIdx) {
   if (droneGroup) {
@@ -17,6 +18,7 @@ export function createDroneModel(droneIdx) {
   const spec = DRONES[droneIdx];
   const g = new THREE.Group();
   propellers = [];
+  propBlurs = [];
   const accent = spec.color;
 
   // Central body
@@ -56,6 +58,13 @@ export function createDroneModel(droneIdx) {
     const guard = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.03, 4, 16), new THREE.MeshPhongMaterial({ color: 0x333333 }));
     guard.rotation.x = Math.PI / 2; propGroup.add(guard);
     g.add(propGroup); propellers.push(propGroup);
+    // Blur disk for high speed (initially hidden)
+    const blurDisk = new THREE.Mesh(
+      new THREE.CircleGeometry(1.1, 32),
+      new THREE.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0, side: THREE.DoubleSide })
+    );
+    blurDisk.rotation.x = -Math.PI / 2; blurDisk.position.set(ap.x, 0.26, ap.z);
+    g.add(blurDisk); propBlurs.push(blurDisk);
     // LED lights (front=green, rear=red)
     const ledColor = idx < 2 ? 0x00ff00 : 0xff0000;
     const led = new THREE.Mesh(new THREE.SphereGeometry(0.05, 4, 4), new THREE.MeshBasicMaterial({ color: ledColor }));

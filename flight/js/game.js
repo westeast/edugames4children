@@ -3,7 +3,7 @@ import { renderer, scene, camera } from './engine.js';
 import { state } from './config.js';
 import { updateTerrainChunks } from './terrain.js';
 import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds } from './entities.js';
-import { createDroneModel, droneGroup, propellers } from './drone-model.js';
+import { createDroneModel, droneGroup, propellers, propBlurs } from './drone-model.js';
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
@@ -46,7 +46,16 @@ function gameLoop(time) {
       droneGroup.visible = !state.fpvMode;
       droneGroup.position.copy(state.dronePos);
       droneGroup.rotation.set(state.dronePitch, state.droneYaw, state.droneRoll);
-      propellers.forEach((p, i) => { p.rotation.y += state.propSpeed * dt * (i % 2 === 0 ? 1 : -1); });
+      // Propeller visual: show blur disk at high speed, blades at low speed
+      const blurAmount = Math.min(state.propSpeed / 40, 1); // 0-1 based on speed
+      propellers.forEach((p, i) => {
+        p.rotation.y += state.propSpeed * dt * (i % 2 === 0 ? 1 : -1);
+        p.visible = blurAmount < 0.7; // Hide blades when spinning fast
+      });
+      propBlurs.forEach((b, i) => {
+        b.material.opacity = blurAmount * 0.5; // Show blur disk
+        b.visible = !state.fpvMode;
+      });
     }
   }
   // Always update camera, but only lerp after game started
