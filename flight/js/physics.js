@@ -74,7 +74,14 @@ export function updateDrone(dt) {
   // Visual tilt
   state.dronePitch = THREE.MathUtils.lerp(state.dronePitch, inputF * 0.3, 3 * dt);
   state.droneRoll = THREE.MathUtils.lerp(state.droneRoll, -inputR * 0.3, 3 * dt);
-  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? 30 : 0, 5 * dt);
+  
+  // Propeller speed based on drone velocity
+  // Base speed when flying, faster when moving fast, slower when hovering
+  const basePropSpeed = 15; // Minimum propeller speed when flying
+  const maxPropSpeed = 50;  // Maximum propeller speed at high velocity
+  const speedRatio = spd / maxSpd; // 0-1 ratio of current speed to max speed
+  const targetPropSpeed = basePropSpeed + speedRatio * (maxPropSpeed - basePropSpeed);
+  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? targetPropSpeed : 0, 5 * dt);
 
   // Distance tracking
   const moved = state.dronePos.distanceTo(prevPos);
