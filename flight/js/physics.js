@@ -92,13 +92,30 @@ export function updateDrone(dt) {
   state.dronePitch = THREE.MathUtils.lerp(state.dronePitch, -inputF * 0.3, 3 * dt);
   state.droneRoll = THREE.MathUtils.lerp(state.droneRoll, -inputR * 0.3, 3 * dt);
   
-  // Propeller speed based on drone velocity
+  // Propeller speed based on drone velocity and vertical movement
   // Base speed when flying, faster when moving fast, slower when hovering
+  // Climbing requires extra power to overcome gravity
   const basePropSpeed = 15; // Minimum propeller speed when flying
   const maxPropSpeed = 50;  // Maximum propeller speed at high velocity
-  const speedRatio = spd / maxSpd; // 0-1 ratio of current speed to max speed
-  const targetPropSpeed = basePropSpeed + speedRatio * (maxPropSpeed - basePropSpeed);
-  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? targetPropSpeed : 0, 5 * dt);
+  const horizontalSpeedRatio = Math.sqrt(state.droneVel.x * state.droneVel.x + state.droneVel.z * state.droneVel.z) / maxSpd;
+  
+  // Climbing (positive vertical velocity) requires more power
+  // Descending (negative vertical velocity) requires less power
+  const verticalFactor = state.droneVel.y / (maxSpd * 0.6); // Normalized vertical speed
+  
+  // Combined propeller speed: horizontal movement + vertical compensation
+  // Climbing: add extra speed, Descending: reduce speed
+  let propSpeedMultiplier = 1.0;
+  if (verticalFactor > 0) {
+    // Climbing - need extra power (up to 1.5x more)
+    propSpeedMultiplier = 1.0 + verticalFactor * 1.5;
+  } else if (verticalFactor < 0) {
+    // Descending - need less power (down to 0.7x)
+    propSpeedMultiplier = 1.0 + verticalFactor * 0.5;
+  }
+  
+  const targetPropSpeed = (basePropSpeed + horizontalSpeedRatio * (maxPropSpeed - basePropSpeed)) * propSpeedMultiplier;
+  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? Math.min(targetPropSpeed, maxPropSpeed * 1.5) : 0, 5 * dt);
 
   // Distance tracking
   const moved = state.dronePos.distanceTo(prevPos);
