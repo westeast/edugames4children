@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>大疆虚拟飞行 3D - DJI Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=202505301930">
+<link rel="stylesheet" href="css/style.css?v=202505310930">
 </head>
 <body>
 
@@ -40,6 +40,7 @@
   </div>
   <div class="status-item"><span>🛰️</span><span class="val" id="gpsVal">23</span><span class="unit">GPS</span></div>
   <div style="font-size:11px;color:#ff9500;font-weight:600;" id="flightMode">N档</div>
+  <button class="settings-btn" onclick="openSettings()">⋮</button>
 </div>
 
 <div id="leftPanel" style="display:none">
@@ -133,6 +134,161 @@
 
 <div id="notification"></div>
 
+<!-- 设置弹窗 -->
+<div id="settingsModal" style="display:none;">
+  <div class="settings-overlay" onclick="closeSettings()"></div>
+  <div class="settings-container">
+    <div class="settings-header">
+      <span class="settings-title">设置</span>
+      <button class="settings-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="settings-tabs">
+      <button class="settings-tab active" onclick="switchSettingsTab('safety')">安全</button>
+      <button class="settings-tab" onclick="switchSettingsTab('control')">操控</button>
+      <button class="settings-tab" onclick="switchSettingsTab('camera')">拍摄</button>
+      <button class="settings-tab" onclick="switchSettingsTab('signal')">图传</button>
+      <button class="settings-tab" onclick="switchSettingsTab('about')">关于</button>
+    </div>
+    <div class="settings-content">
+      <!-- 安全 Tab -->
+      <div class="tab-content" id="tabSafety">
+        <div class="setting-item">
+          <div class="setting-label">避障辅助</div>
+          <div class="setting-options">
+            <button class="option-btn active" id="avoidBypass" onclick="setAvoidMode('bypass')">绕行</button>
+            <button class="option-btn" id="avoidBrake" onclick="setAvoidMode('brake')">刹停</button>
+            <button class="option-btn" id="avoidOff" onclick="setAvoidMode('off')">关闭</button>
+          </div>
+          <div class="setting-desc" id="avoidDesc">遇到障碍物时自动绕行避障</div>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-label">返航点</div>
+          <div class="setting-row">
+            <button class="action-btn" onclick="updateHomePoint()">🔄 更新返航点</button>
+          </div>
+          <div class="setting-desc">拖动地图上的 H 标记设置返航点</div>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-label">返航高度</div>
+          <div class="setting-row">
+            <input type="number" id="rthHeightInput" value="120" min="20" max="500" class="number-input">
+            <span class="unit-label">米</span>
+            <button class="action-btn" onclick="setRTHHeight()">设置</button>
+          </div>
+          <div class="setting-desc">默认 120 米，范围 20-500 米</div>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-label">指南针校准</div>
+          <div class="setting-row">
+            <button class="action-btn" onclick="calibrateCompass()">🧭 校准指南针</button>
+          </div>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-label">找飞机</div>
+          <div class="setting-row">
+            <button class="action-btn" onclick="findDrone()">📍 找飞机</button>
+          </div>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-label">紧急停桨</div>
+          <div class="setting-row">
+            <button class="action-btn danger" onclick="toggleEmergencyStop()">⚠️ 紧急停桨</button>
+          </div>
+          <div class="setting-desc warning">仅用于紧急情况，可能导致炸机</div>
+        </div>
+      </div>
+      
+      <!-- 操控 Tab -->
+      <div class="tab-content" id="tabControl" style="display:none;">
+        <div class="setting-item">
+          <div class="setting-label">遥控器模式</div>
+          <div class="setting-options">
+            <button class="option-btn active">美国手</button>
+            <button class="option-btn">日本手</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <div class="setting-label">最大飞行高度</div>
+          <div class="setting-row">
+            <input type="number" value="500" min="20" max="500" class="number-input">
+            <span class="unit-label">米</span>
+          </div>
+        </div>
+        <div class="setting-item">
+          <div class="setting-label">最大飞行距离</div>
+          <div class="setting-row">
+            <input type="number" value="8000" min="100" max="10000" class="number-input">
+            <span class="unit-label">米</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 拍摄 Tab -->
+      <div class="tab-content" id="tabCamera" style="display:none;">
+        <div class="setting-item">
+          <div class="setting-label">拍摄模式</div>
+          <div class="setting-options">
+            <button class="option-btn active">视频</button>
+            <button class="option-btn">照片</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <div class="setting-label">云台模式</div>
+          <div class="setting-options">
+            <button class="option-btn active">跟随</button>
+            <button class="option-btn">FPV</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 图传 Tab -->
+      <div class="tab-content" id="tabSignal" style="display:none;">
+        <div class="setting-item">
+          <div class="setting-label">图传频道</div>
+          <div class="setting-options">
+            <button class="option-btn active">自动</button>
+            <button class="option-btn">2.4G</button>
+            <button class="option-btn">5.8G</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <div class="setting-desc">当前信号强度：良好</div>
+        </div>
+      </div>
+      
+      <!-- 关于 Tab -->
+      <div class="tab-content" id="tabAbout" style="display:none;">
+        <div class="about-section">
+          <div class="about-logo">🚁</div>
+          <div class="about-title">大疆虚拟飞行 3D</div>
+          <div class="about-version">版本 1.0.0</div>
+          <div class="about-desc">DJI Flight Simulator<br>沉浸式 3D 飞行体验</div>
+          <div class="about-tech">技术支持：Three.js · WebGL</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 避障关闭确认弹窗 -->
+<div id="avoidOffModal" style="display:none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-container">
+    <div class="modal-icon">⚠️</div>
+    <div class="modal-title">避障关闭提示</div>
+    <div class="modal-desc">选择关闭后，飞行器遇到障碍物无法避障，请谨慎飞行。</div>
+    <div class="modal-buttons">
+      <button class="modal-btn cancel" onclick="cancelAvoidOff()">取消</button>
+      <button class="modal-btn danger" onclick="confirmAvoidOff()">不关闭（推荐）</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Panel collapse functionality
 function togglePanel(panelId) {
@@ -165,11 +321,128 @@ function initPanelState() {
   }
 }
 
+// Settings modal functions
+let currentAvoidMode = 'bypass';
+let pendingAvoidMode = null;
+
+function openSettings() {
+  document.getElementById('settingsModal').style.display = 'flex';
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').style.display = 'none';
+}
+
+function switchSettingsTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  // Update tab content
+  document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+  document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).style.display = 'block';
+}
+
+function setAvoidMode(mode) {
+  if (mode === 'off') {
+    // Show confirmation modal
+    pendingAvoidMode = 'off';
+    document.getElementById('avoidOffModal').style.display = 'flex';
+  } else {
+    // Directly set mode
+    applyAvoidMode(mode);
+  }
+}
+
+function applyAvoidMode(mode) {
+  currentAvoidMode = mode;
+  
+  // Update button states
+  document.querySelectorAll('.setting-options .option-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('avoid' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+  
+  // Update description
+  const desc = document.getElementById('avoidDesc');
+  if (mode === 'bypass') {
+    desc.textContent = '遇到障碍物时自动绕行避障';
+  } else if (mode === 'brake') {
+    desc.textContent = '遇到障碍物时自动刹停';
+  } else if (mode === 'off') {
+    desc.textContent = '避障已关闭，请谨慎飞行';
+  }
+  
+  // Update global obstacle state
+  if (typeof window.gameState !== 'undefined') {
+    window.gameState.obstacleEnabled = (mode !== 'off');
+  }
+}
+
+function cancelAvoidOff() {
+  document.getElementById('avoidOffModal').style.display = 'none';
+  pendingAvoidMode = null;
+}
+
+function confirmAvoidOff() {
+  document.getElementById('avoidOffModal').style.display = 'none';
+  applyAvoidMode('off');
+  showNotif('⚠️ 避障已关闭');
+}
+
+function updateHomePoint() {
+  if (typeof window.gameState !== 'undefined') {
+    window.gameState.homePos.copy(window.gameState.dronePos);
+  }
+  showNotif('✅ 返航点已刷新，请留意返航位置');
+}
+
+function setRTHHeight() {
+  const input = document.getElementById('rthHeightInput');
+  const height = parseInt(input.value);
+  
+  if (height < 20) {
+    showNotif('❌ 返航高度不能低于 20 米');
+    return;
+  }
+  
+  if (height > 500) {
+    showNotif('⚠️ 返航高度设置为 500 米，可有安全风险');
+    return;
+  }
+  
+  if (typeof window.gameState !== 'undefined') {
+    window.gameState.homePos.y = height;
+  }
+  showNotif(`✅ 返航高度已设置为 ${height} 米`);
+}
+
+function calibrateCompass() {
+  showNotif('🧭 指南针校准中...');
+  setTimeout(() => showNotif('✅ 指南针校准完成'), 2000);
+}
+
+function findDrone() {
+  showNotif('📍 飞机位置已标记');
+}
+
+function toggleEmergencyStop() {
+  showNotif('⚠️ 紧急停桨功能已启用');
+}
+
 // Initialize on DOM ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initPanelState);
 } else {
   initPanelState();
+}
+
+// Simple notification function for settings
+function showNotif(msg) {
+  const el = document.getElementById('notification');
+  if (el) {
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3000);
+  }
 }
 </script>
 
@@ -180,7 +453,7 @@ if (document.readyState === 'loading') {
   }
 }
 </script>
-<script type="module" src="js/game.js?v=202505301930"></script>
+<script type="module" src="js/game.js?v=202505310930"></script>
 
 </body>
 </html>

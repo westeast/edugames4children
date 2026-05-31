@@ -211,6 +211,237 @@ body {
 /* 加载提示 */
 #loadingText { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff9500; font-size: 18px; z-index: 400; }
 
+/* 设置按钮 */
+.settings-btn { 
+  width: 28px; 
+  height: 28px; 
+  border-radius: 50%; 
+  border: none; 
+  background: rgba(255,149,0,0.2); 
+  color: #ff9500; 
+  font-size: 18px; 
+  cursor: pointer; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  transition: all 0.2s; 
+}
+.settings-btn:hover { background: rgba(255,149,0,0.4); }
+
+/* 设置弹窗 */
+#settingsModal {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.settings-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+}
+.settings-container {
+  position: relative;
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  background: #1a1a25;
+  border-radius: 16px;
+  border: 1px solid rgba(255,149,0,0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,149,0,0.2);
+}
+.settings-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ff9500;
+}
+.settings-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+}
+.settings-close:hover { color: #fff; }
+
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255,149,0,0.2);
+  overflow-x: auto;
+}
+.settings-tab {
+  flex: 1;
+  min-width: 60px;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+.settings-tab:hover { color: #fff; }
+.settings-tab.active { 
+  color: #ff9500; 
+  border-bottom-color: #ff9500; 
+}
+
+.settings-content {
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+.setting-item {
+  margin-bottom: 16px;
+}
+.setting-label {
+  font-size: 13px;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.setting-desc {
+  font-size: 11px;
+  color: #666;
+  margin-top: 6px;
+}
+.setting-desc.warning {
+  color: #ff6b6b;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.setting-options {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.option-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255,149,0,0.3);
+  background: transparent;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.option-btn:hover { border-color: rgba(255,149,0,0.6); color: #fff; }
+.option-btn.active { 
+  background: rgba(255,149,0,0.2); 
+  border-color: #ff9500; 
+  color: #ff9500; 
+}
+
+.action-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255,149,0,0.3);
+  background: rgba(255,149,0,0.1);
+  color: #ff9500;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.action-btn:hover { background: rgba(255,149,0,0.2); }
+.action-btn.danger { 
+  border-color: rgba(255,100,100,0.3); 
+  background: rgba(255,100,100,0.1); 
+  color: #ff6b6b; 
+}
+.action-btn.danger:hover { background: rgba(255,100,100,0.2); }
+
+.number-input {
+  width: 80px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255,149,0,0.3);
+  background: #12121a;
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+}
+.number-input:focus { outline: none; border-color: #ff9500; }
+.unit-label {
+  font-size: 12px;
+  color: #888;
+}
+
+/* 关于页面 */
+.about-section {
+  text-align: center;
+  padding: 20px;
+}
+.about-logo { font-size: 48px; margin-bottom: 12px; }
+.about-title { font-size: 18px; color: #ff9500; margin-bottom: 8px; }
+.about-version { font-size: 12px; color: #666; margin-bottom: 16px; }
+.about-desc { font-size: 13px; color: #aaa; line-height: 1.6; margin-bottom: 16px; }
+.about-tech { font-size: 11px; color: #666; }
+
+/* 确认弹窗 */
+#avoidOffModal {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+}
+.modal-container {
+  position: relative;
+  width: 85%;
+  max-width: 320px;
+  background: #1a1a25;
+  border-radius: 16px;
+  border: 1px solid rgba(255,149,0,0.3);
+  padding: 24px;
+  text-align: center;
+}
+.modal-icon { font-size: 40px; margin-bottom: 12px; }
+.modal-title { font-size: 16px; color: #ff9500; margin-bottom: 12px; }
+.modal-desc { font-size: 13px; color: #aaa; line-height: 1.6; margin-bottom: 20px; }
+.modal-buttons { display: flex; gap: 10px; justify-content: center; }
+.modal-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.modal-btn.cancel {
+  background: rgba(255,255,255,0.1);
+  color: #888;
+}
+.modal-btn.cancel:hover { background: rgba(255,255,255,0.15); }
+.modal-btn.danger {
+  background: rgba(255,100,100,0.2);
+  color: #ff6b6b;
+}
+.modal-btn.danger:hover { background: rgba(255,100,100,0.3); }
+
 /* 响应式 */
 @media (max-width: 768px) {
   #leftPanel { width: 160px; left: 6px; top: 44px; padding: 8px; font-size: 11px; }
@@ -223,7 +454,8 @@ body {
   #joystickRight { bottom: 60px; right: 10px; }
   .joystick-base { width: 100px; height: 100px; }
   .joystick-thumb { width: 40px; height: 40px; }
-  #ctrlButtons { bottom: 60px; right: 130px; }
   .ctrl-btn { width: 40px; height: 40px; font-size: 8px; }
   .ctrl-btn .icon { font-size: 14px; }
+  .settings-tabs { overflow-x: auto; }
+  .settings-tab { min-width: 50px; font-size: 11px; padding: 10px 6px; }
 }
