@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { scene } from './engine.js';
 import { state } from './config.js';
-import { getTerrainHeight } from './terrain.js';
+import { getTerrainHeight, ROAD_WIDTH } from './terrain.js';
 import { SimplexNoise } from './noise.js';
 
 export const birds = [];
@@ -10,36 +10,27 @@ export const cars = [];
 export const people = [];
 export const clouds = [];
 
-// Noise for road generation
+// Noise for road generation - same seed as terrain.js
 const roadNoise = new SimplexNoise(123);
-const ROAD_WIDTH = 8;
 
-// Check if position is on a road
-// Roads follow terrain contours, avoiding steep slopes
+// Check if position is on road (same logic as terrain.js)
 function isOnRoad(x, z) {
-  const nx = x / 200;
-  const nz = z / 200;
-  
-  // Get terrain height and slope at this position
+  const nx = x / 200, nz = z / 200;
+
   const h = getTerrainHeight(x, z);
   const delta = 5;
   const h_dx = getTerrainHeight(x + delta, z) - h;
   const h_dz = getTerrainHeight(x, z + delta) - h;
   const slope = Math.sqrt(h_dx * h_dx + h_dz * h_dz) / delta;
-  
-  // Roads avoid very steep areas (slope > 0.5)
-  if (slope > 0.5) return false;
-  
-  // Create road network using noise
-  // Roads follow contours (constant elevation) to minimize grade
-  const n1 = roadNoise.fbm(nx * 0.5, nz * 0.5, 2, 2, 0.5);
-  const n2 = roadNoise.fbm(nx * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
-  
-  // Add elevation-based bias - roads prefer certain elevation bands
-  const elevBias = Math.sin(h * 0.05) * 0.03;
-  
-  // Roads are where noise is near zero (like contour lines)
-  return Math.abs(n1 + elevBias) < 0.07 || Math.abs(n2 - elevBias) < 0.07;
+
+  if (slope > 0.6) return false;
+
+  const n1 = roadNoise.fbm(nx * 0.3, nz * 0.3, 2, 2, 0.5);
+  const n2 = roadNoise.fbm(nx * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
+
+  const elevBias = Math.sin(h * 0.03) * 0.05;
+
+  return Math.abs(n1 + elevBias) < 0.15 || Math.abs(n2 - elevBias) < 0.15;
 }
 
 // Get nearest point on road
@@ -58,31 +49,34 @@ function getNearestRoadPoint(x, z) {
 
 // Get road direction at a point (perpendicular to noise gradient)
 function getRoadDirection(x, z) {
-  const nx = x / 200;
-  const nz = z / 200;
-  const n1 = roadNoise.fbm(nx * 0.5, nz * 0.5, 2, 2, 0.5);
-  const n2 = roadNoise.fbm(nx * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
-  
+  const nx = x / 200, nz = z / 200;
+
+  const n1 = roadNoise.fbm(nx * 0.3, nz * 0.3, 2, 2, 0.5);
+  const n2 = roadNoise.fbm(nx * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
+
   // Calculate gradient of the dominant noise to find road direction
   // Road direction is perpendicular to gradient (along the "contour line")
   const delta = 0.01;
-  
-  if (Math.abs(n1) < 0.07) {
+
+  // Check which road network we're on
+  const absN1 = Math.abs(n1);
+  const absN2 = Math.abs(n2);
+
+  if (absN1 < 0.15) {
     // Road 1: calculate gradient of n1
-    const n1_dx = roadNoise.fbm((nx + delta) * 0.5, nz * 0.5, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.5, nz * 0.5, 2, 2, 0.5);
-    const n1_dz = roadNoise.fbm(nx * 0.5, (nz + delta) * 0.5, 2, 2, 0.5) - roadNoise.fbm(nx * 0.5, (nz - delta) * 0.5, 2, 2, 0.5);
+    const n1_dx = roadNoise.fbm((nx + delta) * 0.3, nz * 0.3, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.3, nz * 0.3, 2, 2, 0.5);
+    const n1_dz = roadNoise.fbm(nx * 0.3, (nz + delta) * 0.3, 2, 2, 0.5) - roadNoise.fbm(nx * 0.3, (nz - delta) * 0.3, 2, 2, 0.5);
     // Road direction is perpendicular to gradient
-    // gradient = (n1_dx, n1_dz), road direction = (-n1_dz, n1_dx) or (n1_dz, -n1_dx)
     const gradAngle = Math.atan2(n1_dx, n1_dz);
-    return gradAngle + Math.PI / 2; // Perpendicular
-  } else if (Math.abs(n2) < 0.07) {
+    return gradAngle + Math.PI / 2;
+  } else if (absN2 < 0.15) {
     // Road 2: calculate gradient of n2
-    const n2_dx = roadNoise.fbm((nx + delta) * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
-    const n2_dz = roadNoise.fbm(nx * 0.3 + 50, (nz + delta) * 0.3 + 50, 2, 2, 0.5) - roadNoise.fbm(nx * 0.3 + 50, (nz - delta) * 0.3 + 50, 2, 2, 0.5);
+    const n2_dx = roadNoise.fbm((nx + delta) * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5) - roadNoise.fbm((nx - delta) * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
+    const n2_dz = roadNoise.fbm(nx * 0.2 + 100, (nz + delta) * 0.2 + 100, 2, 2, 0.5) - roadNoise.fbm(nx * 0.2 + 100, (nz - delta) * 0.2 + 100, 2, 2, 0.5);
     const gradAngle = Math.atan2(n2_dx, n2_dz);
     return gradAngle + Math.PI / 2;
   }
-  
+
   // Fallback: random direction
   return Math.random() * Math.PI * 2;
 }
@@ -258,37 +252,40 @@ export function spawnCars() {
 
 export function updateCars(dt) {
   const { dronePos } = state;
-  
+
   cars.forEach(car => {
-    // Move car
+    // Move car first
     car.position.x += car.userData.vx * dt;
     car.position.z += car.userData.vz * dt;
-    
-    // Keep car on road - get road direction at current position
-    const tx = car.position.x;
-    const tz = car.position.z;
-    const roadPoint = getNearestRoadPoint(tx, tz);
-    
-    // If on road, follow road direction
-    if (roadPoint) {
-      // Snap to road center
-      car.position.x = roadPoint.x;
-      car.position.z = roadPoint.z;
-      
-      // Get road direction and update movement
-      const roadDir = getRoadDirection(roadPoint.x, roadPoint.z);
-      const currentDir = Math.atan2(car.userData.vx, car.userData.vz);
-      
+
+    // Check if still on road
+    if (isOnRoad(car.position.x, car.position.z)) {
+      // Get road direction at current position
+      const roadDir = getRoadDirection(car.position.x, car.position.z);
+
       // Determine if going forward or backward along road
+      const currentDir = Math.atan2(car.userData.vx, car.userData.vz);
       const dirDiff = Math.abs(((roadDir - currentDir + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       const finalDir = dirDiff < Math.PI / 2 ? roadDir : roadDir + Math.PI;
-      
-      // Smoothly adjust direction to follow road
-      car.userData.vx = Math.sin(finalDir) * car.userData.speed;
-      car.userData.vz = Math.cos(finalDir) * car.userData.speed;
-      car.rotation.y = finalDir;
+
+      // Smoothly adjust direction to follow road (lerp)
+      const currentAngle = Math.atan2(car.userData.vx, car.userData.vz);
+      const turnRate = 2 * dt; // Smooth turning
+      let newAngle = currentAngle;
+
+      const diff = finalDir - currentAngle;
+      // Normalize angle difference to -PI..PI
+      const normalizedDiff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI;
+
+      if (Math.abs(normalizedDiff) > 0.1) {
+        newAngle = currentAngle + Math.sign(normalizedDiff) * Math.min(Math.abs(normalizedDiff), turnRate * Math.PI);
+      }
+
+      car.userData.vx = Math.sin(newAngle) * car.userData.speed;
+      car.userData.vz = Math.cos(newAngle) * car.userData.speed;
+      car.rotation.y = newAngle;
     }
-    
+
     // Get terrain height and slope
     const h = getTerrainHeight(car.position.x, car.position.z);
     
@@ -483,61 +480,52 @@ export function spawnPeople() {
 
 export function updatePeople(dt) {
   const { dronePos } = state;
-  
+
   people.forEach(p => {
     // Walk animation
     p.userData.walkPhase += 10 * dt;
-    
-    // Move
+
+    // Move along current direction
     p.position.x += p.userData.vx * dt;
     p.position.z += p.userData.vz * dt;
-    
-    // Keep people on road side - get nearest road point
-    const tx = p.position.x;
-    const tz = p.position.z;
-    const roadPoint = getNearestRoadPoint(tx, tz);
-    
-    // If near a road, follow road direction and stay on side
-    if (roadPoint) {
-      const roadDir = getRoadDirection(roadPoint.x, roadPoint.z);
-      
-      // Calculate offset from road center
-      const dx = tx - roadPoint.x;
-      const dz = tz - roadPoint.z;
-      const sideAngle = Math.atan2(dz, -dx) + roadDir;
-      const sideDist = Math.sqrt(dx * dx + dz * dz);
-      
-      // Keep on roadside (about 4-8 meters from road center)
-      const targetSideDist = ROAD_WIDTH * 0.5 + 3;
-      if (sideDist > targetSideDist + 5 || sideDist < targetSideDist - 2) {
-        // Adjust position to stay on roadside
-        const perpDir = roadDir + Math.PI / 2;
-        const side = Math.random() > 0.5 ? 1 : -1;
-        p.position.x = roadPoint.x + Math.cos(perpDir) * targetSideDist * side;
-        p.position.z = roadPoint.z + Math.sin(perpDir) * targetSideDist * side;
-      }
-      
-      // Follow road direction
+
+    // Check if near road and follow road direction
+    if (isOnRoad(p.position.x, p.position.z)) {
+      // We're on the road - move to the edge
+      const roadDir = getRoadDirection(p.position.x, p.position.z);
+
+      // Move perpendicular to road to get to the edge
+      // Use a small offset to stay on the roadside
+      const edgeOffset = ROAD_WIDTH * 0.55; // Just outside road edge
+      const side = p.userData.side || (Math.random() > 0.5 ? 1 : -1);
+      p.userData.side = side;
+
+      // Gradually move towards road edge while walking along road
+      const perpX = Math.cos(roadDir + Math.PI / 2) * edgeOffset * side;
+      const perpZ = Math.sin(roadDir + Math.PI / 2) * edgeOffset * side;
+
+      // Find road center by moving back from edge
+      // Actually, just walk along the road direction
       const currentDir = Math.atan2(p.userData.vx, p.userData.vz);
-      const dirDiff = Math.abs(((roadDir - currentDir + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-      const finalDir = dirDiff < Math.PI / 2 ? roadDir : roadDir + Math.PI;
-      
+      const dirDiff = ((roadDir - currentDir + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      const finalDir = Math.abs(dirDiff) < Math.PI / 2 ? roadDir : roadDir + Math.PI;
+
       const sp = Math.sqrt(p.userData.vx * p.userData.vx + p.userData.vz * p.userData.vz);
       p.userData.vx = Math.sin(finalDir) * sp;
       p.userData.vz = Math.cos(finalDir) * sp;
       p.rotation.y = finalDir;
     }
-    
+
     // Terrain alignment
     const h = getTerrainHeight(p.position.x, p.position.z);
-    
+
     const moveAngle = Math.atan2(p.userData.vx, p.userData.vz);
     const hFront = getTerrainHeight(p.position.x + Math.sin(moveAngle) * 0.25, p.position.z + Math.cos(moveAngle) * 0.25);
     const hRight = getTerrainHeight(p.position.x + Math.sin(moveAngle + Math.PI/2) * 0.15, p.position.z + Math.cos(moveAngle + Math.PI/2) * 0.15);
-    
+
     const pitch = Math.atan2(hFront - h, 0.25);
     const roll = Math.atan2(hRight - h, 0.15);
-    
+
     p.position.y = h;
     p.rotation.x = pitch * 0.25;
     p.rotation.z = -roll * 0.25;

@@ -24,31 +24,39 @@ export function getTerrainHeight(wx, wz) {
 
 export function chunkKey(cx, cz) { return cx + ',' + cz; }
 
+// Road width: 2 cars width (car is ~2m wide, so road is ~6m minimum)
+const CAR_WIDTH = 2;
+const ROAD_WIDTH = CAR_WIDTH * 3; // 6 meters - allows 2 cars to pass
+
 // Check if position is on road (same logic as entities.js)
 // Roads follow terrain contours, avoiding steep slopes
 function isOnRoad(wx, wz) {
   const nx = wx / 200, nz = wz / 200;
-  
+
   // Get terrain height and slope at this position
   const h = getTerrainHeight(wx, wz);
   const delta = 5;
   const h_dx = getTerrainHeight(wx + delta, wz) - h;
   const h_dz = getTerrainHeight(wx, wz + delta) - h;
   const slope = Math.sqrt(h_dx * h_dx + h_dz * h_dz) / delta;
-  
-  // Roads avoid very steep areas (slope > 0.5)
-  if (slope > 0.5) return false;
-  
+
+  // Roads avoid very steep areas (slope > 0.6)
+  if (slope > 0.6) return false;
+
   // Create winding road network using noise
-  // Roads follow contours (constant elevation) to minimize grade
-  const n1 = roadNoise.fbm(nx * 0.5, nz * 0.5, 2, 2, 0.5);
-  const n2 = roadNoise.fbm(nx * 0.3 + 50, nz * 0.3 + 50, 2, 2, 0.5);
-  
+  // Increased threshold for more visible roads
+  const n1 = roadNoise.fbm(nx * 0.3, nz * 0.3, 2, 2, 0.5);
+  const n2 = roadNoise.fbm(nx * 0.2 + 100, nz * 0.2 + 100, 2, 2, 0.5);
+
   // Add elevation-based bias - roads prefer certain elevation bands
-  const elevBias = Math.sin(h * 0.05) * 0.03;
-  
-  return Math.abs(n1 + elevBias) < 0.07 || Math.abs(n2 - elevBias) < 0.07;
+  const elevBias = Math.sin(h * 0.03) * 0.05;
+
+  // Wider roads (threshold 0.15 instead of 0.07)
+  return Math.abs(n1 + elevBias) < 0.15 || Math.abs(n2 - elevBias) < 0.15;
 }
+
+// Export road width for entities.js
+export { ROAD_WIDTH };
 
 export function createTerrainChunk(cx, cz) {
   const key = chunkKey(cx, cz);
