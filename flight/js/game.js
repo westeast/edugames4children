@@ -52,10 +52,18 @@ function gameLoop(time) {
         p.rotation.y += state.propSpeed * dt * (i % 2 === 0 ? 1 : -1);
         p.visible = blurAmount < 0.7; // Hide blades when spinning fast
       });
-      propBlurs.forEach((b, i) => {
-        b.material.opacity = blurAmount * 0.5; // Show blur disk
-        b.visible = !state.fpvMode;
-      });
+      // propBlurs: [disk0, ring0, disk1, ring1, ...] - 8 elements for 4 propellers
+      for (let i = 0; i < 4; i++) {
+        const disk = propBlurs[i * 2];
+        const ring = propBlurs[i * 2 + 1];
+        if (disk) {
+          disk.material.opacity = blurAmount * 0.5;
+          disk.visible = !state.fpvMode;
+        }
+        if (ring) {
+          ring.visible = blurAmount >= 0.7 && !state.fpvMode;
+        }
+      }
     }
   }
   // Always update camera, but only lerp after game started

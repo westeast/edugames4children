@@ -65,6 +65,10 @@ export function createDroneModel(droneIdx) {
     );
     blurDisk.rotation.x = -Math.PI / 2; blurDisk.position.set(ap.x, 0.26, ap.z);
     g.add(blurDisk); propBlurs.push(blurDisk);
+    // Black ring around blur disk (same style as prop guard)
+    const blurRing = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.03, 4, 16), new THREE.MeshPhongMaterial({ color: 0x333333 }));
+    blurRing.rotation.x = Math.PI / 2; blurRing.position.set(ap.x, 0.27, ap.z);
+    blurRing.visible = false; g.add(blurRing); propBlurs.push(blurRing);
     // LED lights (front=green, rear=red)
     const ledColor = idx < 2 ? 0x00ff00 : 0xff0000;
     const led = new THREE.Mesh(new THREE.SphereGeometry(0.05, 4, 4), new THREE.MeshBasicMaterial({ color: ledColor }));
