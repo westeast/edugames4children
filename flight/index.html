@@ -43,7 +43,11 @@
 </div>
 
 <div id="leftPanel" style="display:none">
-  <div class="panel-title">选择机型</div>
+  <div class="panel-title collapsible" onclick="togglePanel('leftPanel')">
+    <span>选择机型</span>
+    <span class="collapse-icon">▼</span>
+  </div>
+  <div class="panel-content" id="leftPanelContent">
   <div class="drone-card active" onclick="selectDrone(0)" id="droneCard0">
     <div class="name">🟠 Air 3</div>
     <div class="specs">中端旗舰 · 双摄系统</div>
@@ -69,10 +73,15 @@
     V视角 H返航 P暂停<br>
     C巡航 O避障 1/2/3机型
   </div>
+  </div>
 </div>
 
 <div id="rightPanel" style="display:none">
-  <div class="panel-title">飞行档位</div>
+  <div class="panel-title collapsible" onclick="togglePanel('rightPanel')">
+    <span>飞行档位</span>
+    <span class="collapse-icon">▼</span>
+  </div>
+  <div class="panel-content" id="rightPanelContent">
   <div style="display:flex;gap:4px;margin-bottom:10px;">
     <button class="gear-btn" id="gearC" onclick="setGear('C')">C</button>
     <button class="gear-btn active" id="gearN" onclick="setGear('N')">N</button>
@@ -91,6 +100,7 @@
     <div style="margin-bottom:3px;">🔴 危险 &lt;3m</div>
     <div style="margin-bottom:3px;">🟡 警告 &lt;8m</div>
     <div>🟢 安全 &gt;8m</div>
+  </div>
   </div>
 </div>
 
@@ -122,6 +132,46 @@
 <div id="crosshair" style="display:none;"></div>
 
 <div id="notification"></div>
+
+<script>
+// Panel collapse functionality
+function togglePanel(panelId) {
+  const panel = document.getElementById(panelId);
+  const title = panel.querySelector('.panel-title.collapsible');
+  const content = panel.querySelector('.panel-content');
+  
+  if (title && content) {
+    title.classList.toggle('collapsed');
+    content.classList.toggle('collapsed');
+  }
+}
+
+// Check if mobile and auto-collapse panels
+function initPanelState() {
+  const isMobile = /Mobi|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
+  
+  if (isMobile) {
+    ['leftPanel', 'rightPanel'].forEach(panelId => {
+      const panel = document.getElementById(panelId);
+      if (panel) {
+        const title = panel.querySelector('.panel-title.collapsible');
+        const content = panel.querySelector('.panel-content');
+        if (title && content) {
+          title.classList.add('collapsed');
+          content.classList.add('collapsed');
+        }
+      }
+    });
+  }
+}
+
+// Initialize on DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPanelState);
+} else {
+  initPanelState();
+}
+</script>
 
 <script type="importmap">
 {

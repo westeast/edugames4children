@@ -56,6 +56,12 @@ body {
   overflow-y: auto; 
 }
 .panel-title { font-size: 11px; color: #ff9500; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.panel-title.collapsible { cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+.panel-title.collapsible:hover { color: #ffad33; }
+.collapse-icon { font-size: 9px; transition: transform 0.2s; }
+.panel-title.collapsed .collapse-icon { transform: rotate(-90deg); }
+.panel-content { overflow: hidden; transition: max-height 0.3s ease-out; }
+.panel-content.collapsed { max-height: 0 !important; overflow: hidden; }
 .drone-card { background: #12121a; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s; }
 .drone-card:hover { border-color: rgba(255,149,0,0.5); }
 .drone-card.active { border-color: #ff9500; background: #1a1500; }

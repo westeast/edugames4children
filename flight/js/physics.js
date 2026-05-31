@@ -72,7 +72,9 @@ export function updateDrone(dt) {
   if (state.dronePos.y > 500) state.dronePos.y = 500;
 
   // Visual tilt
-  state.dronePitch = THREE.MathUtils.lerp(state.dronePitch, inputF * 0.3, 3 * dt);
+  // Pitch: forward input should tilt forward (negative pitch in Three.js)
+  // Roll: right input should tilt right (negative roll, matching existing logic)
+  state.dronePitch = THREE.MathUtils.lerp(state.dronePitch, -inputF * 0.3, 3 * dt);
   state.droneRoll = THREE.MathUtils.lerp(state.droneRoll, -inputR * 0.3, 3 * dt);
   
   // Propeller speed based on drone velocity
