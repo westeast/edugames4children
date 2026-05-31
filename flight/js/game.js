@@ -52,7 +52,7 @@ function init() {
   document.getElementById('startScreen').style.display = 'none';
 
   // Auto-start game immediately
-  ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'ctrlButtons', 'joystickLeft', 'joystickRight'].forEach(id => {
+  ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'joystickLeft', 'joystickRight'].forEach(id => {
     document.getElementById(id).style.display = '';
   });
   state.gameStarted = true;

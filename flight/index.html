@@ -90,6 +90,14 @@
   <div style="font-size:9px;color:#666;margin-bottom:8px;text-align:center;">
     <span id="gearDesc">普通档 · 均衡飞行</span>
   </div>
+  <div class="panel-title">快捷按钮</div>
+  <div class="quick-buttons">
+    <button class="ctrl-btn-inline" id="btnCruise" onclick="toggleCruise()"><span class="icon">🚀</span><span>巡航</span></button>
+    <button class="ctrl-btn-inline" id="btnRTH" onclick="triggerRTH()"><span class="icon">🏠</span><span>返航</span></button>
+    <button class="ctrl-btn-inline" id="btnOBS" onclick="toggleObstacle()"><span class="icon">🛡️</span><span>避障</span></button>
+    <button class="ctrl-btn-inline" id="btnFPV" onclick="toggleFPV()"><span class="icon">👁️</span><span>视角</span></button>
+    <button class="ctrl-btn-inline" id="btnPause" onclick="togglePause()"><span class="icon">⏸️</span><span>暂停</span></button>
+  </div>
   <div class="panel-title">避障感知</div>
   <div class="obstacle-indicator" id="obIndicator">
     <div class="ob-cell" id="ob-tl"></div><div class="ob-cell" id="ob-tc"></div><div class="ob-cell" id="ob-tr"></div>
@@ -102,14 +110,6 @@
     <div>🟢 安全 &gt;8m</div>
   </div>
   </div>
-</div>
-
-<div id="ctrlButtons" style="display:none">
-  <button class="ctrl-btn" id="btnCruise" onclick="toggleCruise()"><span class="icon">🚀</span><span>巡航</span></button>
-  <button class="ctrl-btn" id="btnRTH" onclick="triggerRTH()"><span class="icon">🏠</span><span>返航</span></button>
-  <button class="ctrl-btn" id="btnOBS" onclick="toggleObstacle()"><span class="icon">🛡️</span><span>避障</span></button>
-  <button class="ctrl-btn" id="btnFPV" onclick="toggleFPV()"><span class="icon">👁️</span><span>视角</span></button>
-  <button class="ctrl-btn" id="btnPause" onclick="togglePause()"><span class="icon">⏸️</span><span>暂停</span></button>
 </div>
 
 <div id="bottomPanel" style="display:none">
