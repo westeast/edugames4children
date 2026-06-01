@@ -357,11 +357,11 @@ function setAvoidMode(mode) {
 
 function applyAvoidMode(mode) {
   currentAvoidMode = mode;
-  
+
   // Update button states
   document.querySelectorAll('.setting-options .option-btn').forEach(btn => btn.classList.remove('active'));
   document.getElementById('avoid' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
-  
+
   // Update description
   const desc = document.getElementById('avoidDesc');
   if (mode === 'bypass') {
@@ -371,10 +371,11 @@ function applyAvoidMode(mode) {
   } else if (mode === 'off') {
     desc.textContent = '避障已关闭，请谨慎飞行';
   }
-  
+
   // Update global obstacle state
   if (typeof window.gameState !== 'undefined') {
     window.gameState.obstacleEnabled = (mode !== 'off');
+    window.gameState.obstacleMode = mode; // 'bypass' or 'brake'
   }
 }
 

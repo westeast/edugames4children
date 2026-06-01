@@ -208,6 +208,11 @@ function updateObstacleIndicator() {
     { id: 'ob-ml', dx: -1, dz: 0 }, { id: 'ob-mr', dx: 1, dz: 0 },
     { id: 'ob-bl', dx: -1, dz: 1 }, { id: 'ob-bc', dx: 0, dz: 1 }, { id: 'ob-br', dx: 1, dz: 1 },
   ];
+
+  // Check for obstacles in front
+  let frontObstacleDist = Infinity;
+  let frontObstacleDir = null;
+
   dirs.forEach(d => {
     const el = document.getElementById(d.id);
     if (!el) return;
@@ -223,8 +228,43 @@ function updateObstacleIndicator() {
       if (dist < 3) el.classList.add('active-danger');
       else if (dist < 8) el.classList.add('active-warn');
       else el.classList.add('active-safe');
+
+      // Track front obstacle for avoidance logic
+      if (d.dz === -1 && dist < frontObstacleDist) {
+        frontObstacleDist = dist;
+        frontObstacleDir = d.dx; // -1 = left, 0 = center, 1 = right
+      }
     }
   });
+
+  // Execute obstacle avoidance based on mode
+  if (state.obstacleEnabled && frontObstacleDist < 8) {
+    if (state.obstacleMode === 'brake') {
+      // Brake mode: stop when obstacle is close
+      if (frontObstacleDist < 5) {
+        // Reduce forward velocity
+        const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
+        const forwardVel = state.droneVel.dot(forward);
+        if (forwardVel > 0) {
+          state.droneVel.addScaledVector(forward, -forwardVel * 0.5);
+        }
+      }
+    } else if (state.obstacleMode === 'bypass') {
+      // Bypass mode: steer around obstacle from distance
+      const avoidStrength = 1 - (frontObstacleDist / 8); // Stronger when closer
+
+      if (frontObstacleDist < 6) {
+        // Determine which way to turn based on obstacle position
+        // If obstacle is on left (dx < 0), turn right; if on right (dx > 0), turn left
+        let turnDir = frontObstacleDir !== null ? -frontObstacleDir : 1;
+        if (turnDir === 0) turnDir = Math.random() > 0.5 ? 1 : -1; // If center, pick a side
+
+        // Apply sideward velocity to bypass
+        const right = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
+        state.droneVel.addScaledVector(right, turnDir * avoidStrength * 5);
+      }
+    }
+  }
 
   // Bird proximity warning
   const warnBorder = document.getElementById('warnBorder');

@@ -28,6 +28,7 @@ export const state = {
   isCruise: false,
   isRTH: false,
   obstacleEnabled: true,
+  obstacleMode: 'bypass', // 'bypass' = 绕行, 'brake' = 刹停
   currentGear: 'N',
   gameStarted: false,
   homePos: new THREE.Vector3(0, 30, 0),
