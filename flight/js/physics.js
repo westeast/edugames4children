@@ -57,16 +57,28 @@ export function updateDrone(dt) {
     while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
     while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
 
-    // Phase 1: Turn to face home (if not facing home)
-    if (Math.abs(yawDiff) > 0.5 && dist > 5) {
-      // First turn around to face home
-      inputYaw = Math.sign(yawDiff) * Math.min(Math.abs(yawDiff), 1.5);
-      inputF = 0.2; // Slow forward while turning
+    // Phase 1: MUST turn to face home first (no forward movement while turning)
+    if (Math.abs(yawDiff) > 0.3) {
+      // Turn towards home - stop forward movement
+      inputYaw = Math.sign(yawDiff) * 1.2;
+      inputF = 0; // STOP! Don't fly forward while turning
       inputR = 0;
       inputUp = 0; // Maintain altitude
     }
-    // Phase 2: Landing phase (close to home)
-    else if (dist < 15) {
+    // Phase 2: Fly towards home (now facing home)
+    else if (dist > 15) {
+      // Fly forward towards home
+      inputF = 1;
+      inputR = 0;
+      inputYaw = yawDiff * 0.8; // Small correction while flying
+
+      // Maintain safe altitude
+      if (state.dronePos.y < 30) inputUp = 0.5;
+      else if (state.dronePos.y > state.homePos.y + 20) inputUp = -0.2;
+      else inputUp = 0;
+    }
+    // Phase 3: Landing phase (close to home)
+    else {
       // Turn around (tail towards home) before landing
       const landingYaw = targetYaw + Math.PI; // Face away from home (tail towards home)
       let landingYawDiff = landingYaw - state.droneYaw;
@@ -93,17 +105,6 @@ export function updateDrone(dt) {
       } else {
         inputUp = Math.min(0.3, heightDiff * 0.05);
       }
-    }
-    // Phase 3: Approach phase - fly towards home
-    else {
-      inputF = 1;
-      inputR = 0; // No strafe, just fly forward
-      inputYaw = yawDiff * 0.5; // Gradually align to home direction
-
-      // Maintain safe altitude
-      if (state.dronePos.y < 30) inputUp = 0.5;
-      else if (state.dronePos.y > state.homePos.y + 20) inputUp = -0.2;
-      else inputUp = 0;
     }
   } else {
     // Remove RTH path if not in RTH mode
