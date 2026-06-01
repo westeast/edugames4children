@@ -1,4 +1,5 @@
 // Main entry point: init + game loop
+import * as THREE from 'three';
 import { renderer, scene, camera } from './engine.js';
 import { state } from './config.js';
 import { updateTerrainChunks } from './terrain.js';
@@ -7,10 +8,16 @@ import { createDroneModel, droneGroup, propellers, propBlurs } from './drone-mod
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
-import { updateRTHPath, isLanding } from './rth-path.js';
+import { updateRTHPath, isLanding, createHomeMarker, updateHomeMarker, getHomeMarker } from './rth-path.js';
+import { getTerrainHeight } from './terrain.js';
 
 // Export emergency stop to global scope for HTML onclick
 window.emergencyStop = emergencyStop;
+
+// Dragging state for home marker
+let isDraggingHome = false;
+let dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+let raycaster = new THREE.Raycaster();
 
 let lastTime = 0;
 
@@ -114,6 +121,12 @@ function init() {
   setupJoystick('baseR', 'thumbR', state.rightStick);
   showNotif('🛫 起飞！祝飞行愉快', 5);
 
+  // Create home marker (H) for return point
+  createHomeMarker();
+
+  // Setup home marker dragging
+  setupHomeMarkerDrag();
+
   // Force landscape orientation hint on mobile
   if (/Mobi|Android/i.test(navigator.userAgent)) {
     const orientHint = document.createElement('div');
@@ -139,3 +152,61 @@ function init() {
 }
 
 init();
+
+// Setup home marker dragging functionality
+function setupHomeMarkerDrag() {
+  const canvas = renderer.domElement;
+
+  // Mouse/touch events for dragging
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+}
+
+function onPointerDown(event) {
+  if (!state.gameStarted) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+  const homeMarker = getHomeMarker();
+  if (homeMarker) {
+    const intersects = raycaster.intersectObject(homeMarker, true);
+    if (intersects.length > 0) {
+      isDraggingHome = true;
+      event.preventDefault();
+      showNotif('拖动 H 标记设置返航点');
+    }
+  }
+}
+
+function onPointerMove(event) {
+  if (!isDraggingHome) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+  // Intersect with horizontal plane at home altitude
+  const intersectPoint = new THREE.Vector3();
+  dragPlane.constant = -state.homePos.y;
+  raycaster.ray.intersectPlane(dragPlane, intersectPoint);
+
+  if (intersectPoint) {
+    state.homePos.x = intersectPoint.x;
+    state.homePos.z = intersectPoint.z;
+    updateHomeMarker();
+  }
+}
+
+function onPointerUp(event) {
+  if (isDraggingHome) {
+    isDraggingHome = false;
+    showNotif('✅ 返航点已更新');
+  }
+}

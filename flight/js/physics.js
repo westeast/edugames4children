@@ -34,24 +34,67 @@ export function updateDrone(dt) {
   if (state.isRTH) {
     const toHome = new THREE.Vector3().subVectors(state.homePos, state.dronePos);
     const dist = toHome.length();
-    
+
     // Create RTH path visualization
     createRTHPath();
-    
-    if (dist < 3) {
+
+    if (dist < 2) {
+      // Arrived at home - final landing
       state.isRTH = false;
       state.droneVel.set(0, 0, 0);
       removeRTHPath();
       showNotif('✅ 已返航到家，降落完成');
       return;
     }
-    
+
     toHome.normalize();
-    inputF = 1;
-    inputR = toHome.x * Math.cos(state.droneYaw) - toHome.z * Math.sin(state.droneYaw);
-    inputYaw = Math.atan2(toHome.x, toHome.z) - state.droneYaw;
-    if (dist < 20) inputUp = (state.homePos.y - state.dronePos.y) * 0.1;
-    else if (state.dronePos.y < 30) inputUp = 0.5;
+
+    // Calculate desired yaw to face home
+    const targetYaw = Math.atan2(toHome.x, toHome.z);
+    let yawDiff = targetYaw - state.droneYaw;
+    // Normalize to -PI..PI
+    while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+    while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+
+    // Landing phase: close to home
+    if (dist < 15) {
+      // Turn around (tail towards home) before landing
+      const landingYaw = targetYaw + Math.PI; // Face away from home (tail towards home)
+      let landingYawDiff = landingYaw - state.droneYaw;
+      while (landingYawDiff > Math.PI) landingYawDiff -= Math.PI * 2;
+      while (landingYawDiff < -Math.PI) landingYawDiff += Math.PI * 2;
+
+      // First turn to face away from home
+      if (Math.abs(landingYawDiff) > 0.3) {
+        inputYaw = Math.sign(landingYawDiff) * 0.8;
+        inputF = 0;
+        inputR = 0;
+      } else {
+        // Aligned for landing - slow approach
+        const speedFactor = Math.max(0.2, dist / 15); // Slow down as we get closer
+        inputF = speedFactor * 0.5;
+        inputR = 0;
+        inputYaw = landingYawDiff * 0.5;
+      }
+
+      // Descend slowly
+      const heightDiff = state.homePos.y - state.dronePos.y;
+      if (dist < 5) {
+        inputUp = heightDiff * 0.1; // Gentle descent
+      } else {
+        inputUp = Math.min(0.3, heightDiff * 0.05);
+      }
+    } else {
+      // Approach phase: fly towards home
+      inputF = 1;
+      inputR = toHome.x * Math.cos(state.droneYaw) - toHome.z * Math.sin(state.droneYaw);
+      inputYaw = yawDiff * 0.5;
+
+      // Maintain altitude or climb to safe height
+      if (state.dronePos.y < 30) inputUp = 0.5;
+      else if (state.dronePos.y > state.homePos.y + 10) inputUp = -0.2;
+      else inputUp = 0;
+    }
   } else {
     // Remove RTH path if not in RTH mode
     removeRTHPath();

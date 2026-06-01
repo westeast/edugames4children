@@ -9,6 +9,81 @@ let rthPathMesh = null;
 let landingPathMesh = null;
 let rthAudioContext = null;
 let rthBeepInterval = null;
+let homeMarker = null; // H marker for home point
+
+// Create H marker for home point
+export function createHomeMarker() {
+  if (homeMarker) {
+    scene.remove(homeMarker);
+  }
+
+  const group = new THREE.Group();
+
+  // Create H shape using boxes
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff8800, side: THREE.DoubleSide });
+
+  // Left vertical bar of H
+  const leftBar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 6, 0.3), mat);
+  leftBar.position.set(-1.5, 3, 0);
+  group.add(leftBar);
+
+  // Right vertical bar of H
+  const rightBar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 6, 0.3), mat);
+  rightBar.position.set(1.5, 3, 0);
+  group.add(rightBar);
+
+  // Horizontal bar of H
+  const horizontalBar = new THREE.Mesh(new THREE.BoxGeometry(3, 0.8, 0.3), mat);
+  horizontalBar.position.set(0, 3, 0);
+  group.add(horizontalBar);
+
+  // Base circle (helipad)
+  const circleMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+  const circle = new THREE.Mesh(new THREE.CircleGeometry(4, 32), circleMat);
+  circle.rotation.x = -Math.PI / 2;
+  circle.position.y = 0.1;
+  group.add(circle);
+
+  // Arrow pointing to H (for visibility from above)
+  const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff6600, side: THREE.DoubleSide });
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3, 4), arrowMat);
+  arrow.rotation.x = Math.PI / 2;
+  arrow.position.set(0, 0.2, 7);
+  group.add(arrow);
+
+  // Position at home point
+  const groundY = getTerrainHeight(state.homePos.x, state.homePos.z);
+  group.position.set(state.homePos.x, groundY, state.homePos.z);
+
+  scene.add(group);
+  homeMarker = group;
+
+  return group;
+}
+
+// Update home marker position
+export function updateHomeMarker() {
+  if (!homeMarker) {
+    createHomeMarker();
+    return;
+  }
+
+  const groundY = getTerrainHeight(state.homePos.x, state.homePos.z);
+  homeMarker.position.set(state.homePos.x, groundY, state.homePos.z);
+}
+
+// Remove home marker
+export function removeHomeMarker() {
+  if (homeMarker) {
+    scene.remove(homeMarker);
+    homeMarker = null;
+  }
+}
+
+// Get home marker for raycasting (drag detection)
+export function getHomeMarker() {
+  return homeMarker;
+}
 
 // Create RTH path visualization
 export function createRTHPath() {
