@@ -42,10 +42,11 @@ export function updateDrone(dt) {
     // Create RTH path visualization
     createRTHPath();
 
-    if (dist < 2) {
-      // Arrived at home - final landing
+    // Final landing - arrived at home
+    if (dist < 1.5 && Math.abs(state.dronePos.y - state.homePos.y) < 1) {
       state.isRTH = false;
       state.droneVel.set(0, 0, 0);
+      state.dronePos.copy(state.homePos);
       removeRTHPath();
       showNotif('✅ 已返航到家，降落完成');
       return;
@@ -54,25 +55,36 @@ export function updateDrone(dt) {
     // Calculate direction from drone to home
     const angleToHome = Math.atan2(toHome.x, toHome.z);
 
-    // droneYaw=0 means drone faces -Z direction (forward = (0,0,-1))
-    // So the angle drone is facing is: droneYaw (0 = -Z, PI/2 = -X, PI = +Z, -PI/2 = +X)
-    // We need drone to face angleToHome direction
-    let yawDiff = angleToHome - state.droneYaw + Math.PI; // +PI because yaw=0 means facing -Z
-    // Normalize to -PI..PI
+    // droneYaw=0 means drone faces -Z direction
+    let yawDiff = angleToHome - state.droneYaw + Math.PI;
     while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
     while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
 
-    // Phase 1: Turn to face home first (no forward movement while turning)
-    if (Math.abs(yawDiff) > 0.3) {
-      // Turn towards home - stop forward movement
+    // Landing phase (close to home) - simpler logic to avoid jitter
+    if (dist < 10) {
+      // Slow approach - no turning, just descend
+      const speedFactor = Math.max(0.1, dist / 10);
+      inputF = speedFactor * 0.3;
+      inputR = 0;
+      inputYaw = yawDiff * 0.3; // Very gentle yaw correction
+
+      // Smooth descent
+      const heightDiff = state.homePos.y - state.dronePos.y;
+      if (dist < 3) {
+        inputUp = Math.sign(heightDiff) * Math.min(Math.abs(heightDiff) * 0.2, 0.3);
+      } else {
+        inputUp = 0; // Maintain altitude until very close
+      }
+    }
+    // Phase 1: Turn to face home first
+    else if (Math.abs(yawDiff) > 0.3) {
       inputYaw = Math.sign(yawDiff) * 1.5;
       inputF = 0;
       inputR = 0;
       inputUp = 0;
     }
-    // Phase 2: Fly towards home (now facing home)
-    else if (dist > 15) {
-      // Fly forward towards home
+    // Phase 2: Fly towards home
+    else {
       inputF = 1;
       inputR = 0;
       inputYaw = yawDiff * 0.8;
@@ -81,33 +93,6 @@ export function updateDrone(dt) {
       if (state.dronePos.y < 30) inputUp = 0.5;
       else if (state.dronePos.y > state.homePos.y + 20) inputUp = -0.2;
       else inputUp = 0;
-    }
-    // Phase 3: Landing phase (close to home)
-    else {
-      // Turn around (tail towards home) before landing
-      let landingYawDiff = yawDiff + Math.PI; // Opposite direction
-      while (landingYawDiff > Math.PI) landingYawDiff -= Math.PI * 2;
-      while (landingYawDiff < -Math.PI) landingYawDiff += Math.PI * 2;
-
-      if (Math.abs(landingYawDiff) > 0.3) {
-        inputYaw = Math.sign(landingYawDiff) * 0.8;
-        inputF = 0;
-        inputR = 0;
-      } else {
-        // Aligned for landing - slow approach
-        const speedFactor = Math.max(0.2, dist / 15);
-        inputF = speedFactor * 0.5;
-        inputR = 0;
-        inputYaw = landingYawDiff * 0.5;
-      }
-
-      // Descend slowly
-      const heightDiff = state.homePos.y - state.dronePos.y;
-      if (dist < 5) {
-        inputUp = heightDiff * 0.1;
-      } else {
-        inputUp = Math.min(0.3, heightDiff * 0.05);
-      }
     }
   } else {
     // Remove RTH path if not in RTH mode
