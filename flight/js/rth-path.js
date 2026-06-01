@@ -89,100 +89,53 @@ export function getHomeMarker() {
 export function createRTHPath() {
   // Remove existing path
   removeRTHPath();
-  
+  removeLandingPath();
+
   if (!state.isRTH) return;
-  
+
   const startPos = state.dronePos.clone();
   const endPos = state.homePos.clone();
-  
-  // Calculate path points with intermediate waypoints
+
+  // Simple direct path from drone to home (no complex climb/descend)
   const points = [];
-  const segments = 50;
-  
-  // Create a smooth path: drone -> climb -> fly -> descend -> home
+
+  // Calculate direction from drone to home
+  const dir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
+  const dist = startPos.distanceTo(endPos);
+
+  // Path: straight line from drone to home
+  const segments = Math.max(20, Math.floor(dist / 10));
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
-    
-    // Path phases:
-    // 1. Climb to safe altitude (first 10%)
-    // 2. Fly horizontally (middle 80%)
-    // 3. Descend to home (last 10%)
-    
-    let x, y, z;
-    
-    if (t < 0.1) {
-      // Climb phase
-      const climbT = t / 0.1;
-      x = startPos.x;
-      y = THREE.MathUtils.lerp(startPos.y, Math.max(startPos.y, endPos.y + 20), climbT);
-      z = startPos.z;
-    } else if (t < 0.9) {
-      // Horizontal flight phase
-      const flyT = (t - 0.1) / 0.8;
-      const safeY = Math.max(startPos.y, endPos.y) + 20;
-      x = THREE.MathUtils.lerp(startPos.x, endPos.x, flyT);
-      y = safeY;
-      z = THREE.MathUtils.lerp(startPos.z, endPos.z, flyT);
-    } else {
-      // Descend phase
-      const descendT = (t - 0.9) / 0.1;
-      const safeY = Math.max(startPos.y, endPos.y) + 20;
-      x = endPos.x;
-      y = THREE.MathUtils.lerp(safeY, endPos.y, descendT);
-      z = endPos.z;
-    }
-    
-    points.push(new THREE.Vector3(x, y, z));
-  }
-  
-  // Create a tube geometry for the path
-  const pathWidth = 3; // Width similar to drone size
-  const curve = new THREE.CatmullRomCurve3(points);
-  
-  // Create custom shader material with gradient effect
-  const pathGeometry = new THREE.TubeGeometry(curve, 64, pathWidth, 8, false);
-  
-  // Create gradient colors - darker at drone, lighter at home
-  const colors = new Float32Array(pathGeometry.attributes.position.count * 4);
-  const positions = pathGeometry.attributes.position;
-  
-  for (let i = 0; i < positions.count; i++) {
     const point = new THREE.Vector3(
-      positions.getX(i),
-      positions.getY(i),
-      positions.getZ(i)
+      THREE.MathUtils.lerp(startPos.x, endPos.x, t),
+      THREE.MathUtils.lerp(startPos.y, endPos.y, t),
+      THREE.MathUtils.lerp(startPos.z, endPos.z, t)
     );
-    
-    // Calculate distance along path (0 at drone, 1 at home)
-    const distToStart = point.distanceTo(startPos);
-    const distToEnd = point.distanceTo(endPos);
-    const totalDist = startPos.distanceTo(endPos);
-    const t = distToStart / (totalDist + 0.01);
-    
-    // Green color with alpha gradient
-    // Start: darker green (0.6 alpha), End: brighter green (0.9 alpha)
-    colors[i * 4] = 0.2 + t * 0.2;     // R
-    colors[i * 4 + 1] = 0.8 + t * 0.15; // G
-    colors[i * 4 + 2] = 0.3;             // B
-    colors[i * 4 + 3] = 0.4 + t * 0.4;   // A - more transparent at start, more opaque at end
+    points.push(point);
   }
-  
-  pathGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
-  
+
+  // Create a tube geometry for the path
+  const pathWidth = 2;
+  const curve = new THREE.CatmullRomCurve3(points);
+
+  const pathGeometry = new THREE.TubeGeometry(curve, Math.max(8, segments), pathWidth, 8, false);
+
+  // Color gradient: bright green at drone, darker at home
   const pathMaterial = new THREE.MeshBasicMaterial({
-    vertexColors: true,
+    color: 0x44ff66,
     transparent: true,
-    opacity: 0.7,
+    opacity: 0.6,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
-  
+
   rthPathMesh = new THREE.Mesh(pathGeometry, pathMaterial);
   scene.add(rthPathMesh);
-  
-  // Create landing path (vertical green column at home position)
+
+  // Create landing indicator at home position
   createLandingPath();
-  
+
   // Start beeping sound
   startRTHBeep();
 }

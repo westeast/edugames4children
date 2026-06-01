@@ -192,12 +192,13 @@ function onPointerMove(event) {
 
   raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
-  // Intersect with horizontal plane at home altitude
+  // Intersect with horizontal plane at ground level
   const intersectPoint = new THREE.Vector3();
-  dragPlane.constant = -state.homePos.y;
+  const groundY = getTerrainHeight(state.homePos.x, state.homePos.z);
+  dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, groundY, 0));
   raycaster.ray.intersectPlane(dragPlane, intersectPoint);
 
-  if (intersectPoint) {
+  if (intersectPoint && Number.isFinite(intersectPoint.x) && Number.isFinite(intersectPoint.z)) {
     state.homePos.x = intersectPoint.x;
     state.homePos.z = intersectPoint.z;
     updateHomeMarker();
@@ -208,5 +209,7 @@ function onPointerUp(event) {
   if (isDraggingHome) {
     isDraggingHome = false;
     showNotif('✅ 返航点已更新');
+    // Ensure marker is still visible
+    updateHomeMarker();
   }
 }

@@ -33,6 +33,7 @@ export function updateDrone(dt) {
   // Return-to-home autopilot
   if (state.isRTH) {
     const toHome = new THREE.Vector3().subVectors(state.homePos, state.dronePos);
+    toHome.y = 0; // Only consider horizontal distance
     const dist = toHome.length();
 
     // Create RTH path visualization
@@ -49,15 +50,23 @@ export function updateDrone(dt) {
 
     toHome.normalize();
 
-    // Calculate desired yaw to face home
+    // Calculate target yaw to face home
     const targetYaw = Math.atan2(toHome.x, toHome.z);
     let yawDiff = targetYaw - state.droneYaw;
     // Normalize to -PI..PI
     while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
     while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
 
-    // Landing phase: close to home
-    if (dist < 15) {
+    // Phase 1: Turn to face home (if not facing home)
+    if (Math.abs(yawDiff) > 0.5 && dist > 5) {
+      // First turn around to face home
+      inputYaw = Math.sign(yawDiff) * Math.min(Math.abs(yawDiff), 1.5);
+      inputF = 0.2; // Slow forward while turning
+      inputR = 0;
+      inputUp = 0; // Maintain altitude
+    }
+    // Phase 2: Landing phase (close to home)
+    else if (dist < 15) {
       // Turn around (tail towards home) before landing
       const landingYaw = targetYaw + Math.PI; // Face away from home (tail towards home)
       let landingYawDiff = landingYaw - state.droneYaw;
@@ -84,15 +93,16 @@ export function updateDrone(dt) {
       } else {
         inputUp = Math.min(0.3, heightDiff * 0.05);
       }
-    } else {
-      // Approach phase: fly towards home
+    }
+    // Phase 3: Approach phase - fly towards home
+    else {
       inputF = 1;
-      inputR = toHome.x * Math.cos(state.droneYaw) - toHome.z * Math.sin(state.droneYaw);
-      inputYaw = yawDiff * 0.5;
+      inputR = 0; // No strafe, just fly forward
+      inputYaw = yawDiff * 0.5; // Gradually align to home direction
 
-      // Maintain altitude or climb to safe height
+      // Maintain safe altitude
       if (state.dronePos.y < 30) inputUp = 0.5;
-      else if (state.dronePos.y > state.homePos.y + 10) inputUp = -0.2;
+      else if (state.dronePos.y > state.homePos.y + 20) inputUp = -0.2;
       else inputUp = 0;
     }
   } else {
