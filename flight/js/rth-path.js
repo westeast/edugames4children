@@ -85,6 +85,97 @@ export function getHomeMarker() {
   return homeMarker;
 }
 
+// Generate path that avoids obstacles (terrain)
+function generateAvoidancePath(start, end) {
+  const points = [];
+  const dir = new THREE.Vector3().subVectors(end, start);
+  const totalDist = dir.length();
+  dir.normalize();
+
+  // Sample points along the direct path
+  const numSamples = Math.max(10, Math.floor(totalDist / 20));
+
+  // Find obstacles along the path
+  const obstacles = [];
+  for (let i = 0; i <= numSamples; i++) {
+    const t = i / numSamples;
+    const samplePoint = new THREE.Vector3().lerpVectors(start, end, t);
+    const terrainH = getTerrainHeight(samplePoint.x, samplePoint.z) + 5; // +5m safety margin
+
+    // Check if this point would hit terrain
+    if (samplePoint.y < terrainH) {
+      obstacles.push({
+        t: t,
+        point: samplePoint.clone(),
+        terrainHeight: terrainH,
+        neededHeight: terrainH + 10 // Need to be 10m above terrain
+      });
+    }
+  }
+
+  // If no obstacles, return direct path
+  if (obstacles.length === 0) {
+    const segments = Math.max(10, Math.floor(totalDist / 15));
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      points.push(new THREE.Vector3(
+        THREE.MathUtils.lerp(start.x, end.x, t),
+        THREE.MathUtils.lerp(start.y, end.y, t),
+        THREE.MathUtils.lerp(start.z, end.z, t)
+      ));
+    }
+    return points;
+  }
+
+  // Find the highest obstacle - we need to go over it
+  const maxObstacle = obstacles.reduce((max, o) => o.neededHeight > max.neededHeight ? o : max, obstacles[0]);
+
+  // Create path that goes over the highest obstacle
+  // Phase 1: Climb from start to above obstacle
+  // Phase 2: Fly over at safe height
+  // Phase 3: Descend to end
+
+  const safeHeight = Math.max(start.y, end.y, maxObstacle.neededHeight);
+
+  // Start point
+  points.push(start.clone());
+
+  // Climb phase (if needed)
+  if (start.y < safeHeight) {
+    // Climb while staying in place horizontally
+    points.push(new THREE.Vector3(start.x, safeHeight, start.z));
+  }
+
+  // Fly over at safe height
+  if (start.y < safeHeight || end.y < safeHeight) {
+    points.push(new THREE.Vector3(
+      THREE.MathUtils.lerp(start.x, end.x, 0.3),
+      safeHeight,
+      THREE.MathUtils.lerp(start.z, end.z, 0.3)
+    ));
+    points.push(new THREE.Vector3(
+      THREE.MathUtils.lerp(start.x, end.x, 0.5),
+      safeHeight,
+      THREE.MathUtils.lerp(start.z, end.z, 0.5)
+    ));
+    points.push(new THREE.Vector3(
+      THREE.MathUtils.lerp(start.x, end.x, 0.7),
+      safeHeight,
+      THREE.MathUtils.lerp(start.z, end.z, 0.7)
+    ));
+  }
+
+  // Descend to end (if needed)
+  if (end.y < safeHeight) {
+    points.push(new THREE.Vector3(end.x, safeHeight, end.z));
+  }
+
+  // End point
+  points.push(end.clone());
+
+  return points;
+}
+
 // Create RTH path visualization
 export function createRTHPath() {
   // Remove existing path
@@ -96,30 +187,14 @@ export function createRTHPath() {
   const startPos = state.dronePos.clone();
   const endPos = state.homePos.clone();
 
-  // Simple direct path from drone to home (no complex climb/descend)
-  const points = [];
-
-  // Calculate direction from drone to home
-  const dir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
-  const dist = startPos.distanceTo(endPos);
-
-  // Path: straight line from drone to home
-  const segments = Math.max(20, Math.floor(dist / 10));
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const point = new THREE.Vector3(
-      THREE.MathUtils.lerp(startPos.x, endPos.x, t),
-      THREE.MathUtils.lerp(startPos.y, endPos.y, t),
-      THREE.MathUtils.lerp(startPos.z, endPos.z, t)
-    );
-    points.push(point);
-  }
+  // Generate path that avoids obstacles
+  const points = generateAvoidancePath(startPos, endPos);
 
   // Create a tube geometry for the path
   const pathWidth = 2;
   const curve = new THREE.CatmullRomCurve3(points);
 
-  const pathGeometry = new THREE.TubeGeometry(curve, Math.max(8, segments), pathWidth, 8, false);
+  const pathGeometry = new THREE.TubeGeometry(curve, Math.max(8, points.length * 2), pathWidth, 8, false);
 
   // Color gradient: bright green at drone, darker at home
   const pathMaterial = new THREE.MeshBasicMaterial({
@@ -186,6 +261,10 @@ export function removeRTHPath() {
     rthPathMesh.material.dispose();
     rthPathMesh = null;
   }
+  // Also remove landing path
+  removeLandingPath();
+  // Stop beeping
+  stopRTHBeep();
 }
 
 // Remove landing path
