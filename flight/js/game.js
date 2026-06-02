@@ -6,7 +6,7 @@ import { updateTerrainChunks } from './terrain.js';
 import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds } from './entities.js';
 import { createDroneModel, droneGroup, propellers, propBlurs } from './drone-model.js';
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
-import { setupJoystick } from './controls.js';
+import { setupJoystick, setupGimbalControl } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
 import { updateRTHPath, isLanding, createHomeMarker, updateHomeMarker, getHomeMarker } from './rth-path.js';
 import { getTerrainHeight } from './terrain.js';
@@ -86,7 +86,7 @@ function init() {
   document.getElementById('startScreen').style.display = 'none';
 
   // Auto-start game immediately
-  ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'joystickLeft', 'joystickRight'].forEach(id => {
+  ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'joystickLeft', 'joystickRight', 'gimbalPanel'].forEach(id => {
     document.getElementById(id).style.display = '';
   });
   state.gameStarted = true;
@@ -121,6 +121,7 @@ function init() {
   
   setupJoystick('baseL', 'thumbL', state.leftStick);
   setupJoystick('baseR', 'thumbR', state.rightStick);
+  setupGimbalControl();
   showNotif('🛫 起飞！祝飞行愉快', 5);
 
   // Create home marker (H) for return point

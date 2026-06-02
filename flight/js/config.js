@@ -2,9 +2,9 @@
 import * as THREE from 'three';
 
 export const DRONES = [
-  { name: 'Air 3', maxSpeed: 21, color: 0xff9500, accel: 8, batteryDrain: 0.012 },
-  { name: 'Mavic 3 Pro', maxSpeed: 19, color: 0xff3b30, accel: 6, batteryDrain: 0.015 },
-  { name: 'Mini 4 Pro', maxSpeed: 16, color: 0xd0d0d0, accel: 7, batteryDrain: 0.018 },
+  { name: 'Air 3', maxSpeed: 21, color: 0xff9500, accel: 8, batteryDrain: 0.012, gimbalMin: -90, gimbalMax: 30 },
+  { name: 'Mavic 3 Pro', maxSpeed: 19, color: 0xff3b30, accel: 6, batteryDrain: 0.015, gimbalMin: -90, gimbalMax: 30 },
+  { name: 'Mini 4 Pro', maxSpeed: 16, color: 0xd0d0d0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity },
 ];
 
 export const GEAR_MULT = { C: 0.4, N: 1.0, S: 1.6 };
@@ -50,4 +50,6 @@ export const state = {
   tumbleYaw: 0,
   tumbleVelX: 0,
   tumbleVelZ: 0,
+  // Gimbal pitch (degrees): 0 = horizontal forward, -90 = straight down, +70 = up 70°
+  gimbalPitch: 0,
 };

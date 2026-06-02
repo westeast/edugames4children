@@ -461,6 +461,114 @@ body {
 .modal-btn.danger:hover { background: rgba(255,100,100,0.3); }
 
 /* 响应式 */
+
+/* 云台俯仰控制 */
+#gimbalPanel {
+  position: fixed;
+  right: 12px;
+  top: 340px;
+  width: 50px;
+  background: rgba(10,10,15,0.88);
+  border-radius: 12px;
+  border: 1px solid rgba(255,149,0,0.25);
+  padding: 8px 6px 10px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.gimbal-label {
+  font-size: 9px;
+  color: #ff9500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.gimbal-degree {
+  font-size: 14px;
+  color: #fff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+}
+.gimbal-degree.at-limit {
+  color: #ff3b30;
+}
+.gimbal-slider {
+  position: relative;
+  width: 28px;
+  height: 140px;
+  cursor: pointer;
+  touch-action: none;
+}
+.gimbal-track {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+}
+.gimbal-tick {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 2px;
+  background: rgba(255,255,255,0.25);
+}
+.gimbal-tick-top { top: 8px; }
+.gimbal-tick-mid { top: 50%; transform: translate(-50%, -50%); }
+.gimbal-tick-bottom { bottom: 8px; }
+.gimbal-tick-label {
+  position: absolute;
+  left: -2px;
+  font-size: 8px;
+  color: #666;
+  transform: translateX(-100%);
+  padding-right: 3px;
+}
+.gimbal-tick-label-top { top: 4px; }
+.gimbal-tick-label-mid { top: 50%; transform: translate(-100%, -50%); }
+.gimbal-tick-label-bottom { bottom: 4px; }
+.gimbal-thumb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 10px;
+  border-radius: 5px;
+  background: radial-gradient(circle at 50% 30%, #ff9500, #cc5500);
+  border: 1.5px solid #ff9500;
+  box-shadow: 0 0 8px rgba(255,149,0,0.5);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  transition: box-shadow 0.15s, background 0.15s;
+  z-index: 2;
+}
+.gimbal-thumb:hover {
+  box-shadow: 0 0 12px rgba(255,149,0,0.7);
+}
+.gimbal-thumb.at-limit {
+  background: radial-gradient(circle at 50% 30%, #ff3b30, #cc0000);
+  border-color: #ff3b30;
+  box-shadow: 0 0 10px rgba(255,59,48,0.6);
+}
+.gimbal-thumb.dragging {
+  cursor: grabbing;
+  box-shadow: 0 0 14px rgba(255,149,0,0.8);
+}
+.gimbal-limit-notify {
+  font-size: 8px;
+  color: #ff3b30;
+  text-align: center;
+  margin-top: 4px;
+  line-height: 1.2;
+}
+
 @media (max-width: 768px) {
   #leftPanel { width: 160px; left: 6px; top: 44px; padding: 8px; font-size: 11px; }
   #rightPanel { width: 120px; right: 6px; top: 44px; padding: 8px; }

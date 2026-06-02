@@ -114,6 +114,24 @@
   </div>
 </div>
 
+<!-- 云台俯仰控制 -->
+<div id="gimbalPanel" style="display:none">
+  <div class="gimbal-label">云台俯仰</div>
+  <div class="gimbal-degree" id="gimbalDegree">0°</div>
+  <div class="gimbal-slider" id="gimbalSlider">
+    <div class="gimbal-track">
+      <div class="gimbal-tick gimbal-tick-top"></div>
+      <div class="gimbal-tick gimbal-tick-mid"></div>
+      <div class="gimbal-tick gimbal-tick-bottom"></div>
+      <div class="gimbal-tick-label gimbal-tick-label-top">↑</div>
+      <div class="gimbal-tick-label gimbal-tick-label-mid">—</div>
+      <div class="gimbal-tick-label gimbal-tick-label-bottom">↓</div>
+    </div>
+    <div class="gimbal-thumb" id="gimbalThumb"></div>
+  </div>
+  <div class="gimbal-limit-notify" id="gimbalLimitNotify" style="display:none">已达到最大俯仰度</div>
+</div>
+
 <div id="bottomPanel" style="display:none">
   <div class="tele-panel"><div class="label">高度 ALT</div><div class="value" id="teleAlt">0.0</div><div class="unit">m</div></div>
   <div class="tele-panel"><div class="label">速度 SPD</div><div class="value" id="teleSpd">0.0</div><div class="unit">m/s</div></div>

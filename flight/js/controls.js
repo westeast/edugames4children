@@ -1,7 +1,12 @@
 // Input handling: keyboard, virtual joystick, mobile orientation
 import { state, DRONES, GEAR_DESC, GEAR_MULT } from './config.js';
-import { showNotif } from './ui.js';
+import { showNotif, updateGimbalUI } from './ui.js';
 import { createDroneModel } from './drone-model.js';
+
+// Gimbal pitch control state
+let gimbalDragging = false;
+let gimbalStartY = 0;
+let gimbalStartPitch = 0;
 
 // Keyboard input
 window.addEventListener('keydown', e => {
@@ -54,8 +59,12 @@ export function setupJoystick(baseId, thumbId, stickObj) {
 // Global control functions (called from HTML onclick handlers)
 window.selectDrone = function(idx) {
   state.currentDroneIdx = idx; state.droneSpec = DRONES[idx];
+  // Reset gimbal pitch to 0 and clamp to new drone limits
+  state.gimbalPitch = Math.max(DRONES[idx].gimbalMin === -Infinity ? -90 : DRONES[idx].gimbalMin,
+                               Math.min(DRONES[idx].gimbalMax === Infinity ? 30 : DRONES[idx].gimbalMax, 0));
   document.querySelectorAll('.drone-card').forEach((c, i) => { c.classList.toggle('active', i === idx); });
   createDroneModel(idx);
+  updateGimbalUI();
   showNotif('切换机型: ' + state.droneSpec.name);
 };
 
@@ -104,3 +113,87 @@ window.togglePause = function() {
   document.getElementById('btnPause').classList.toggle('active', state.isPaused);
   showNotif(state.isPaused ? '⏸️ 已暂停' : '继续飞行');
 };
+
+// Gimbal pitch slider setup
+export function setupGimbalControl() {
+  const slider = document.getElementById('gimbalSlider');
+  const thumb = document.getElementById('gimbalThumb');
+  if (!slider || !thumb) return;
+
+  const isUnlimited = () => state.droneSpec.gimbalMin === -Infinity;
+
+  const onStart = (e) => {
+    gimbalDragging = true;
+    const t = e.touches ? e.touches[0] : e;
+    gimbalStartY = t.clientY;
+    gimbalStartPitch = state.gimbalPitch;
+    thumb.classList.add('dragging');
+    e.preventDefault();
+  };
+
+  const onMove = (e) => {
+    if (!gimbalDragging) return;
+    const t = e.touches ? e.touches[0] : e;
+    const dy = gimbalStartY - t.clientY; // positive = dragged up = more pitch up
+    const sliderRect = slider.getBoundingClientRect();
+    const sliderH = sliderRect.height;
+    // Map pixel drag to degrees: full slider height = range of motion
+    const degreesPerPixel = 160 / sliderH; // 160° range mapped to slider
+    let newPitch = gimbalStartPitch + dy * degreesPerPixel;
+
+    if (isUnlimited()) {
+      // Mini 4 Pro: unlimited, wrap around
+      newPitch = ((newPitch + 180) % 360 + 360) % 360 - 180;
+    } else {
+      // Clamp to drone limits
+      const prevPitch = state.gimbalPitch;
+      newPitch = Math.max(state.droneSpec.gimbalMin, Math.min(state.droneSpec.gimbalMax, newPitch));
+      // Show notification if hitting limit
+      if (newPitch <= state.droneSpec.gimbalMin && prevPitch > state.droneSpec.gimbalMin) {
+        showNotif('⚠️ 已达到最大俯仰度');
+      } else if (newPitch >= state.droneSpec.gimbalMax && prevPitch < state.droneSpec.gimbalMax) {
+        showNotif('⚠️ 已达到最大俯仰度');
+      }
+    }
+    state.gimbalPitch = newPitch;
+    updateGimbalUI();
+    e.preventDefault();
+  };
+
+  const onEnd = () => {
+    if (!gimbalDragging) return;
+    gimbalDragging = false;
+    thumb.classList.remove('dragging');
+  };
+
+  // Mouse/touch events on slider
+  slider.addEventListener('mousedown', onStart);
+  slider.addEventListener('touchstart', onStart);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchmove', onMove);
+  window.addEventListener('mouseup', onEnd);
+  window.addEventListener('touchend', onEnd);
+
+  // Scroll wheel on gimbal panel
+  const gimbalPanel = document.getElementById('gimbalPanel');
+  if (gimbalPanel) {
+    gimbalPanel.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -3 : 3; // scroll up = pitch up, scroll down = pitch down
+      let newPitch = state.gimbalPitch + delta;
+
+      if (isUnlimited()) {
+        newPitch = ((newPitch + 180) % 360 + 360) % 360 - 180;
+      } else {
+        const prevPitch = state.gimbalPitch;
+        newPitch = Math.max(state.droneSpec.gimbalMin, Math.min(state.droneSpec.gimbalMax, newPitch));
+        if ((newPitch <= state.droneSpec.gimbalMin && prevPitch > state.droneSpec.gimbalMin) ||
+            (newPitch >= state.droneSpec.gimbalMax && prevPitch < state.droneSpec.gimbalMax)) {
+          showNotif('⚠️ 已达到最大俯仰度');
+        }
+      }
+      state.gimbalPitch = newPitch;
+      updateGimbalUI();
+    }, { passive: false });
+  }
+}

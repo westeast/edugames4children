@@ -22,18 +22,27 @@ export function updateCamera(gameStarted = false) {
   sunLight.target.position.copy(state.dronePos);
   sunLight.target.updateMatrixWorld();
 
+  // Gimbal pitch in radians (0 = horizontal, negative = down, positive = up)
+  const gimbalRad = state.gimbalPitch * Math.PI / 180;
+
   if (state.fpvMode) {
     // FPV camera position: at the drone's camera gimbal (Front-bottom)
     const camOffset = new THREE.Vector3(0, -0.25, 0.6);
     camOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     camera.position.copy(state.dronePos).add(camOffset);
-    const lookDir = new THREE.Vector3(-Math.sin(state.droneYaw), -0.1 + state.dronePitch * 0.3, -Math.cos(state.droneYaw)).normalize();
+
+    // Look direction: forward + gimbal pitch rotation
+    // Base forward direction (horizontal)
+    const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
+    // Rotate forward by gimbal pitch around the local right axis
+    const rightAxis = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
+    const lookDir = forward.clone().applyAxisAngle(rightAxis, gimbalRad).normalize();
     camera.lookAt(camera.position.clone().add(lookDir.multiplyScalar(100)));
   } else {
     // Third-person camera with offset based on drone yaw
     const offset = new THREE.Vector3(0, 8, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     const targetCamPos = state.dronePos.clone().add(offset);
-    
+
     // During emergency stop, camera still follows but stays more stable to watch the tumble
     if (state.isEmergencyStop) {
       // Keep camera closer to see the tumbling drone better
@@ -45,7 +54,12 @@ export function updateCamera(gameStarted = false) {
     } else {
       camera.position.copy(targetCamPos);
     }
-    camera.lookAt(state.dronePos);
+
+    // In third-person, look at drone but apply gimbal pitch offset to look point
+    const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
+    const rightAxis = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
+    const gimbalLookOffset = forward.clone().applyAxisAngle(rightAxis, gimbalRad).multiplyScalar(50);
+    camera.lookAt(state.dronePos.clone().add(gimbalLookOffset));
   }
 }
 
@@ -81,5 +95,50 @@ export function updateUI() {
     state.notifTimer -= 0.016;
     document.getElementById('notification').classList.add('show');
     if (state.notifTimer <= 0) document.getElementById('notification').classList.remove('show');
+  }
+
+  // Update gimbal pitch UI
+  updateGimbalUI();
+}
+
+// Update gimbal pitch slider UI
+export function updateGimbalUI() {
+  const thumb = document.getElementById('gimbalThumb');
+  const degreeEl = document.getElementById('gimbalDegree');
+  const limitNotify = document.getElementById('gimbalLimitNotify');
+  if (!thumb || !degreeEl) return;
+
+  const spec = state.droneSpec;
+  const pitch = state.gimbalPitch;
+  const isUnlimited = spec.gimbalMin === -Infinity && spec.gimbalMax === Infinity;
+
+  // Display angle: positive = up, negative = down
+  // Show as: -90° (down) ... 0° (horizontal) ... +70° (up)
+  const displayAngle = Math.round(pitch);
+  degreeEl.textContent = (displayAngle > 0 ? '+' : '') + displayAngle + '°';
+
+  // Slider position: map pitch to 0-1 range
+  // Top of slider = max up, bottom = max down
+  let normalizedPos;
+  if (isUnlimited) {
+    // Mini 4 Pro: wrap around, map -180 to +180 to 0-1
+    let wrapped = ((pitch + 180) % 360 + 360) % 360 - 180;
+    normalizedPos = 0.5 - (wrapped / 360); // 0.5 = horizontal, 1 = up, 0 = down
+  } else {
+    // Air 3 / Mavic 3 Pro: -90 to +30
+    const range = spec.gimbalMax - spec.gimbalMin; // 120
+    normalizedPos = (pitch - spec.gimbalMin) / range; // 0 = -90 (bottom), 1 = +30 (top)
+  }
+
+  // Clamp to slider bounds (0.06 to 0.94 to keep thumb visible)
+  const clampedPos = Math.max(0.06, Math.min(0.94, normalizedPos));
+  thumb.style.top = ((1 - clampedPos) * 100) + '%';
+
+  // Check if at limit
+  const atLimit = !isUnlimited && (pitch <= spec.gimbalMin || pitch >= spec.gimbalMax);
+  thumb.classList.toggle('at-limit', atLimit);
+  degreeEl.classList.toggle('at-limit', atLimit);
+  if (limitNotify) {
+    limitNotify.style.display = atLimit ? '' : 'none';
   }
 }
