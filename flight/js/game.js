@@ -13,6 +13,8 @@ import { getTerrainHeight } from './terrain.js';
 
 // Export emergency stop to global scope for HTML onclick
 window.emergencyStop = emergencyStop;
+// Export state for HTML UI access and testing
+window.gameState = state;
 
 // Dragging state for home marker
 let isDraggingHome = false;

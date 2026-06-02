@@ -39,18 +39,13 @@ export function updateDrone(dt) {
     toHome.y = 0; // Only consider horizontal distance
     const dist = toHome.length();
 
+    // Get ground height at current position for landing detection
+    const groundHere = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+    // Get ground height at home position for final landing
+    const groundAtHome = getTerrainHeight(state.homePos.x, state.homePos.z) + 1;
+
     // Create RTH path visualization
     createRTHPath();
-
-    // Final landing - arrived at home
-    if (dist < 1.5 && Math.abs(state.dronePos.y - state.homePos.y) < 1) {
-      state.isRTH = false;
-      state.droneVel.set(0, 0, 0);
-      state.dronePos.copy(state.homePos);
-      removeRTHPath();
-      showNotif('✅ 已返航到家，降落完成');
-      return;
-    }
 
     // Calculate direction from drone to home
     const angleToHome = Math.atan2(toHome.x, toHome.z);
@@ -60,20 +55,68 @@ export function updateDrone(dt) {
     while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
     while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
 
-    // Landing phase (close to home) - simpler logic to avoid jitter
-    if (dist < 10) {
-      // Slow approach - no turning, just descend
-      const speedFactor = Math.max(0.1, dist / 10);
-      inputF = speedFactor * 0.3;
-      inputR = 0;
-      inputYaw = yawDiff * 0.3; // Very gentle yaw correction
+    // Calculate height above ground for landing
+    const heightAboveGround = state.dronePos.y - Math.max(groundHere, groundAtHome);
 
-      // Smooth descent
-      const heightDiff = state.homePos.y - state.dronePos.y;
-      if (dist < 3) {
-        inputUp = Math.sign(heightDiff) * Math.min(Math.abs(heightDiff) * 0.2, 0.3);
+    // Final landing - drone is close to ground and close to home
+    if (dist < 5 && heightAboveGround <= 1.5) {
+      state.isRTH = false;
+      state.droneVel.set(0, 0, 0);
+      state.dronePos.set(state.homePos.x, groundAtHome, state.homePos.z);
+      removeRTHPath();
+      showNotif('✅ 已返航到家，降落完成');
+      return;
+    }
+
+    // Phase 3: Landing - close to home point, descend to ground
+    if (dist < 5) {
+      // First, turn to face home if not aligned
+      if (Math.abs(yawDiff) > 0.5) {
+        // Need to turn first - don't move forward
+        inputYaw = Math.sign(yawDiff) * 0.8;
+        inputF = 0;
       } else {
-        inputUp = 0; // Maintain altitude until very close
+        // Aligned with home - can move forward to center
+        inputYaw = yawDiff * 0.5; // Gentle yaw correction
+
+        if (dist > 0.5) {
+          inputF = Math.min(dist * 0.2, 0.4); // Move toward home
+        }
+      }
+      inputR = 0;
+
+      // More aggressive descent for landing
+      if (heightAboveGround > 10) {
+        // Fast descent from high altitude
+        inputUp = -0.8;
+      } else if (heightAboveGround > 3) {
+        // Medium descent
+        inputUp = -0.6;
+      } else if (heightAboveGround > 1.5) {
+        // Slower descent near ground
+        inputUp = -0.5;
+      } else if (heightAboveGround > 0.5) {
+        // Very slow final descent
+        inputUp = -0.3;
+      }
+      // If heightAboveGround <= 0.5, stop descending - will trigger landing next frame
+    }
+    // Phase 2: Approach - close to home, prepare for landing
+    else if (dist < 15) {
+      // Slow approach
+      const speedFactor = Math.max(0.3, dist / 15);
+      inputF = speedFactor * 0.6;
+      inputR = 0;
+      inputYaw = yawDiff * 0.5;
+
+      // Start descending to home altitude first
+      const heightDiff = state.homePos.y - state.dronePos.y;
+      if (heightDiff > 2) {
+        inputUp = Math.min(heightDiff * 0.1, 0.3);
+      } else if (heightDiff < -2) {
+        inputUp = Math.max(heightDiff * 0.1, -0.3);
+      } else {
+        inputUp = 0;
       }
     }
     // Phase 1: Turn to face home first
@@ -83,13 +126,13 @@ export function updateDrone(dt) {
       inputR = 0;
       inputUp = 0;
     }
-    // Phase 2: Fly towards home
+    // Phase 1b: Fly towards home
     else {
       inputF = 1;
       inputR = 0;
       inputYaw = yawDiff * 0.8;
 
-      // Maintain safe altitude
+      // Maintain safe altitude during flight
       if (state.dronePos.y < 30) inputUp = 0.5;
       else if (state.dronePos.y > state.homePos.y + 20) inputUp = -0.2;
       else inputUp = 0;
