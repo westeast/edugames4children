@@ -174,10 +174,10 @@ export function setupGimbalControl() {
   window.addEventListener('mouseup', onEnd);
   window.addEventListener('touchend', onEnd);
 
-  // Scroll wheel on gimbal panel
-  const gimbalPanel = document.getElementById('gimbalPanel');
-  if (gimbalPanel) {
-    gimbalPanel.addEventListener('wheel', (e) => {
+  // Scroll wheel on gimbal slider area
+  const gimbalContainer = slider.parentElement; // .gimbal-container
+  if (gimbalContainer) {
+    gimbalContainer.addEventListener('wheel', (e) => {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -3 : 3; // scroll up = pitch up, scroll down = pitch down
       let newPitch = state.gimbalPitch + delta;

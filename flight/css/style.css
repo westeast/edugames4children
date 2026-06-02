@@ -462,28 +462,12 @@ body {
 
 /* 响应式 */
 
-/* 云台俯仰控制 */
-#gimbalPanel {
-  position: fixed;
-  right: 12px;
-  top: 340px;
-  width: 50px;
-  background: rgba(10,10,15,0.88);
-  border-radius: 12px;
-  border: 1px solid rgba(255,149,0,0.25);
-  padding: 8px 6px 10px;
-  z-index: 90;
+/* 云台俯仰控制 - 嵌入右侧面板内 */
+.gimbal-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-.gimbal-label {
-  font-size: 9px;
-  color: #ff9500;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 2px;
+  margin-top: 4px;
 }
 .gimbal-degree {
   font-size: 14px;
@@ -498,7 +482,7 @@ body {
 .gimbal-slider {
   position: relative;
   width: 28px;
-  height: 140px;
+  height: 120px;
   cursor: pointer;
   touch-action: none;
 }
