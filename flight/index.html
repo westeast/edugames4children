@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>大疆虚拟飞行 3D - DJI Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=202606021000">
+<link rel="stylesheet" href="css/style.css?v=202606031000">
 </head>
 <body>
 
@@ -112,24 +112,24 @@
     <div>🟢 安全 &gt;8m</div>
   </div>
 
-  <!-- 云台俯仰控制 -->
-  <div class="panel-title" style="margin-top:12px;">云台俯仰</div>
-  <div class="gimbal-container">
-    <div class="gimbal-degree" id="gimbalDegree">0°</div>
-    <div class="gimbal-slider" id="gimbalSlider">
-      <div class="gimbal-track">
-        <div class="gimbal-tick gimbal-tick-top"></div>
-        <div class="gimbal-tick gimbal-tick-mid"></div>
-        <div class="gimbal-tick gimbal-tick-bottom"></div>
-        <div class="gimbal-tick-label gimbal-tick-label-top">↑</div>
-        <div class="gimbal-tick-label gimbal-tick-label-mid">—</div>
-        <div class="gimbal-tick-label gimbal-tick-label-bottom">↓</div>
-      </div>
-      <div class="gimbal-thumb" id="gimbalThumb"></div>
+  </div>
+</div>
+
+<!-- 云台俯仰控制 - 独立竖直条，在右侧面板左侧 -->
+<div id="gimbalBar" style="display:none">
+  <div class="gimbal-degree" id="gimbalDegree">0°</div>
+  <div class="gimbal-slider" id="gimbalSlider">
+    <div class="gimbal-track">
+      <div class="gimbal-tick gimbal-tick-top"></div>
+      <div class="gimbal-tick gimbal-tick-mid"></div>
+      <div class="gimbal-tick gimbal-tick-bottom"></div>
+      <div class="gimbal-tick-label gimbal-tick-label-top">70°</div>
+      <div class="gimbal-tick-label gimbal-tick-label-mid">0°</div>
+      <div class="gimbal-tick-label gimbal-tick-label-bottom">-90°</div>
     </div>
-    <div class="gimbal-limit-notify" id="gimbalLimitNotify" style="display:none">已达到最大俯仰度</div>
+    <div class="gimbal-thumb" id="gimbalThumb"></div>
   </div>
-  </div>
+  <div class="gimbal-limit-notify" id="gimbalLimitNotify" style="display:none">已达到最大俯仰度</div>
 </div>
 
 <div id="bottomPanel" style="display:none">
@@ -488,7 +488,7 @@ function showNotif(msg) {
   }
 }
 </script>
-<script type="module" src="js/game.js?v=202606021000"></script>
+<script type="module" src="js/game.js?v=202606031000"></script>
 
 </body>
 </html>
