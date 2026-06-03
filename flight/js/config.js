@@ -59,4 +59,6 @@ export const state = {
   crashBounceCount: 0,
   // Gimbal pitch (degrees): 0 = horizontal forward, -90 = straight down, +70 = up 70°
   gimbalPitch: 0,
+  // Landed state - drone is on ground after RTH landing, needs takeoff to fly again
+  isLanded: false,
 };

@@ -24,6 +24,19 @@ export function updateDrone(dt) {
     return;
   }
 
+  // 处理已降落状态 - 需要按空格起飞
+  if (state.isLanded) {
+    // 检测起飞输入：空格键或左摇杆向上
+    const takeoffInput = state.keys[' '] || state.leftStick.y > 0.3;
+    if (takeoffInput) {
+      state.isLanded = false;
+      state.droneVel.y = 3;  // 初始上升速度
+      showNotif('🚀 起飞');
+    }
+    // 降落状态下不处理其他输入
+    return;
+  }
+
   // 处理手动模式 M档
   if (isManualMode() && state.currentGear === 'M') {
     if (updateManualControls(dt)) {
@@ -87,10 +100,11 @@ export function updateDrone(dt) {
     // Final landing - drone is close to ground and close to home
     if (dist < 5 && heightAboveGround <= 1.5) {
       state.isRTH = false;
+      state.isLanded = true;  // Lock drone on ground
       state.droneVel.set(0, 0, 0);
       state.dronePos.set(state.homePos.x, groundAtHome, state.homePos.z);
       removeRTHPath();
-      showNotif('✅ 已返航到家，降落完成');
+      showNotif('✅ 已返航到家，降落完成（按空格起飞）');
       return;
     }
 

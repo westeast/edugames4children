@@ -111,6 +111,7 @@ function handleGroundImpact() {
 function resetAfterCrash() {
   state.isCrashed = false;
   state.isCrashing = false;
+  state.isLanded = false;  // 确保清除降落状态
   state.crashBounceCount = 0;
   state.crashType = null;
 
