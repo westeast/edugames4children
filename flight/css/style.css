@@ -42,18 +42,43 @@ body {
 .battery-fill.mid { background: #ff9800; }
 
 /* 左侧面板 */
-#leftPanel { 
-  position: fixed; 
-  left: 12px; 
-  top: 50px; 
-  width: 200px; 
-  background: rgba(10,10,15,0.88); 
-  border-radius: 12px; 
-  border: 1px solid rgba(255,149,0,0.25); 
-  padding: 12px; 
-  z-index: 90; 
-  max-height: calc(100vh - 300px); 
-  overflow-y: auto; 
+#leftPanel {
+  position: fixed;
+  left: 12px;
+  top: 50px;
+  width: 140px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: rgba(10,10,15,0.88);
+  border-radius: 12px;
+  border: 1px solid rgba(255,149,0,0.25);
+  padding: 12px;
+  z-index: 90;
+}
+/* 右侧面板 */
+#rightPanel {
+  position: fixed;
+  right: 12px;
+  top: 50px;
+  width: 140px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: rgba(10,10,15,0.88);
+  border-radius: 12px;
+  border: 1px solid rgba(255,149,0,0.25);
+  padding: 12px;
+  z-index: 90;
+}
+/* 面板滚动条 */
+#leftPanel::-webkit-scrollbar, #rightPanel::-webkit-scrollbar {
+  width: 3px;
+}
+#leftPanel::-webkit-scrollbar-track, #rightPanel::-webkit-scrollbar-track {
+  background: transparent;
+}
+#leftPanel::-webkit-scrollbar-thumb, #rightPanel::-webkit-scrollbar-thumb {
+  background: rgba(255,149,0,0.3);
+  border-radius: 2px;
 }
 .panel-title { font-size: 11px; color: #ff9500; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
 .panel-title.collapsible { cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
@@ -69,18 +94,7 @@ body {
 .drone-card .specs { font-size: 10px; color: #888; }
 .drone-card .stats { margin-top: 6px; display: flex; gap: 8px; }
 .drone-card .stat { font-size: 10px; color: #aaa; }
-.drone-card .stat span { color: #ff9500; font-weight: 600; }
-
-/* 右侧面板 */
-#rightPanel { 
-  position: fixed; 
-  right: 12px; 
-  top: 50px; 
-  width: 140px; 
-  background: rgba(10,10,15,0.88); 
-  border-radius: 12px; 
-  border: 1px solid rgba(255,149,0,0.25); 
-  padding: 12px; 
+.drone-card .stat span { color: #ff9500; font-weight: 600; } 
   z-index: 90; 
 }
 .obstacle-indicator { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 3px; width: 100px; margin: 0 auto; }
@@ -469,12 +483,12 @@ body {
 /* 云台俯仰控制 - 独立竖直条，在右侧面板左侧 */
 #gimbalBar {
   position: fixed;
-  right: 206px; /* 紧贴右侧面板 */
-  top: 40px;
+  right: 156px; /* 紧贴右侧面板左边缘 */
+  top: 50px; /* 和右侧面板顶部对齐 */
   width: 36px;
   height: 280px;
-  background: rgba(10,10,15,0.85);
-  border: 1px solid rgba(255,149,0,0.2);
+  background: transparent;
+  border: none;
   border-radius: 8px;
   padding: 6px 4px;
   z-index: 90;
@@ -520,7 +534,7 @@ body {
   background: rgba(255,255,255,0.25);
 }
 .gimbal-tick-top { top: 6px; }
-.gimbal-tick-mid { top: 50%; transform: translate(-50%, -50%); }
+.gimbal-tick-mid { top: 43.75%; transform: translate(-50%, -50%); }
 .gimbal-tick-bottom { bottom: 6px; }
 .gimbal-tick-label {
   position: absolute;
@@ -531,7 +545,7 @@ body {
   white-space: nowrap;
 }
 .gimbal-tick-label-top { top: 2px; }
-.gimbal-tick-label-mid { top: 50%; transform: translateY(-50%); }
+.gimbal-tick-label-mid { top: 43.75%; transform: translateY(-50%); }
 .gimbal-tick-label-bottom { bottom: 2px; }
 .gimbal-thumb {
   position: absolute;
