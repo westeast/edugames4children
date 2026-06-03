@@ -139,9 +139,13 @@ body {
   background: rgba(255,149,0,0.2); 
   border-color: #ff9500; 
 }
-.ctrl-btn-inline.active { 
-  background: rgba(255,149,0,0.3); 
-  box-shadow: 0 0 8px rgba(255,149,0,0.4); 
+.ctrl-btn-inline.active {
+  background: rgba(255,149,0,0.3);
+  box-shadow: 0 0 8px rgba(255,149,0,0.4);
+}
+.ctrl-btn-inline.half-width {
+  flex: 1 1 calc(25% - 4px);
+  min-width: 45px;
 }
 .ctrl-btn-inline .icon { font-size: 14px; }
 
@@ -465,10 +469,10 @@ body {
 /* 云台俯仰控制 - 独立竖直条，在右侧面板左侧 */
 #gimbalBar {
   position: fixed;
-  right: 220px; /* 左侧紧贴右面板 */
-  top: 50px;
+  right: 206px; /* 紧贴右侧面板 */
+  top: 40px;
   width: 36px;
-  height: 200px;
+  height: 280px;
   background: rgba(10,10,15,0.85);
   border: 1px solid rgba(255,149,0,0.2);
   border-radius: 8px;
@@ -567,7 +571,7 @@ body {
 @media (max-width: 768px) {
   #leftPanel { width: 160px; left: 6px; top: 44px; padding: 8px; font-size: 11px; }
   #rightPanel { width: 120px; right: 6px; top: 44px; padding: 8px; }
-  #gimbalBar { right: 136px; width: 28px; height: 160px; }
+  #gimbalBar { right: 136px; width: 28px; height: 180px; }
   #bottomPanel { gap: 4px; }
   .tele-panel { padding: 6px 8px; min-width: 70px; }
   .tele-panel .value { font-size: 16px; }

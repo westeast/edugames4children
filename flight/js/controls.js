@@ -114,6 +114,15 @@ window.togglePause = function() {
   showNotif(state.isPaused ? '⏸️ 已暂停' : '继续飞行');
 };
 
+window.toggleGimbal = function() {
+  const bar = document.getElementById('gimbalBar');
+  const btn = document.getElementById('btnGimbal');
+  if (!bar) return;
+  const isVisible = bar.style.display !== 'none';
+  bar.style.display = isVisible ? 'none' : '';
+  btn.classList.toggle('active', !isVisible);
+};
+
 // Gimbal pitch slider setup
 export function setupGimbalControl() {
   const slider = document.getElementById('gimbalSlider');

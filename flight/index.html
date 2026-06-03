@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>大疆虚拟飞行 3D - DJI Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=202606031000">
+<link rel="stylesheet" href="css/style.css?v=202606031030">
 </head>
 <body>
 
@@ -98,7 +98,8 @@
     <button class="ctrl-btn-inline" id="btnRTH" onclick="triggerRTH()"><span class="icon">🏠</span><span>返航</span></button>
     <button class="ctrl-btn-inline" id="btnOBS" onclick="toggleObstacle()"><span class="icon">🛡️</span><span>避障</span></button>
     <button class="ctrl-btn-inline" id="btnFPV" onclick="toggleFPV()"><span class="icon">👁️</span><span>视角</span></button>
-    <button class="ctrl-btn-inline" id="btnPause" onclick="togglePause()"><span class="icon">⏸️</span><span>暂停</span></button>
+    <button class="ctrl-btn-inline half-width" id="btnPause" onclick="togglePause()"><span class="icon">⏸️</span><span>暂停</span></button>
+    <button class="ctrl-btn-inline half-width" id="btnGimbal" onclick="toggleGimbal()"><span class="icon">📐</span><span>俯仰</span></button>
   </div>
   <div class="panel-title">避障感知</div>
   <div class="obstacle-indicator" id="obIndicator">
@@ -488,7 +489,7 @@ function showNotif(msg) {
   }
 }
 </script>
-<script type="module" src="js/game.js?v=202606031000"></script>
+<script type="module" src="js/game.js?v=202606031030"></script>
 
 </body>
 </html>
