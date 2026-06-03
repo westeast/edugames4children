@@ -32,6 +32,9 @@
 </div>
 
 <div id="topBar" style="display:none">
+  <div class="settings-logo" onclick="openSettings()">
+    <span class="logo-icon">🚁</span>
+  </div>
   <div class="status-item"><span>📶</span><span class="val" id="signalVal">5</span></div>
   <div class="status-item" style="gap:10px;">
     <span style="font-size:11px;color:#888;">电池</span>
@@ -88,6 +91,7 @@
     <button class="gear-btn" id="gearC" onclick="setGear('C')">C</button>
     <button class="gear-btn active" id="gearN" onclick="setGear('N')">N</button>
     <button class="gear-btn" id="gearS" onclick="setGear('S')">S</button>
+    <button class="gear-btn manual" id="gearM" onclick="setGear('M')" style="display:none;">M</button>
   </div>
   <div style="font-size:9px;color:#666;margin-bottom:8px;text-align:center;">
     <span id="gearDesc">普通档 · 均衡飞行</span>
@@ -167,6 +171,7 @@
       <button class="settings-tab" onclick="switchSettingsTab('control')">操控</button>
       <button class="settings-tab" onclick="switchSettingsTab('camera')">拍摄</button>
       <button class="settings-tab" onclick="switchSettingsTab('signal')">图传</button>
+      <button class="settings-tab" onclick="switchSettingsTab('custom')">自定义</button>
       <button class="settings-tab" onclick="switchSettingsTab('about')">关于</button>
     </div>
     <div class="settings-content">
@@ -280,7 +285,31 @@
           <div class="setting-desc">当前信号强度：良好</div>
         </div>
       </div>
-      
+
+      <!-- 自定义 Tab -->
+      <div class="tab-content" id="tabCustom" style="display:none;">
+        <div class="setting-item">
+          <div class="setting-label">飞行模式</div>
+          <div class="setting-options">
+            <button class="option-btn active" id="modeSport" onclick="setFlightMode('sport')">运动档</button>
+            <button class="option-btn" id="modeManual" onclick="setFlightMode('manual')">手动档</button>
+          </div>
+          <div class="setting-desc" id="flightModeDesc">标准飞行模式，C/N/S三档可选</div>
+        </div>
+
+        <div class="setting-item" id="manualModeInfo" style="display:none;">
+          <div class="setting-label">手动模式说明</div>
+          <div style="font-size:11px;color:#aaa;line-height:1.8;">
+            <strong>左摇杆：</strong>升降 / 快速转向<br>
+            <strong>右摇杆：</strong>俯仰/横滚<br>
+            &nbsp;&nbsp;前推：前倾+下降<br>
+            &nbsp;&nbsp;后拉：后仰+爬升<br>
+            <strong>转向：</strong>双摇杆配合<br>
+            <strong>特点：</strong>转向速度大幅提升
+          </div>
+        </div>
+      </div>
+
       <!-- 关于 Tab -->
       <div class="tab-content" id="tabAbout" style="display:none;">
         <div class="about-section">
@@ -305,6 +334,24 @@
     <div class="modal-buttons">
       <button class="modal-btn cancel" onclick="cancelAvoidOff()">取消</button>
       <button class="modal-btn danger" onclick="confirmAvoidOff()">不关闭（推荐）</button>
+    </div>
+  </div>
+</div>
+
+<!-- M档 提示弹窗 -->
+<div id="manualModePromptModal" style="display:none;">
+  <div class="modal-overlay" onclick="closeManualModePrompt()"></div>
+  <div class="modal-container">
+    <div class="modal-icon">🎮</div>
+    <div class="modal-title">手动模式 M档</div>
+    <div class="modal-desc">
+      切换至 M档 手动模式<br><br>
+      <strong>请将右摇杆轻微下推</strong><br>
+      以便飞机稳定悬停<br><br>
+      <small style="color:#666;">M档 转向速度更快，需谨慎操作</small>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn primary" onclick="confirmManualModePrompt()">开始飞行</button>
     </div>
   </div>
 </div>

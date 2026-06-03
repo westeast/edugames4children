@@ -1,14 +1,37 @@
 // Flight physics, collision detection, and game mechanics
 import * as THREE from 'three';
 import { scene } from './engine.js';
-import { state, DRONES, GEAR_MULT } from './config.js';
+import { state, DRONES, GEAR_MULT, MANUAL_TURN_MULT } from './config.js';
 import { getTerrainHeight, terrainGroup } from './terrain.js';
 import { birds } from './entities.js';
 import { showNotif } from './ui.js';
 import { createRTHPath, removeRTHPath, isLanding } from './rth-path.js';
+import { isManualMode, updateManualControls, getManualTurnSpeed } from './manual-mode.js';
+import { initCrashSequence, updateCrashPhysics, CRASH_TYPES } from './crash-physics.js';
 
 export function updateDrone(dt) {
   if (state.isCrashed || state.isPaused || !state.gameStarted) return;
+
+  // 处理炸机物理
+  if (state.isCrashing) {
+    updateCrashPhysics(dt);
+    return;
+  }
+
+  // 处理紧急停桨
+  if (state.isEmergencyStop) {
+    updateEmergencyStop(dt);
+    return;
+  }
+
+  // 处理手动模式 M档
+  if (isManualMode() && state.currentGear === 'M') {
+    if (updateManualControls(dt)) {
+      // 手动模式已处理输入和速度更新，继续碰撞检测
+      doCollisionAndBattery(dt);
+      return;
+    }
+  }
 
   const gearMult = GEAR_MULT[state.currentGear];
   const maxSpd = state.droneSpec.maxSpeed * gearMult;
@@ -26,6 +49,9 @@ export function updateDrone(dt) {
   if (state.keys['e'] || state.keys['E']) inputYaw = 1;
   inputF += state.rightStick.y; inputR += state.rightStick.x;
   inputUp += state.leftStick.y; inputYaw += state.leftStick.x;
+
+  // 手动模式下转向速度更快
+  const turnMult = isManualMode() ? getManualTurnSpeed() : 1.0;
 
   // Cruise mode override
   if (state.isCruise && !state.isRTH) { inputF = 1; inputUp = 0; inputR = 0; inputYaw = 0; }
@@ -142,8 +168,8 @@ export function updateDrone(dt) {
     removeRTHPath();
   }
 
-  // Yaw rotation
-  state.droneYaw += inputYaw * 2.0 * dt;
+  // Yaw rotation (考虑手动模式转向速度)
+  state.droneYaw += inputYaw * 2.0 * turnMult * dt;
 
   // Direction vectors
   const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
@@ -166,7 +192,7 @@ export function updateDrone(dt) {
   const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
-    if (state.droneVel.y < -8) { crash(); return; }
+    if (state.droneVel.y < -8) { crash(CRASH_TYPES.COLLISION); return; }
     else state.droneVel.y = 0;
   }
   if (state.dronePos.y > 500) state.dronePos.y = 500;
@@ -176,18 +202,18 @@ export function updateDrone(dt) {
   // Roll: right input should tilt right (negative roll, matching existing logic)
   state.dronePitch = THREE.MathUtils.lerp(state.dronePitch, -inputF * 0.3, 3 * dt);
   state.droneRoll = THREE.MathUtils.lerp(state.droneRoll, -inputR * 0.3, 3 * dt);
-  
+
   // Propeller speed based on drone velocity and vertical movement
   // Base speed when flying, faster when moving fast, slower when hovering
   // Climbing requires extra power to overcome gravity
   const basePropSpeed = 15; // Minimum propeller speed when flying
   const maxPropSpeed = 50;  // Maximum propeller speed at high velocity
   const horizontalSpeedRatio = Math.sqrt(state.droneVel.x * state.droneVel.x + state.droneVel.z * state.droneVel.z) / maxSpd;
-  
+
   // Climbing (positive vertical velocity) requires more power
   // Descending (negative vertical velocity) requires less power
   const verticalFactor = state.droneVel.y / (maxSpd * 0.6); // Normalized vertical speed
-  
+
   // Combined propeller speed: horizontal movement + vertical compensation
   // Climbing: add extra speed, Descending: reduce speed
   let propSpeedMultiplier = 1.0;
@@ -198,7 +224,7 @@ export function updateDrone(dt) {
     // Descending - need less power (down to 0.7x)
     propSpeedMultiplier = 1.0 + verticalFactor * 0.5;
   }
-  
+
   const targetPropSpeed = (basePropSpeed + horizontalSpeedRatio * (maxPropSpeed - basePropSpeed)) * propSpeedMultiplier;
   // Propeller speed responds quickly to velocity changes
   state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? Math.min(targetPropSpeed, maxPropSpeed * 1.5) : 0, 15 * dt);
@@ -209,13 +235,13 @@ export function updateDrone(dt) {
 
   // Battery drain
   state.battery -= state.droneSpec.batteryDrain * dt * (1 + spd * 0.05);
-  if (state.battery <= 0) { state.battery = 0; crash(); showNotif('电池耗尽！炸机！'); return; }
+  if (state.battery <= 0) { state.battery = 0; crash(CRASH_TYPES.BATTERY); showNotif('电池耗尽！炸机！'); return; }
   if (state.battery < 20 && state.battery > 19.5) showNotif('⚠️ 电量低于 20%');
 
   // Bird collision
   for (const bird of birds) {
     if (bird.position.distanceTo(state.dronePos) < 3) {
-      crash(); showNotif('💥 撞到飞鸟！炸机！'); return;
+      crash(CRASH_TYPES.BIRD); showNotif('💥 撞到飞鸟！炸机！'); return;
     }
   }
 
@@ -223,68 +249,57 @@ export function updateDrone(dt) {
   if (state.obstacleEnabled) updateObstacleIndicator();
 }
 
-export function crash() {
-  state.isCrashed = true;
-  state.propSpeed = 0; // Stop propellers
-  document.getElementById('crashOverlay').classList.add('show');
-  setTimeout(() => {
-    state.isCrashed = false;
-    state.dronePos.copy(state.homePos); state.droneVel.set(0, 0, 0);
-    state.droneYaw = 0; state.dronePitch = 0; state.droneRoll = 0;
-    state.battery = 100; state.totalDist = 0;
-    state.propSpeed = 15;
-    document.getElementById('crashOverlay').classList.remove('show');
-    showNotif('已重置到家园点');
-  }, 2000);
+// 碰撞检测和电量消耗 (用于手动模式后的处理)
+function doCollisionAndBattery(dt) {
+  const maxSpd = state.droneSpec.maxSpeed * (GEAR_MULT['M'] || 1.8);
+
+  // Ground collision
+  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  if (state.dronePos.y < groundH) {
+    state.dronePos.y = groundH;
+    if (state.droneVel.y < -8) { crash(CRASH_TYPES.COLLISION); return; }
+    else state.droneVel.y = 0;
+  }
+  if (state.dronePos.y > 500) state.dronePos.y = 500;
+
+  // Propeller speed
+  const basePropSpeed = 15;
+  const maxPropSpeed = 50;
+  const horizontalSpeedRatio = Math.sqrt(state.droneVel.x * state.droneVel.x + state.droneVel.z * state.droneVel.z) / maxSpd;
+  const targetPropSpeed = basePropSpeed + horizontalSpeedRatio * (maxPropSpeed - basePropSpeed);
+  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, state.gameStarted ? Math.min(targetPropSpeed, maxPropSpeed) : 0, 15 * dt);
+
+  // Battery drain
+  const spd = state.droneVel.length();
+  state.battery -= state.droneSpec.batteryDrain * dt * (1 + spd * 0.05);
+  if (state.battery <= 0) { state.battery = 0; crash(CRASH_TYPES.BATTERY); return; }
+  if (state.battery < 20 && state.battery > 19.5) showNotif('⚠️ 电量低于 20%');
+
+  // Bird collision
+  for (const bird of birds) {
+    if (bird.position.distanceTo(state.dronePos) < 3) {
+      crash(CRASH_TYPES.BIRD); return;
+    }
+  }
+
+  // Obstacle avoidance indicator
+  if (state.obstacleEnabled) updateObstacleIndicator();
 }
 
-// Emergency stop - immediately stop propellers and crash with tumbling
+// 新的 crash 函数 - 使用翻滚效果
+export function crash(crashType = CRASH_TYPES.COLLISION) {
+  initCrashSequence(crashType);
+}
+
+// Emergency stop - 使用统一的炸机系统
 export function emergencyStop() {
   if (!state.gameStarted || state.isCrashed) return;
-  
-  state.propSpeed = 0; // Stop propellers immediately
-  state.isEmergencyStop = true;
-  showNotif('💥 紧急停桨！飞机正在坠落！');
-  
-  // Random tumble direction - fast and chaotic tumbling
-  state.tumblePitch = (Math.random() - 0.5) * 15; // Fast pitch rotation
-  state.tumbleRoll = (Math.random() - 0.5) * 18;  // Fast roll rotation
-  state.tumbleYaw = (Math.random() - 0.5) * 10;   // Fast yaw rotation
-  
-  // Store initial horizontal velocity for tumbling movement
-  state.tumbleVelX = state.droneVel.x * 0.8;
-  state.tumbleVelZ = state.droneVel.z * 0.8;
+  initCrashSequence(CRASH_TYPES.EMERGENCY);
 }
 
-// Update emergency stop falling - call from game loop
+// Update emergency stop falling - 现由 crash-physics.js 处理
 export function updateEmergencyStop(dt) {
-  if (!state.isEmergencyStop || state.isCrashed) return;
-  
-  // Apply gravity - very fast fall
-  state.droneVel.y -= 25 * dt; // Much heavier fall
-  
-  // Horizontal movement with tumbling
-  state.droneVel.x = state.tumbleVelX;
-  state.droneVel.z = state.tumbleVelZ;
-  state.tumbleVelX *= 0.98; // Slow down
-  state.tumbleVelZ *= 0.98;
-  
-  // Update position
-  state.dronePos.add(state.droneVel.clone().multiplyScalar(dt));
-  
-  // Tumble the drone (rotation)
-  state.dronePitch += state.tumblePitch * dt;
-  state.droneRoll += state.tumbleRoll * dt;
-  state.droneYaw += state.tumbleYaw * dt;
-  
-  // Check ground collision
-  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
-  if (state.dronePos.y <= groundH) {
-    state.dronePos.y = groundH;
-    state.isEmergencyStop = false;
-    crash();
-    showNotif('💥 紧急停桨导致炸机！');
-  }
+  updateCrashPhysics(dt);
 }
 
 function updateObstacleIndicator() {

@@ -171,6 +171,54 @@ body {
 .gear-btn:hover { border-color: rgba(255,149,0,0.6); color: #aaa; }
 .gear-btn.active { background: rgba(255,149,0,0.25); border-color: #ff9500; color: #ff9500; box-shadow: 0 0 8px rgba(255,149,0,0.3); }
 
+/* M档 特殊样式 */
+.gear-btn.manual { border-color: rgba(255,100,50,0.4); color: #888; }
+.gear-btn.manual:hover { border-color: rgba(255,100,50,0.6); color: #ff6432; }
+.gear-btn.manual.active { background: rgba(255,100,50,0.25); border-color: #ff6432; color: #ff6432; box-shadow: 0 0 8px rgba(255,100,50,0.4); }
+
+/* 飞行模式 M档 样式 */
+#flightMode.manual { color: #ff6432 !important; }
+
+/* 设置图标 Logo */
+.settings-logo {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s;
+  margin-right: 8px;
+}
+.settings-logo:hover {
+  background: rgba(255,149,0,0.2);
+}
+.settings-logo .logo-icon {
+  font-size: 20px;
+}
+
+/* M档 提示弹窗 */
+#manualModePromptModal {
+  position: fixed;
+  inset: 0;
+  z-index: 650;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#manualModePromptModal .modal-icon { font-size: 48px; }
+#manualModePromptModal .modal-btn.primary {
+  background: rgba(255,149,0,0.8);
+  color: #000;
+  font-weight: 600;
+  border: none;
+  padding: 12px 32px;
+}
+#manualModePromptModal .modal-btn.primary:hover {
+  background: rgba(255,149,0,1);
+}
+
 /* 通知 */
 #notification { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); background: rgba(10,10,15,0.95); border: 1px solid rgba(255,149,0,0.5); border-radius: 8px; padding: 8px 20px; font-size: 13px; color: #ff9500; z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
 #notification.show { opacity: 1; }

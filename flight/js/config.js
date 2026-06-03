@@ -7,8 +7,9 @@ export const DRONES = [
   { name: 'Mini 4 Pro', maxSpeed: 16, color: 0xd0d0d0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity },
 ];
 
-export const GEAR_MULT = { C: 0.4, N: 1.0, S: 1.6 };
-export const GEAR_DESC = { C: '平稳档 · 慢速安全', N: '普通档 · 均衡飞行', S: '运动档 · 极速体验' };
+export const GEAR_MULT = { C: 0.4, N: 1.0, S: 1.6, M: 1.8 };
+export const GEAR_DESC = { C: '平稳档 · 慢速安全', N: '普通档 · 均衡飞行', S: '运动档 · 极速体验', M: '手动档 · 专业操控' };
+export const MANUAL_TURN_MULT = 2.5;  // 手动模式转向速度倍率
 
 export const CHUNK_SIZE = 200;
 export const CHUNK_RES = 40;
@@ -50,6 +51,12 @@ export const state = {
   tumbleYaw: 0,
   tumbleVelX: 0,
   tumbleVelZ: 0,
+  // Manual mode state
+  isManualMode: false,
+  // Crash physics state
+  isCrashing: false,
+  crashType: null,
+  crashBounceCount: 0,
   // Gimbal pitch (degrees): 0 = horizontal forward, -90 = straight down, +70 = up 70°
   gimbalPitch: 0,
 };

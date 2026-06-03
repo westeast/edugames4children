@@ -1,7 +1,8 @@
 // Input handling: keyboard, virtual joystick, mobile orientation
-import { state, DRONES, GEAR_DESC, GEAR_MULT } from './config.js';
+import { state, DRONES, GEAR_DESC, GEAR_MULT, MANUAL_TURN_MULT } from './config.js';
 import { showNotif, updateGimbalUI } from './ui.js';
 import { createDroneModel } from './drone-model.js';
+import { isManualMode, showManualModePrompt, updateGearButtonsUI } from './manual-mode.js';
 
 // Gimbal pitch control state
 let gimbalDragging = false;
@@ -69,10 +70,31 @@ window.selectDrone = function(idx) {
 };
 
 window.setGear = function(gear) {
+  // 如果切换到 M档，显示提示弹窗
+  if (gear === 'M' && state.currentGear !== 'M') {
+    showManualModePrompt();
+    return; // 等待用户确认后再切换
+  }
+
   state.currentGear = gear;
-  ['C', 'N', 'S'].forEach(g => { document.getElementById('gear' + g).classList.toggle('active', g === gear); });
+
+  // 根据手动模式决定显示哪些按钮
+  const manualMode = isManualMode();
+  const gears = manualMode ? ['N', 'S', 'M'] : ['C', 'N', 'S'];
+  gears.forEach(g => {
+    const btn = document.getElementById('gear' + g);
+    if (btn) btn.classList.toggle('active', g === gear);
+  });
+
   document.getElementById('gearDesc').textContent = GEAR_DESC[gear];
   document.getElementById('flightMode').textContent = gear + '档';
+
+  // M档 特殊样式
+  const flightModeEl = document.getElementById('flightMode');
+  if (flightModeEl) {
+    flightModeEl.classList.toggle('manual', gear === 'M');
+  }
+
   showNotif('切换至 ' + GEAR_DESC[gear]);
 };
 
