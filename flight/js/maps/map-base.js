@@ -58,6 +58,9 @@ export async function switchMap(type) {
     await mapState.currentMap.initMap();
   }
 
+  // Save to localStorage for persistence
+  localStorage.setItem('flight-sim-map', type);
+
   // Notify game.js to reset entities and drone position
   if (onMapSwitchCallback) {
     onMapSwitchCallback(type);

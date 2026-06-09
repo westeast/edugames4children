@@ -148,10 +148,19 @@ async function init() {
   document.getElementById('loadingText').style.display = 'none';
   document.getElementById('startScreen').style.display = 'none';
 
-  // Initialize default map (mountain) - wait for async init
-  MapBase.mapState.currentMap = MountainMap;
-  MapBase.mapState.currentMapType = 'mountain';
+  // Initialize map from localStorage (persisted selection)
+  const savedMap = localStorage.getItem('flight-sim-map') || 'mountain';
+  const validMaps = ['mountain', 'city'];
+  const mapToUse = validMaps.includes(savedMap) ? savedMap : 'mountain';
+
+  MapBase.mapState.currentMap = MapBase.getMap(mapToUse);
+  MapBase.mapState.currentMapType = mapToUse;
   await MapBase.mapState.currentMap.initMap();
+
+  // Update map card UI to show correct selection
+  document.querySelectorAll('.map-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.map === mapToUse);
+  });
 
   // Auto-start game immediately
   ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'joystickLeft', 'joystickRight'].forEach(id => {
@@ -163,7 +172,7 @@ async function init() {
   updateTerrainChunks();
 
   // Force camera to correct position immediately to center the drone
-  // Use setTimeout to ensure renderer has correct size after DOM is fully ready
+  // CRITICAL: Must update after renderer has correct size and after map terrain is ready
   function forceCameraUpdate() {
     const w = window.innerWidth || 800;
     const h = window.innerHeight || 600;
@@ -172,15 +181,16 @@ async function init() {
       camera.updateProjection();
       renderer.setSize(w, h);
     }
+    // Force immediate camera position (no lerp)
     updateCamera(false);
   }
 
-  // Immediate update
-  forceCameraUpdate();
-
-  // Delayed update to handle any async rendering
-  setTimeout(forceCameraUpdate, 100);
-  setTimeout(forceCameraUpdate, 500);
+  // Multiple updates at different timing to ensure camera is always correct
+  forceCameraUpdate();                              // Immediate
+  requestAnimationFrame(forceCameraUpdate);         // Next frame before render
+  setTimeout(forceCameraUpdate, 50);                // After short delay
+  setTimeout(forceCameraUpdate, 150);               // After terrain settles
+  setTimeout(forceCameraUpdate, 500);               // Final check
 
   // Listen for window resize to re-center camera and fix rendering issues
   window.addEventListener('game-resize', () => {
