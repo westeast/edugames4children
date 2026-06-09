@@ -10,6 +10,18 @@ export const cars = [];
 export const people = [];
 export const clouds = [];
 
+// Clear all entities (for map switching)
+export function clearEntities() {
+  birds.forEach(b => scene.remove(b));
+  cars.forEach(c => scene.remove(c));
+  people.forEach(p => scene.remove(p));
+  clouds.forEach(c => scene.remove(c));
+  birds.length = 0;
+  cars.length = 0;
+  people.length = 0;
+  clouds.length = 0;
+}
+
 // Noise for road generation - same seed as terrain.js
 const roadNoise = new SimplexNoise(123);
 

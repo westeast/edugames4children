@@ -3,17 +3,20 @@ import * as THREE from 'three';
 import { renderer, scene, camera } from './engine.js';
 import { state } from './config.js';
 import { updateTerrainChunks } from './terrain.js';
-import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds } from './entities.js';
+import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds, birds, cars, people, clouds, clearEntities } from './entities.js';
 import { createDroneModel, droneGroup, propellers, propBlurs } from './drone-model.js';
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick, setupGimbalControl } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
-import { updateRTHPath, isLanding, createHomeMarker, updateHomeMarker, getHomeMarker } from './rth-path.js';
+import { updateRTHPath, isLanding, createHomeMarker, updateHomeMarker, getHomeMarker, removeRTHPath } from './rth-path.js';
 import { getTerrainHeight } from './terrain.js';
+import * as MapBase from './maps/map-base.js';
+import * as MountainMap from './maps/mountain-map.js';
+import * as CityMap from './maps/city-map.js';
 
 // Export emergency stop to global scope for HTML onclick
 window.emergencyStop = emergencyStop;
-// Export state for HTML UI access and testing
+// Export state for HTML ui access and testing
 window.gameState = state;
 
 // Dragging state for home marker
@@ -22,6 +25,66 @@ let dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 let raycaster = new THREE.Raycaster();
 
 let lastTime = 0;
+
+// Register maps
+MapBase.registerMap('mountain', MountainMap);
+MapBase.registerMap('city', CityMap);
+
+// Set map switch callback
+MapBase.setMapSwitchCallback(async (newMapType) => {
+  // Clear all entities
+  clearEntities();
+
+  // Reset drone position
+  state.dronePos.set(0, 30, 0);
+  state.droneVel.set(0, 0, 0);
+  state.droneYaw = 0;
+  state.dronePitch = 0;
+  state.droneRoll = 0;
+  state.homePos.set(0, 30, 0);
+  state.battery = 100;
+  state.totalDist = 0;
+  state.isRTH = false;
+  state.isCruise = false;
+  state.isCrashed = false;
+  state.isLanded = false;
+
+  // Update home marker
+  updateHomeMarker();
+
+  // Generate terrain chunks for new map
+  updateTerrainChunks();
+
+  // Re-spawn entities
+  spawnBirds();
+  spawnCars();
+  spawnPeople();
+  spawnClouds();
+
+  // Show notification
+  const mapInfo = MapBase.mapState.currentMap.getMapInfo();
+  showNotif(`✅ 已切换到 ${mapInfo.name} 地图`, 3);
+});
+
+// Global map switch function for UI
+window.selectMap = async function(mapType) {
+  if (mapType === MapBase.mapState.currentMapType) return;
+
+  // Show confirmation
+  const confirmed = confirm('切换地图将重置飞行位置，是否继续？');
+  if (!confirmed) return;
+
+  // Close settings modal
+  closeSettings();
+
+  // Switch map
+  await MapBase.switchMap(mapType);
+
+  // Update UI buttons
+  document.querySelectorAll('.map-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.map === mapType);
+  });
+};
 
 function gameLoop(time) {
   requestAnimationFrame(gameLoop);
@@ -40,17 +103,17 @@ function gameLoop(time) {
     updatePeople(dt);
     updateClouds(dt);
     updateTerrainChunks();
-    
+
     // Update RTH path visualization
     if (state.isRTH) {
       updateRTHPath();
-      
+
       // Show landing notification when close to home
       if (isLanding()) {
         showNotif('📍 自动降落中...', 2);
       }
     }
-    
+
     if (droneGroup) {
       droneGroup.visible = !state.fpvMode;
       droneGroup.position.copy(state.dronePos);
@@ -81,9 +144,14 @@ function gameLoop(time) {
   renderer.render(scene, camera);
 }
 
-function init() {
+async function init() {
   document.getElementById('loadingText').style.display = 'none';
   document.getElementById('startScreen').style.display = 'none';
+
+  // Initialize default map (mountain) - wait for async init
+  MapBase.mapState.currentMap = MountainMap;
+  MapBase.mapState.currentMapType = 'mountain';
+  await MapBase.mapState.currentMap.initMap();
 
   // Auto-start game immediately
   ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'joystickLeft', 'joystickRight'].forEach(id => {
@@ -93,32 +161,32 @@ function init() {
   createDroneModel(state.currentDroneIdx);
   spawnBirds(); spawnCars(); spawnPeople(); spawnClouds();
   updateTerrainChunks();
-  
+
   // Force camera to correct position immediately to center the drone
   // Use setTimeout to ensure renderer has correct size after DOM is fully ready
   function forceCameraUpdate() {
     const w = window.innerWidth || 800;
     const h = window.innerHeight || 600;
-    if (w > 0 && h > 0) {
+    if (w > 0 && h > 0 && camera && camera.updateProjection) {
       camera.aspect = w / h;
-      camera.updateProjectionMatrix();
+      camera.updateProjection();
       renderer.setSize(w, h);
     }
     updateCamera(false);
   }
-  
+
   // Immediate update
   forceCameraUpdate();
-  
+
   // Delayed update to handle any async rendering
   setTimeout(forceCameraUpdate, 100);
   setTimeout(forceCameraUpdate, 500);
-  
+
   // Listen for window resize to re-center camera and fix rendering issues
   window.addEventListener('game-resize', () => {
     updateCamera(false);
   });
-  
+
   setupJoystick('baseL', 'thumbL', state.leftStick);
   setupJoystick('baseR', 'thumbR', state.rightStick);
   setupGimbalControl();

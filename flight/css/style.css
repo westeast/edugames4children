@@ -646,3 +646,70 @@ body {
   .settings-tabs { overflow-x: auto; }
   .settings-tab { min-width: 50px; font-size: 11px; padding: 10px 6px; }
 }
+
+/* 地图选择卡片 */
+.map-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.map-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #12121a;
+  border-radius: 10px;
+  border: 2px solid rgba(255,149,0,0.25);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.map-card:hover {
+  border-color: rgba(255,149,0,0.5);
+  background: #1a1500;
+}
+.map-card.active {
+  border-color: #ff9500;
+  background: rgba(255,149,0,0.15);
+}
+.map-preview {
+  font-size: 36px;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+}
+.map-info {
+  flex: 1;
+}
+.map-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.map-desc {
+  font-size: 11px;
+  color: #888;
+}
+
+@media (max-width: 768px) {
+  .map-card {
+    padding: 10px;
+    gap: 8px;
+  }
+  .map-preview {
+    font-size: 28px;
+    width: 40px;
+    height: 40px;
+  }
+  .map-name {
+    font-size: 13px;
+  }
+  .map-desc {
+    font-size: 10px;
+  }
+}

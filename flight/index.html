@@ -168,6 +168,7 @@
     </div>
     <div class="settings-tabs">
       <button class="settings-tab active" onclick="switchSettingsTab('safety')">安全</button>
+      <button class="settings-tab" onclick="switchSettingsTab('map')">地图</button>
       <button class="settings-tab" onclick="switchSettingsTab('control')">操控</button>
       <button class="settings-tab" onclick="switchSettingsTab('camera')">拍摄</button>
       <button class="settings-tab" onclick="switchSettingsTab('signal')">图传</button>
@@ -227,7 +228,31 @@
           <div class="setting-desc warning">仅用于紧急情况，可能导致炸机</div>
         </div>
       </div>
-      
+
+      <!-- 地图 Tab -->
+      <div class="tab-content" id="tabMap" style="display:none;">
+        <div class="setting-item">
+          <div class="setting-label">选择地图</div>
+          <div class="setting-desc" style="margin-bottom:12px;">切换地图将重置飞行位置</div>
+          <div class="map-cards">
+            <div class="map-card active" data-map="mountain" onclick="selectMap('mountain')">
+              <div class="map-preview">🏔️</div>
+              <div class="map-info">
+                <div class="map-name">山地</div>
+                <div class="map-desc">无限山地 · 盘山公路 · 自然风貌</div>
+              </div>
+            </div>
+            <div class="map-card" data-map="city" onclick="selectMap('city')">
+              <div class="map-preview">🏙️</div>
+              <div class="map-info">
+                <div class="map-name">城市</div>
+                <div class="map-desc">现代都市 · 摩天大楼 · 街道网络</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 操控 Tab -->
       <div class="tab-content" id="tabControl" style="display:none;">
         <div class="setting-item">
@@ -404,10 +429,26 @@ function switchSettingsTab(tabName) {
   // Update tab buttons
   document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
   event.target.classList.add('active');
-  
+
   // Update tab content
   document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
-  document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).style.display = 'block';
+
+  // Handle tab name to ID mapping
+  const tabIdMap = {
+    'safety': 'tabSafety',
+    'map': 'tabMap',
+    'control': 'tabControl',
+    'camera': 'tabCamera',
+    'signal': 'tabSignal',
+    'custom': 'tabCustom',
+    'about': 'tabAbout'
+  };
+
+  const tabId = tabIdMap[tabName] || ('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+  const tabElement = document.getElementById(tabId);
+  if (tabElement) {
+    tabElement.style.display = 'block';
+  }
 }
 
 function setAvoidMode(mode) {
