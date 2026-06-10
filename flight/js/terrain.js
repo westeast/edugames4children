@@ -48,7 +48,8 @@ export function getRoadDirectionAt(x, z) {
   return MapBase.getRoadDirectionAt(x, z);
 }
 
-export { ROAD_WIDTH } from './maps/mountain-map.js';
+// Dynamic ROAD_WIDTH based on current map
+export const ROAD_WIDTH = 12;
 
 export function isOnRoad(x, z) {
   return MapBase.isOnRoad(x, z);

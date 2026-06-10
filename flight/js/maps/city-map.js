@@ -137,7 +137,17 @@ function isOnSideRoad(wx, wz) {
 }
 
 function isOnRoadInternal(wx, wz) {
-  return isOnMainRoad(wx, wz) || isOnSideRoad(wx, wz);
+  // Grid roads
+  if (isOnMainRoad(wx, wz) || isOnSideRoad(wx, wz)) return true;
+
+  // Roundabout at block center - adds curved roads
+  const { localX, localZ } = getBlockCoords(wx, wz);
+  const centerDist = Math.sqrt((localX - BLOCK_SIZE / 2) ** 2 + (localZ - BLOCK_SIZE / 2) ** 2);
+  if (centerDist < ROAD_WIDTH_MAIN * 1.2 && centerDist > ROAD_WIDTH_MAIN * 0.4) {
+    return true;
+  }
+
+  return false;
 }
 
 export function isOnRoad(wx, wz) {
@@ -161,6 +171,14 @@ export function getRoadDirectionAt(x, z) {
   const { localX, localZ } = getBlockCoords(x, z);
   const halfMain = ROAD_WIDTH_MAIN / 2;
 
+  // Check if in roundabout
+  const centerDist = Math.sqrt((localX - BLOCK_SIZE / 2) ** 2 + (localZ - BLOCK_SIZE / 2) ** 2);
+  if (centerDist < ROAD_WIDTH_MAIN * 1.2 && centerDist > ROAD_WIDTH_MAIN * 0.4) {
+    // In roundabout - return tangent direction for curved movement
+    const angle = Math.atan2(localZ - BLOCK_SIZE / 2, localX - BLOCK_SIZE / 2);
+    return angle + Math.PI / 2;
+  }
+
   // Determine if we're closer to an X-aligned road or Z-aligned road
   const distToXEdge = Math.min(localX, BLOCK_SIZE - localX);
   const distToZEdge = Math.min(localZ, BLOCK_SIZE - localZ);
@@ -176,6 +194,18 @@ export function getRoadDirectionAt(x, z) {
 
 export function getNearestRoadPoint(x, z) {
   const { bx, bz, localX, localZ } = getBlockCoords(x, z);
+
+  // Check if in roundabout first
+  const centerDist = Math.sqrt((localX - BLOCK_SIZE / 2) ** 2 + (localZ - BLOCK_SIZE / 2) ** 2);
+  if (centerDist < ROAD_WIDTH_MAIN * 1.2) {
+    // Place on roundabout ring
+    const angle = Math.atan2(localZ - BLOCK_SIZE / 2, localX - BLOCK_SIZE / 2);
+    const ringRadius = ROAD_WIDTH_MAIN * 0.8;
+    return {
+      x: bx * BLOCK_SIZE + BLOCK_SIZE / 2 + Math.cos(angle) * ringRadius,
+      z: bz * BLOCK_SIZE + BLOCK_SIZE / 2 + Math.sin(angle) * ringRadius
+    };
+  }
 
   // Find nearest road edge
   const distToLeft = localX;

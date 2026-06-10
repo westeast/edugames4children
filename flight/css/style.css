@@ -323,14 +323,14 @@ body {
 .settings-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0,0,0,0.4);
 }
 .settings-container {
   position: relative;
-  width: 90%;
-  max-width: 400px;
-  max-height: 80vh;
-  background: #1a1a25;
+  width: 92%;
+  max-width: 520px;
+  max-height: 85vh;
+  background: rgba(26, 26, 37, 0.92);
   border-radius: 16px;
   border: 1px solid rgba(255,149,0,0.3);
   overflow: hidden;
