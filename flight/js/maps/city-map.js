@@ -416,19 +416,102 @@ function createBuilding(x, z, w, h, d, rng) {
   body.receiveShadow = true;
   group.add(body);
 
-  // Windows (glass facade)
-  if (rng() > 0.3) {
-    const glassColor = glassColors[Math.floor(rng() * glassColors.length)];
-    const windowGeo = new THREE.BoxGeometry(w + 0.2, h * 0.8, d + 0.2);
-    const windowMat = new THREE.MeshLambertMaterial({
-      color: glassColor,
-      transparent: true,
-      opacity: 0.3
-    });
-    const windows = new THREE.Mesh(windowGeo, windowMat);
-    windows.position.y = h / 2;
-    group.add(windows);
+  // Windows and door details
+  const windowRows = Math.max(2, Math.floor(h / 8));
+  const windowColsFront = Math.max(2, Math.floor(w / 6));
+  const windowColsSide = Math.max(2, Math.floor(d / 6));
+  const glassColor = glassColors[Math.floor(rng() * glassColors.length)];
+
+  // Window size
+  const winW = Math.min(w / windowColsFront * 0.6, 2);
+  const winH = Math.min(h / windowRows * 0.5, 2);
+  const winD = 0.15;
+  const winGeo = new THREE.BoxGeometry(winW, winH, winD);
+  const winMat = new THREE.MeshLambertMaterial({
+    color: glassColor,
+    transparent: true,
+    opacity: 0.5,
+    emissive: glassColor,
+    emissiveIntensity: 0.2
+  });
+
+  // Front face windows (+Z)
+  for (let row = 0; row < windowRows; row++) {
+    for (let col = 0; col < windowColsFront; col++) {
+      const win = new THREE.Mesh(winGeo, winMat);
+      const xPos = -w / 2 + (col + 0.5) * (w / windowColsFront);
+      const yPos = 3 + row * (h / windowRows);
+      win.position.set(xPos, yPos, d / 2 + winD / 2);
+      group.add(win);
+    }
   }
+
+  // Back face windows (-Z)
+  for (let row = 0; row < windowRows; row++) {
+    for (let col = 0; col < windowColsFront; col++) {
+      const win = new THREE.Mesh(winGeo, winMat);
+      const xPos = -w / 2 + (col + 0.5) * (w / windowColsFront);
+      const yPos = 3 + row * (h / windowRows);
+      win.position.set(xPos, yPos, -d / 2 - winD / 2);
+      group.add(win);
+    }
+  }
+
+  // Left face windows (-X)
+  for (let row = 0; row < windowRows; row++) {
+    for (let col = 0; col < windowColsSide; col++) {
+      const win = new THREE.Mesh(winGeo, winMat);
+      const zPos = -d / 2 + (col + 0.5) * (d / windowColsSide);
+      const yPos = 3 + row * (h / windowRows);
+      win.position.set(-w / 2 - winD / 2, yPos, zPos);
+      group.add(win);
+    }
+  }
+
+  // Right face windows (+X)
+  for (let row = 0; row < windowRows; row++) {
+    for (let col = 0; col < windowColsSide; col++) {
+      const win = new THREE.Mesh(winGeo, winMat);
+      const zPos = -d / 2 + (col + 0.5) * (d / windowColsSide);
+      const yPos = 3 + row * (h / windowRows);
+      win.position.set(w / 2 + winD / 2, yPos, zPos);
+      group.add(win);
+    }
+  }
+
+  // Door (front face, ground level)
+  const doorW = Math.min(w * 0.3, 3);
+  const doorH = 3.5;
+  const doorD = 0.2;
+  const doorGeo = new THREE.BoxGeometry(doorW, doorH, doorD);
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x4a3728 });
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(0, doorH / 2, d / 2 + doorD / 2);
+  group.add(door);
+
+  // Door frame
+  const frameThick = 0.15;
+  const frameMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+  const frameTop = new THREE.Mesh(new THREE.BoxGeometry(doorW + frameThick * 2, frameThick, doorD + 0.1), frameMat);
+  frameTop.position.set(0, doorH + frameThick / 2, d / 2 + doorD / 2);
+  group.add(frameTop);
+  const frameLeft = new THREE.Mesh(new THREE.BoxGeometry(frameThick, doorH, doorD + 0.1), frameMat);
+  frameLeft.position.set(-doorW / 2 - frameThick / 2, doorH / 2, d / 2 + doorD / 2);
+  group.add(frameLeft);
+  const frameRight = new THREE.Mesh(new THREE.BoxGeometry(frameThick, doorH, doorD + 0.1), frameMat);
+  frameRight.position.set(doorW / 2 + frameThick / 2, doorH / 2, d / 2 + doorD / 2);
+  group.add(frameRight);
+
+  // Glass entrance canopy above door
+  const canopyGeo = new THREE.BoxGeometry(doorW + 1, 0.1, 1.5);
+  const canopyMat = new THREE.MeshLambertMaterial({
+    color: 0x88aacc,
+    transparent: true,
+    opacity: 0.4
+  });
+  const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+  canopy.position.set(0, doorH + 0.5, d / 2 + 0.5);
+  group.add(canopy);
 
   // Roof details
   if (rng() > 0.5 && h > 40) {
