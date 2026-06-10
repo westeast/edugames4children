@@ -176,9 +176,9 @@ async function init() {
   function forceCameraUpdate() {
     const w = window.innerWidth || 800;
     const h = window.innerHeight || 600;
-    if (w > 0 && h > 0 && camera && camera.updateProjection) {
+    if (w > 0 && h > 0 && camera && camera.updateProjectionMatrix) {
       camera.aspect = w / h;
-      camera.updateProjection();
+      camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     }
     // Force immediate camera position (no lerp)
