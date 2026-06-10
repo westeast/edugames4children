@@ -26,6 +26,9 @@ function initRenderer() {
   renderer.setSize(w, h);
   document.body.insertBefore(renderer.domElement, document.body.firstChild);
   renderer.domElement.style.cssText = 'position:fixed;top:0;left:0;z-index:0;';
+
+  // Dispatch event to notify game.js that renderer is ready
+  window.dispatchEvent(new Event('renderer-ready'));
 }
 
 if (document.readyState === 'loading') {

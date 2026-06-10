@@ -191,8 +191,12 @@ async function init() {
   setTimeout(forceCameraUpdate, 50);                // After short delay
   setTimeout(forceCameraUpdate, 150);               // After terrain settles
   setTimeout(forceCameraUpdate, 500);               // Final check
+  setTimeout(forceCameraUpdate, 1000);              // Extra long delay for slow devices
 
-  // Listen for window resize to re-center camera and fix rendering issues
+  // Listen for renderer-ready event from engine.js to re-center camera
+  window.addEventListener('renderer-ready', forceCameraUpdate);
+
+  // Also listen for window resize to re-center camera
   window.addEventListener('game-resize', () => {
     updateCamera(false);
   });
