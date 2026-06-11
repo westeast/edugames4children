@@ -8,6 +8,10 @@ import { showNotif } from './ui.js';
 import { createRTHPath, removeRTHPath, isLanding } from './rth-path.js';
 import { isManualMode, updateManualControls, getManualTurnSpeed } from './manual-mode.js';
 import { initCrashSequence, updateCrashPhysics, CRASH_TYPES } from './crash-physics.js';
+import { buildingBounds, powerLines } from './maps/city-map.js';
+
+// Track which map we're on for collision detection
+let currentMapType = 'mountain';
 
 export function updateDrone(dt) {
   if (state.isCrashed || state.isPaused || !state.gameStarted) return;
@@ -259,6 +263,12 @@ export function updateDrone(dt) {
     }
   }
 
+  // Building collision (city map only)
+  checkBuildingCollision();
+
+  // Power line collision (city map only)
+  checkPowerLineCollision();
+
   // Obstacle avoidance indicator
   if (state.obstacleEnabled) updateObstacleIndicator();
 }
@@ -295,6 +305,12 @@ function doCollisionAndBattery(dt) {
       crash(CRASH_TYPES.BIRD); return;
     }
   }
+
+  // Building collision (city map only)
+  checkBuildingCollision();
+
+  // Power line collision (city map only)
+  checkPowerLineCollision();
 
   // Obstacle avoidance indicator
   if (state.obstacleEnabled) updateObstacleIndicator();
@@ -387,4 +403,112 @@ function updateObstacleIndicator() {
   birds.forEach(b => { if (b.position.distanceTo(state.dronePos) < 15) closeBird = true; });
   if (closeBird) { warnOverlay.classList.add('show'); warnBorder.classList.add('red'); }
   else { warnOverlay.classList.remove('show'); warnBorder.classList.remove('red'); }
+}
+
+// === BUILDING COLLISION DETECTION ===
+function checkBuildingCollision() {
+  if (buildingBounds.length === 0) return;
+
+  const droneR = 1.5; // Drone collision radius
+  const pos = state.dronePos;
+
+  for (const b of buildingBounds) {
+    // AABB collision check with drone radius
+    const collides =
+      pos.x + droneR > b.minX && pos.x - droneR < b.maxX &&
+      pos.y > b.minY && pos.y - droneR < b.maxY &&
+      pos.z + droneR > b.minZ && pos.z - droneR < b.maxZ;
+
+    if (collides) {
+      // Calculate impact speed for tumble intensity
+      const impactSpeed = state.droneVel.length();
+
+      // If obstacle avoidance is enabled, try to avoid
+      if (state.obstacleEnabled) {
+        // Push drone away from building center
+        const bCenterX = (b.minX + b.maxX) / 2;
+        const bCenterZ = (b.minZ + b.maxZ) / 2;
+        const pushX = pos.x - bCenterX;
+        const pushZ = pos.z - bCenterZ;
+        const pushLen = Math.sqrt(pushX * pushX + pushZ * pushZ);
+        if (pushLen > 0.1) {
+          state.droneVel.x += (pushX / pushLen) * 8;
+          state.droneVel.z += (pushZ / pushLen) * 8;
+          showNotif('⚠️ 检测到建筑物，正在避障');
+        }
+        // Push back to safe position
+        if (pos.x < b.minX) pos.x = b.minX - droneR - 0.5;
+        else if (pos.x > b.maxX) pos.x = b.maxX + droneR + 0.5;
+        if (pos.z < b.minZ) pos.z = b.minZ - droneR - 0.5;
+        else if (pos.z > b.maxZ) pos.z = b.maxZ + droneR + 0.5;
+        return;
+      }
+
+      // No obstacle avoidance - CRASH!
+      // Set impact speed for tumble intensity
+      state.impactSpeed = impactSpeed;
+      crash(CRASH_TYPES.COLLISION);
+      showNotif('💥 撞到建筑物！炸机！');
+      return;
+    }
+  }
+}
+
+// === POWER LINE COLLISION DETECTION ===
+function checkPowerLineCollision() {
+  if (powerLines.length === 0) return;
+
+  const droneR = 1.0; // Drone collision radius for wires
+  const pos = state.dronePos;
+
+  for (const line of powerLines) {
+    // Distance from point to line segment
+    const dist = pointToLineSegmentDistance(
+      pos.x, pos.y, pos.z,
+      line.x1, line.y1, line.z1,
+      line.x2, line.y2, line.z2
+    );
+
+    if (dist < droneR + line.radius) {
+      const impactSpeed = state.droneVel.length();
+
+      // If obstacle avoidance is enabled, try to avoid
+      if (state.obstacleEnabled) {
+        // Push drone down to avoid wire
+        state.droneVel.y -= 5;
+        showNotif('⚠️ 检测到电线，正在下降避障');
+        return;
+      }
+
+      // No obstacle avoidance - CRASH with power line!
+      // Power line crash spins MUCH faster
+      state.impactSpeed = impactSpeed * 3; // Triple the impact speed for wire crashes
+      crash(CRASH_TYPES.COLLISION);
+      showNotif('💥⚡ 撞到电线！噼啪噼啪！炸机！');
+      return;
+    }
+  }
+}
+
+// Distance from point to line segment in 3D
+function pointToLineSegmentDistance(px, py, pz, x1, y1, z1, x2, y2, z2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dz = z2 - z1;
+  const lenSq = dx * dx + dy * dy + dz * dz;
+
+  if (lenSq === 0) {
+    // Line segment is a point
+    return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2 + (pz - z1) ** 2);
+  }
+
+  // Project point onto line segment
+  let t = ((px - x1) * dx + (py - y1) * dy + (pz - z1) * dz) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+
+  const closestX = x1 + t * dx;
+  const closestY = y1 + t * dy;
+  const closestZ = z1 + t * dz;
+
+  return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2 + (pz - closestZ) ** 2);
 }

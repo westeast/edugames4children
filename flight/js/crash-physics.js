@@ -23,10 +23,15 @@ export function initCrashSequence(crashType = CRASH_TYPES.COLLISION) {
   state.propSpeed = 0;
   state.crashBounceCount = 0;
 
-  // 随机翻滚方向 - 混乱的翻滚
-  state.tumblePitch = (Math.random() - 0.5) * 15;  // 快速俯仰旋转
-  state.tumbleRoll = (Math.random() - 0.5) * 18;   // 快速横滚旋转
-  state.tumbleYaw = (Math.random() - 0.5) * 10;    // 快速偏航旋转
+  // 根据撞击速度计算翻滚强度 - 速度越快旋转越快
+  // impactSpeed 由 physics.js 在碰撞前设置
+  const impactSpeed = state.impactSpeed || 5;
+  const speedFactor = Math.max(0.3, Math.min(impactSpeed / 10, 3)); // 0.3x - 3x 倍率
+
+  // 随机翻滚方向 - 混乱的翻滚，速度越快转得越快
+  state.tumblePitch = (Math.random() - 0.5) * 15 * speedFactor;  // 快速俯仰旋转
+  state.tumbleRoll = (Math.random() - 0.5) * 18 * speedFactor;   // 快速横滚旋转
+  state.tumbleYaw = (Math.random() - 0.5) * 10 * speedFactor;    // 快速偏航旋转
 
   // 存储初始水平速度用于翻滚移动
   state.tumbleVelX = state.droneVel.x * 0.8;

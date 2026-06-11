@@ -57,6 +57,7 @@ export const state = {
   isCrashing: false,
   crashType: null,
   crashBounceCount: 0,
+  impactSpeed: 5, // 撞击速度，用于控制旋转强度
   // Gimbal pitch (degrees): 0 = horizontal forward, -90 = straight down, +70 = up 70°
   gimbalPitch: 0,
   // Landed state - drone is on ground after RTH landing, needs takeoff to fly again

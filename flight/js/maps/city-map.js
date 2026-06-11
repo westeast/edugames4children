@@ -41,6 +41,11 @@ const glassColors = [
   0x4488bb, 0x5599cc, 0x3377aa, 0x6699bb, 0x4477aa
 ];
 
+// Store building bounds for collision detection
+export const buildingBounds = [];
+// Store power lines for collision detection
+export const powerLines = [];
+
 export function getMapInfo() {
   return {
     name: '城市',
@@ -64,6 +69,8 @@ export function cleanup() {
     removeChunk(cx, cz);
   }
   localChunks.clear();
+  buildingBounds.length = 0;
+  powerLines.length = 0;
 }
 
 // City terrain: mostly flat with slight variations
@@ -427,6 +434,9 @@ function populateChunk(cx, cz, ox, oz) {
     }
   }
 
+  // Power lines between buildings
+  createPowerLines(ox, oz, CHUNK_SIZE, objs, rng);
+
   // Road markings (lane lines)
   createRoadMarkings(ox, oz, CHUNK_SIZE, objs);
 
@@ -446,15 +456,16 @@ function createBuilding(x, z, w, h, d, rng) {
   body.receiveShadow = true;
   group.add(body);
 
-  // Windows and door details
-  const windowRows = Math.max(2, Math.floor(h / 8));
-  const windowColsFront = Math.max(2, Math.floor(w / 6));
-  const windowColsSide = Math.max(2, Math.floor(d / 6));
+  // === BIGGER WINDOWS - drone can fly through ===
+  // Use larger windows, fewer of them, with gaps between
+  const windowRows = Math.max(2, Math.floor(h / 12));
+  const windowColsFront = Math.max(2, Math.floor(w / 10));
+  const windowColsSide = Math.max(2, Math.floor(d / 10));
   const glassColor = glassColors[Math.floor(rng() * glassColors.length)];
 
-  // Window size
-  const winW = Math.min(w / windowColsFront * 0.6, 2);
-  const winH = Math.min(h / windowRows * 0.5, 2);
+  // Window size - much bigger so drone can fly through
+  const winW = Math.min(w / windowColsFront * 0.7, 4);
+  const winH = Math.min(h / windowRows * 0.6, 4);
   const winD = 0.15;
   const winGeo = new THREE.BoxGeometry(winW, winH, winD);
   const winMat = new THREE.MeshLambertMaterial({
@@ -470,7 +481,7 @@ function createBuilding(x, z, w, h, d, rng) {
     for (let col = 0; col < windowColsFront; col++) {
       const win = new THREE.Mesh(winGeo, winMat);
       const xPos = -w / 2 + (col + 0.5) * (w / windowColsFront);
-      const yPos = 3 + row * (h / windowRows);
+      const yPos = 4 + row * (h / windowRows);
       win.position.set(xPos, yPos, d / 2 + winD / 2);
       group.add(win);
     }
@@ -481,7 +492,7 @@ function createBuilding(x, z, w, h, d, rng) {
     for (let col = 0; col < windowColsFront; col++) {
       const win = new THREE.Mesh(winGeo, winMat);
       const xPos = -w / 2 + (col + 0.5) * (w / windowColsFront);
-      const yPos = 3 + row * (h / windowRows);
+      const yPos = 4 + row * (h / windowRows);
       win.position.set(xPos, yPos, -d / 2 - winD / 2);
       group.add(win);
     }
@@ -492,7 +503,7 @@ function createBuilding(x, z, w, h, d, rng) {
     for (let col = 0; col < windowColsSide; col++) {
       const win = new THREE.Mesh(winGeo, winMat);
       const zPos = -d / 2 + (col + 0.5) * (d / windowColsSide);
-      const yPos = 3 + row * (h / windowRows);
+      const yPos = 4 + row * (h / windowRows);
       win.position.set(-w / 2 - winD / 2, yPos, zPos);
       group.add(win);
     }
@@ -503,15 +514,15 @@ function createBuilding(x, z, w, h, d, rng) {
     for (let col = 0; col < windowColsSide; col++) {
       const win = new THREE.Mesh(winGeo, winMat);
       const zPos = -d / 2 + (col + 0.5) * (d / windowColsSide);
-      const yPos = 3 + row * (h / windowRows);
+      const yPos = 4 + row * (h / windowRows);
       win.position.set(w / 2 + winD / 2, yPos, zPos);
       group.add(win);
     }
   }
 
-  // Door (front face, ground level)
-  const doorW = Math.min(w * 0.3, 3);
-  const doorH = 3.5;
+  // === BIGGER DOOR - drone can fly through ===
+  const doorW = Math.min(w * 0.4, 5);
+  const doorH = 5;
   const doorD = 0.2;
   const doorGeo = new THREE.BoxGeometry(doorW, doorH, doorD);
   const doorMat = new THREE.MeshLambertMaterial({ color: 0x4a3728 });
@@ -520,7 +531,7 @@ function createBuilding(x, z, w, h, d, rng) {
   group.add(door);
 
   // Door frame
-  const frameThick = 0.15;
+  const frameThick = 0.2;
   const frameMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
   const frameTop = new THREE.Mesh(new THREE.BoxGeometry(doorW + frameThick * 2, frameThick, doorD + 0.1), frameMat);
   frameTop.position.set(0, doorH + frameThick / 2, d / 2 + doorD / 2);
@@ -533,15 +544,47 @@ function createBuilding(x, z, w, h, d, rng) {
   group.add(frameRight);
 
   // Glass entrance canopy above door
-  const canopyGeo = new THREE.BoxGeometry(doorW + 1, 0.1, 1.5);
+  const canopyGeo = new THREE.BoxGeometry(doorW + 1.5, 0.1, 2);
   const canopyMat = new THREE.MeshLambertMaterial({
     color: 0x88aacc,
     transparent: true,
     opacity: 0.4
   });
   const canopy = new THREE.Mesh(canopyGeo, canopyMat);
-  canopy.position.set(0, doorH + 0.5, d / 2 + 0.5);
+  canopy.position.set(0, doorH + 0.5, d / 2 + 0.8);
   group.add(canopy);
+
+  // === BILLBOARD on building side ===
+  if (rng() > 0.3 && h > 30) {
+    const billboardW = 6 + rng() * 4;
+    const billboardH = 3 + rng() * 2;
+    const billboardY = 8 + rng() * (h - 20);
+    const billboardSide = rng() > 0.5 ? 1 : -1; // +X or -X side
+    const billboardColors = [0xff3333, 0x33ff33, 0x3333ff, 0xffaa00, 0xff33ff, 0x00ffff];
+    const bbColor = billboardColors[Math.floor(rng() * billboardColors.length)];
+
+    // Billboard backing
+    const bbGeo = new THREE.BoxGeometry(0.2, billboardH, billboardW);
+    const bbMat = new THREE.MeshLambertMaterial({ color: bbColor });
+    const bb = new THREE.Mesh(bbGeo, bbMat);
+    bb.position.set(
+      billboardSide * (w / 2 + 0.3),
+      billboardY,
+      (rng() - 0.5) * d * 0.5
+    );
+    group.add(bb);
+
+    // Billboard frame
+    const bbFrameMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+    const bbFrameTop = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, billboardW + 0.3), bbFrameMat);
+    bbFrameTop.position.copy(bb.position);
+    bbFrameTop.position.y += billboardH / 2 + 0.1;
+    group.add(bbFrameTop);
+    const bbFrameBot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, billboardW + 0.3), bbFrameMat);
+    bbFrameBot.position.copy(bb.position);
+    bbFrameBot.position.y -= billboardH / 2 + 0.1;
+    group.add(bbFrameBot);
+  }
 
   // Roof details
   if (rng() > 0.5 && h > 40) {
@@ -563,6 +606,19 @@ function createBuilding(x, z, w, h, d, rng) {
   }
 
   group.position.set(x, 0, z);
+
+  // Store building bounds for collision detection
+  // Building AABB: minX, maxX, minY, maxY, minZ, maxZ
+  buildingBounds.push({
+    minX: x - w / 2,
+    maxX: x + w / 2,
+    minY: 0,
+    maxY: h,
+    minZ: z - d / 2,
+    maxZ: z + d / 2,
+    group: group
+  });
+
   return group;
 }
 
@@ -676,3 +732,161 @@ function createRoadMarkings(ox, oz, size, objs) {
 
 // Export constants for entities
 export const ROAD_WIDTH = ROAD_WIDTH_MAIN;
+
+// === POWER LINES ===
+function createPowerLines(ox, oz, size, objs, rng) {
+  // Create power lines between buildings across roads
+  // Power lines run along road edges, connecting buildings on opposite sides
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+  const wireMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+
+  // Check horizontal roads (along Z axis, at specific X positions)
+  for (let x = ox; x < ox + size; x += BLOCK_SIZE) {
+    // Only place at block boundaries (where roads are)
+    const blockInGroupX = (Math.floor(x / BLOCK_SIZE) % 2 + 2) % 2;
+    if (blockInGroupX !== 0) continue;
+
+    for (let z = oz + 10; z < oz + size - 10; z += 20 + rng() * 15) {
+      // Place poles on both sides of the road
+      const roadHalf = ROAD_WIDTH_MAIN / 2 + SIDEWALK_WIDTH + 2;
+
+      // Left side pole
+      const leftPoleX = x - roadHalf;
+      const leftPoleH = 12 + rng() * 8;
+      const leftPole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.18, leftPoleH, 6),
+        poleMat
+      );
+      leftPole.position.set(leftPoleX, leftPoleH / 2, z);
+      sceneRef.add(leftPole);
+      objs.push(leftPole);
+
+      // Right side pole
+      const rightPoleX = x + roadHalf;
+      const rightPoleH = 12 + rng() * 8;
+      const rightPole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.18, rightPoleH, 6),
+        poleMat
+      );
+      rightPole.position.set(rightPoleX, rightPoleH / 2, z);
+      sceneRef.add(rightPole);
+      objs.push(rightPole);
+
+      // Crossbar on top of each pole
+      const crossbarGeo = new THREE.BoxGeometry(0.1, 0.08, 3);
+      const leftCrossbar = new THREE.Mesh(crossbarGeo, poleMat);
+      leftCrossbar.position.set(leftPoleX, leftPoleH, z);
+      sceneRef.add(leftCrossbar);
+      objs.push(leftCrossbar);
+
+      const rightCrossbar = new THREE.Mesh(crossbarGeo, poleMat);
+      rightCrossbar.position.set(rightPoleX, rightPoleH, z);
+      sceneRef.add(rightCrossbar);
+      objs.push(rightCrossbar);
+
+      // Wire connecting the two poles (catenary curve approximation)
+      const wireSegments = 12;
+      const sagAmount = 1.5; // How much the wire sags
+      for (let i = 0; i < wireSegments; i++) {
+        const t1 = i / wireSegments;
+        const t2 = (i + 1) / wireSegments;
+
+        const wx1 = leftPoleX + t1 * (rightPoleX - leftPoleX);
+        const wx2 = leftPoleX + t2 * (rightPoleX - leftPoleX);
+
+        // Catenary sag: y = h - sag * 4 * t * (1-t)
+        const wy1 = leftPoleH - sagAmount * 4 * t1 * (1 - t1);
+        const wy2 = leftPoleH - sagAmount * 4 * t2 * (1 - t2);
+
+        const wireLen = Math.sqrt((wx2 - wx1) ** 2 + (wy2 - wy1) ** 2);
+        const wireGeo = new THREE.CylinderGeometry(0.03, 0.03, wireLen, 4);
+        const wire = new THREE.Mesh(wireGeo, wireMat);
+        wire.position.set((wx1 + wx2) / 2, (wy1 + wy2) / 2, z);
+        wire.lookAt(new THREE.Vector3(wx2, wy2, z));
+        wire.rotateX(Math.PI / 2);
+        sceneRef.add(wire);
+        objs.push(wire);
+
+        // Store wire bounds for collision detection
+        powerLines.push({
+          x1: wx1, y1: wy1, z1: z,
+          x2: wx2, y2: wy2, z2: z,
+          radius: 0.15
+        });
+      }
+    }
+  }
+
+  // Check vertical roads (along X axis, at specific Z positions)
+  for (let z = oz; z < oz + size; z += BLOCK_SIZE) {
+    const blockInGroupZ = (Math.floor(z / BLOCK_SIZE) % 2 + 2) % 2;
+    if (blockInGroupZ !== 0) continue;
+
+    for (let x = ox + 10; x < ox + size - 10; x += 20 + rng() * 15) {
+      const roadHalf = ROAD_WIDTH_MAIN / 2 + SIDEWALK_WIDTH + 2;
+
+      // Front side pole
+      const frontPoleZ = z - roadHalf;
+      const frontPoleH = 12 + rng() * 8;
+      const frontPole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.18, frontPoleH, 6),
+        poleMat
+      );
+      frontPole.position.set(x, frontPoleH / 2, frontPoleZ);
+      sceneRef.add(frontPole);
+      objs.push(frontPole);
+
+      // Back side pole
+      const backPoleZ = z + roadHalf;
+      const backPoleH = 12 + rng() * 8;
+      const backPole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.18, backPoleH, 6),
+        poleMat
+      );
+      backPole.position.set(x, backPoleH / 2, backPoleZ);
+      sceneRef.add(backPole);
+      objs.push(backPole);
+
+      // Crossbars
+      const crossbarGeo = new THREE.BoxGeometry(3, 0.08, 0.1);
+      const frontCrossbar = new THREE.Mesh(crossbarGeo, poleMat);
+      frontCrossbar.position.set(x, frontPoleH, frontPoleZ);
+      sceneRef.add(frontCrossbar);
+      objs.push(frontCrossbar);
+
+      const backCrossbar = new THREE.Mesh(crossbarGeo, poleMat);
+      backCrossbar.position.set(x, backPoleH, backPoleZ);
+      sceneRef.add(backCrossbar);
+      objs.push(backCrossbar);
+
+      // Wire
+      const wireSegments = 12;
+      const sagAmount = 1.5;
+      for (let i = 0; i < wireSegments; i++) {
+        const t1 = i / wireSegments;
+        const t2 = (i + 1) / wireSegments;
+
+        const wz1 = frontPoleZ + t1 * (backPoleZ - frontPoleZ);
+        const wz2 = frontPoleZ + t2 * (backPoleZ - frontPoleZ);
+
+        const wy1 = frontPoleH - sagAmount * 4 * t1 * (1 - t1);
+        const wy2 = frontPoleH - sagAmount * 4 * t2 * (1 - t2);
+
+        const wireLen = Math.sqrt((wz2 - wz1) ** 2 + (wy2 - wy1) ** 2);
+        const wireGeo = new THREE.CylinderGeometry(0.03, 0.03, wireLen, 4);
+        const wire = new THREE.Mesh(wireGeo, wireMat);
+        wire.position.set(x, (wy1 + wy2) / 2, (wz1 + wz2) / 2);
+        wire.lookAt(new THREE.Vector3(x, wy2, wz2));
+        wire.rotateX(Math.PI / 2);
+        sceneRef.add(wire);
+        objs.push(wire);
+
+        powerLines.push({
+          x1: x, y1: wy1, z1: wz1,
+          x2: x, y2: wy2, z2: wz2,
+          radius: 0.15
+        });
+      }
+    }
+  }
+}
