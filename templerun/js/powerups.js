@@ -1,4 +1,4 @@
-// Temple Run - Power-up System
+// Temple Run - Power-up System with Real GLB Models
 
 const B = window.BABYLON;
 
@@ -7,44 +7,81 @@ import { ObjectPool, weightedRandom } from './utils.js';
 
 let scene = null;
 let powerupPool = null;
+let powerupTemplates = {};
 let powerupMaterials = {};
 
-// === Initialize Power-up System ===
-export function initPowerups(sceneRef) {
+// GLB model paths
+const POWERUP_MODELS = {
+    [POWERUP_TYPE.SHIELD]: 'assets/objects/pickups/pickupShield.glb',
+    [POWERUP_TYPE.BOOST]: 'assets/objects/pickups/pickupBoost.glb',
+    [POWERUP_TYPE.MAGNET]: 'assets/objects/pickups/pickupVacuum.glb',
+};
+
+// === Load Power-up GLB Models ===
+export async function loadPowerupModels(sceneRef) {
     scene = sceneRef;
 
-    // Materials for each power-up type
-    powerupMaterials[POWERUP_TYPE.SHIELD] = new B.StandardMaterial('shieldMat', scene);
-    powerupMaterials[POWERUP_TYPE.SHIELD].diffuseColor = new B.Color3(0.2, 0.6, 1.0); // Blue
-    powerupMaterials[POWERUP_TYPE.SHIELD].emissiveColor = new B.Color3(0.1, 0.3, 0.5);
-    powerupMaterials[POWERUP_TYPE.SHIELD].specularColor = new B.Color3(0.5, 0.5, 0.5);
+    for (const [type, path] of Object.entries(POWERUP_MODELS)) {
+        try {
+            console.log('Loading powerup model:', path);
+            const result = await B.SceneLoader.ImportMeshAsync(
+                null,
+                '',
+                path,
+                scene
+            );
 
-    powerupMaterials[POWERUP_TYPE.BOOST] = new B.StandardMaterial('boostMat', scene);
-    powerupMaterials[POWERUP_TYPE.BOOST].diffuseColor = new B.Color3(1.0, 0.3, 0.0); // Orange
-    powerupMaterials[POWERUP_TYPE.BOOST].emissiveColor = new B.Color3(0.5, 0.15, 0.0);
-    powerupMaterials[POWERUP_TYPE.BOOST].specularColor = new B.Color3(0.5, 0.5, 0.5);
+            if (result.meshes.length > 0) {
+                // Store template mesh
+                const templateMesh = result.meshes[0];
+                templateMesh.setEnabled(false);
+                templateMesh.isPickable = false;
 
-    powerupMaterials[POWERUP_TYPE.MAGNET] = new B.StandardMaterial('magnetMat', scene);
-    powerupMaterials[POWERUP_TYPE.MAGNET].diffuseColor = new B.Color3(0.8, 0.0, 0.8); // Purple
-    powerupMaterials[POWERUP_TYPE.MAGNET].emissiveColor = new B.Color3(0.4, 0.0, 0.4);
-    powerupMaterials[POWERUP_TYPE.MAGNET].specularColor = new B.Color3(0.5, 0.5, 0.5);
+                powerupTemplates[type] = {
+                    meshes: result.meshes,
+                    skeleton: result.skeletons?.[0],
+                    animationGroups: result.animationGroups,
+                };
+
+                console.log('  Loaded', result.meshes.length, 'meshes for', type);
+            }
+        } catch (e) {
+            console.warn('Failed to load powerup GLB:', path, e.message);
+            // Fallback to procedural
+            powerupTemplates[type] = null;
+        }
+    }
+
+    // Create fallback materials if GLB loading failed
+    if (!powerupTemplates[POWERUP_TYPE.SHIELD]) {
+        createFallbackMaterials();
+    }
 
     // Power-up pool
     powerupPool = new ObjectPool(
-        () => createPowerup(),
+        () => createPowerupFallback(),
         (pu) => resetPowerup(pu),
-        5
+        10
     );
 }
 
-function createPowerup() {
-    const root = new B.TransformNode('powerupRoot', scene);
+function createFallbackMaterials() {
+    powerupMaterials[POWERUP_TYPE.SHIELD] = new B.StandardMaterial('shieldMat', scene);
+    powerupMaterials[POWERUP_TYPE.SHIELD].diffuseColor = new B.Color3(0.2, 0.6, 1.0);
+    powerupMaterials[POWERUP_TYPE.SHIELD].emissiveColor = new B.Color3(0.1, 0.3, 0.5);
 
-    // Floating diamond shape
-    const mesh = B.MeshBuilder.CreatePolyhedron('powerupMesh', {
-        type: 1, // Octahedron
-        size: 0.3
-    }, scene);
+    powerupMaterials[POWERUP_TYPE.BOOST] = new B.StandardMaterial('boostMat', scene);
+    powerupMaterials[POWERUP_TYPE.BOOST].diffuseColor = new B.Color3(1.0, 0.3, 0.0);
+    powerupMaterials[POWERUP_TYPE.BOOST].emissiveColor = new B.Color3(0.5, 0.15, 0.0);
+
+    powerupMaterials[POWERUP_TYPE.MAGNET] = new B.StandardMaterial('magnetMat', scene);
+    powerupMaterials[POWERUP_TYPE.MAGNET].diffuseColor = new B.Color3(0.8, 0.0, 0.8);
+    powerupMaterials[POWERUP_TYPE.MAGNET].emissiveColor = new B.Color3(0.4, 0.0, 0.4);
+}
+
+function createPowerupFallback() {
+    const root = new B.TransformNode('powerupRoot', scene);
+    const mesh = B.MeshBuilder.CreatePolyhedron('powerupMesh', { type: 1, size: 0.3 }, scene);
     mesh.parent = root;
     mesh.isPickable = false;
     mesh.position.y = 1.0;
@@ -63,11 +100,40 @@ function resetPowerup(pu) {
     pu.setEnabled(false);
     pu._collected = false;
     pu._type = null;
+
+    // Dispose instances if using GLB
+    if (pu._instances) {
+        for (const inst of pu._instances) {
+            inst.dispose();
+        }
+        pu._instances = null;
+    }
+}
+
+// === Initialize Power-up System (Legacy) ===
+export function initPowerups(sceneRef) {
+    scene = sceneRef;
+    createFallbackMaterials();
+
+    powerupPool = new ObjectPool(
+        () => createPowerupFallback(),
+        (pu) => resetPowerup(pu),
+        10
+    );
 }
 
 // === Spawn Power-up for a Track Piece ===
 export function spawnPowerupForPiece(piece, sceneRef) {
-    if (!scene) initPowerups(sceneRef);
+    if (!scene) {
+        scene = sceneRef;
+        if (!powerupPool) {
+            powerupPool = new ObjectPool(
+                () => createPowerupFallback(),
+                (pu) => resetPowerup(pu),
+                10
+            );
+        }
+    }
     if (!powerupPool) return;
 
     // Check distance requirement
@@ -86,8 +152,9 @@ export function spawnPowerupForPiece(piece, sceneRef) {
     pu._type = type;
     pu._collected = false;
 
-    const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
-    const worldZ = piece._pieceZ + TRACK.PIECE_LENGTH / 2;
+    const lane = Math.floor(Math.random() * 3) - 1;
+    const pieceLength = piece._pieceLength || TRACK.PIECE_LENGTH;
+    const worldZ = piece._pieceZ + pieceLength / 2;
     const worldX = lane * TRACK.LANE_WIDTH;
 
     const dirX = Math.sin(state.trackAngle || 0);
@@ -103,9 +170,29 @@ export function spawnPowerupForPiece(piece, sceneRef) {
     pu._worldZ = worldZ;
     pu._worldX = worldX;
 
-    // Apply material
-    if (pu._mesh && powerupMaterials[type]) {
-        pu._mesh.material = powerupMaterials[type];
+    // Use GLB model if available
+    if (powerupTemplates[type] && powerupTemplates[type].meshes) {
+        pu._mesh = null; // Clear fallback mesh
+
+        pu._instances = [];
+        for (const templateMesh of powerupTemplates[type].meshes) {
+            const instance = templateMesh.createInstance(templateMesh.name + '_inst');
+            instance.parent = pu;
+            instance.isPickable = false;
+            pu._instances.push(instance);
+        }
+
+        // Start animations if available
+        if (powerupTemplates[type].animationGroups) {
+            for (const anim of powerupTemplates[type].animationGroups) {
+                anim.start(true); // Loop
+            }
+        }
+    } else {
+        // Use fallback mesh with colored material
+        if (pu._mesh && powerupMaterials[type]) {
+            pu._mesh.material = powerupMaterials[type];
+        }
     }
 
     state.activePowerups.push(pu);
@@ -123,11 +210,8 @@ export function checkPowerupCollection(playerBounds, gameState) {
 
         if (dist < 1.0) {
             pu._collected = true;
-
-            // Activate power-up
             activatePowerup(pu._type);
 
-            // Remove
             const idx = state.activePowerups.indexOf(pu);
             if (idx !== -1) state.activePowerups.splice(idx, 1);
             powerupPool.release(pu);
@@ -156,14 +240,13 @@ function activatePowerup(type) {
     }
 }
 
-// === Update Power-up Timers ===
+// === Update Power-up Animations ===
 export function updatePowerups(dt) {
-    // Spin power-ups
+    // Spin/powerup fallback meshes
     for (const pu of state.activePowerups) {
         if (pu.isEnabled() && pu._mesh) {
             pu._mesh.rotation.y += 2.0 * dt;
             pu._mesh.rotation.x += 1.0 * dt;
-            // Float up and down
             pu._mesh.position.y = 1.0 + Math.sin(Date.now() * 0.003) * 0.15;
         }
     }

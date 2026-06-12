@@ -1,192 +1,252 @@
-// Temple Run - Procedural Track Generation
+// Temple Run - Track Generation using Real GLB Models
 
 const B = window.BABYLON;
 
-import { state, TRACK, OBSTACLE_TYPE } from './config.js';
-import { ObjectPool, randomInt, randomFloat, weightedRandom, clamp } from './utils.js';
-import { spawnObstaclesForPiece, removeObstaclesBehind, checkObstacleCollision } from './obstacles.js';
+import { state, TRACK } from './config.js';
+import { ObjectPool, randomInt, weightedRandom } from './utils.js';
+import { loadTrackPieces, createTrackPieceInstance, getRandomPiece, TRACK_PIECES, hasPiece } from './trackLoader.js';
 import { spawnCoinsForPiece, removeCoinsBehind, checkCoinCollection } from './coins.js';
 import { spawnPowerupForPiece, removePowerupsBehind, checkPowerupCollection } from './powerups.js';
 
 let scene = null;
 let trackPiecePool = null;
-let wallMeshPool = null;
-let groundMaterial = null;
-let wallMaterial = null;
-let trackDirection = 0;     // 0=+Z, 1=+X, 2=-Z, 3=-X
-let trackAngle = 0;          // Current angle in radians
+let trackPiecesLoaded = false;
+let trackDirection = 0;
+let trackAngle = 0;
 
-// === Initialize Track System ===
-export function initTrack(sceneRef) {
+// Piece selection weights based on difficulty
+const PIECE_WEIGHTS = {
+    easy: {
+        straight: 10,
+        curve: 3,
+        turn: 1,
+        jump: 2,
+        slide: 1,
+        hill: 1,
+    },
+    medium: {
+        straight: 8,
+        curve: 4,
+        turn: 2,
+        jump: 3,
+        slide: 2,
+        hill: 2,
+        gap: 1,
+        bridge: 1,
+    },
+    hard: {
+        straight: 6,
+        curve: 5,
+        turn: 3,
+        jump: 4,
+        slide: 3,
+        hill: 2,
+        gap: 2,
+        bridge: 2,
+        ledge: 1,
+        zipline: 1,
+    }
+};
+
+// Track piece lengths (approximate, from GLB bounds)
+const PIECE_LENGTHS = {
+    straight_a: 30,
+    straight_b: 30,
+    straight_c: 30,
+    turn_left_a: 20,
+    turn_right_a: 20,
+    curve_a: 25,
+    jump_over_a: 30,
+    slide_under_a: 30,
+    // Default for unknown pieces
+    default: 30,
+};
+
+/**
+ * Initialize track system - load GLB models first
+ */
+export async function initTrack(sceneRef) {
     scene = sceneRef;
 
-    // Create shared materials
-    groundMaterial = new B.StandardMaterial('groundMat', scene);
-    const groundTex = new B.Texture('assets/textures/machu_master_a.jpg', scene);
-    groundTex.uScale = 2;
-    groundTex.vScale = 4;
-    groundMaterial.diffuseTexture = groundTex;
-    groundMaterial.specularColor = new B.Color3(0.1, 0.1, 0.1);
+    // Load real track pieces from GLB
+    const loadedPieces = await loadTrackPieces(scene);
+    if (!loadedPieces || Object.keys(loadedPieces).length === 0) {
+        console.error('Failed to load track pieces, falling back to procedural');
+        trackPiecesLoaded = false;
+        return;
+    }
 
-    // Try to load lightmap
-    try {
-        const lightmap = new B.Texture('assets/textures/machu_lightmaps.jpg', scene);
-        groundMaterial.lightmapTexture = lightmap;
-        groundMaterial.useLightmapAsShadowmap = true;
-    } catch (e) { /* lightmap optional */ }
+    trackPiecesLoaded = true;
+    console.log('Track system initialized with', Object.keys(loadedPieces).length, 'real pieces');
 
-    wallMaterial = new B.StandardMaterial('wallMat', scene);
-    wallMaterial.diffuseColor = new B.Color3(0.5, 0.35, 0.2); // Stone color
-    wallMaterial.specularColor = new B.Color3(0.05, 0.05, 0.05);
-
-    // Create track piece pool
+    // Create pool for track piece instances
     trackPiecePool = new ObjectPool(
-        () => createTrackPiece(),
-        (piece) => resetTrackPiece(piece),
+        () => createProceduralFallback(scene), // Fallback if needed
+        (piece) => resetPiece(piece),
         TRACK.VISIBLE_PIECES_AHEAD + TRACK.VISIBLE_PIECES_BEHIND + 5
     );
 
-    // Generate initial track
+    // Initialize track state
     state.nextPieceZ = 0;
     state.distanceSinceLastTurn = 0;
     state.distanceSinceLastObstacle = 0;
     state.distanceSinceLastCoinRun = 0;
     state.distanceSinceLastPowerup = 0;
 
+    // Generate initial pieces
     for (let i = 0; i < TRACK.VISIBLE_PIECES_AHEAD; i++) {
         generateNextPiece();
     }
 }
 
-// === Create a Track Piece ===
-function createTrackPiece() {
-    const root = new B.TransformNode('trackPiece', scene);
+/**
+ * Select a track piece based on difficulty and constraints
+ */
+function selectPieceType() {
+    const difficulty = state.difficultyLevel <= 2 ? 'easy' :
+                       state.difficultyLevel <= 5 ? 'medium' : 'hard';
+    const weights = PIECE_WEIGHTS[difficulty];
 
-    // Ground plane
-    const ground = B.MeshBuilder.CreateBox('ground', {
-        width: TRACK.TRACK_WIDTH,
-        height: 0.3,
-        depth: TRACK.PIECE_LENGTH
-    }, scene);
-    ground.position.y = -0.15;
-    ground.parent = root;
-    ground.material = groundMaterial;
-    ground.receiveShadows = true;
+    // Check constraints
+    const canTurn = state.distanceSinceLastTurn >= TRACK.MIN_DIST_BETWEEN_TURNS;
+    const mustTurn = state.distanceSinceLastTurn >= TRACK.MAX_DIST_BETWEEN_TURNS;
 
-    // Left wall
-    const leftWall = B.MeshBuilder.CreateBox('leftWall', {
-        width: 0.4,
-        height: TRACK.WALL_HEIGHT,
-        depth: TRACK.PIECE_LENGTH
-    }, scene);
-    leftWall.position.set(-TRACK.TRACK_WIDTH / 2 - 0.2, TRACK.WALL_HEIGHT / 2, 0);
-    leftWall.parent = root;
-    leftWall.material = wallMaterial;
+    // Build available pieces and weights
+    const available = [];
+    const weightList = [];
 
-    // Right wall
-    const rightWall = B.MeshBuilder.CreateBox('rightWall', {
-        width: 0.4,
-        height: TRACK.WALL_HEIGHT,
-        depth: TRACK.PIECE_LENGTH
-    }, scene);
-    rightWall.position.set(TRACK.TRACK_WIDTH / 2 + 0.2, TRACK.WALL_HEIGHT / 2, 0);
-    rightWall.parent = root;
-    rightWall.material = wallMaterial;
-
-    root._ground = ground;
-    root._leftWall = leftWall;
-    root._rightWall = rightWall;
-    root._pieceZ = 0;
-    root._isTurn = false;
-    root._turnDir = 0;
-    root._pieceIndex = 0;
-
-    // Make non-pickable
-    ground.isPickable = false;
-    leftWall.isPickable = false;
-    rightWall.isPickable = false;
-
-    return root;
-}
-
-function resetTrackPiece(piece) {
-    piece.setEnabled(false);
-    piece.position.set(0, 0, 0);
-    piece.rotation.set(0, 0, 0);
-    piece._isTurn = false;
-    piece._turnDir = 0;
-}
-
-// === Generate Next Track Piece ===
-function generateNextPiece() {
-    const piece = trackPiecePool.acquire();
-    piece.setEnabled(true);
-
-    const pieceZ = state.nextPieceZ;
-    piece._pieceZ = pieceZ;
-    piece._pieceIndex = state.trackPieces.length;
-
-    // Position piece based on current track direction
-    const dirX = Math.sin(trackAngle);
-    const dirZ = Math.cos(trackAngle);
-    piece.position.set(dirX * pieceZ, 0, dirZ * pieceZ);
-    piece.rotation.y = trackAngle;
-
-    // Decide if this is a turn piece
-    let isTurn = false;
-    let turnDir = 0;
-
-    if (state.distanceSinceLastTurn >= TRACK.MIN_DIST_BETWEEN_TURNS &&
-        Math.random() < 0.3) {
-        if (state.distanceSinceLastTurn >= TRACK.MAX_DIST_BETWEEN_TURNS ||
-            (state.distanceSinceLastTurn >= TRACK.MIN_DIST_BETWEEN_TURNS && Math.random() < 0.4)) {
-            isTurn = true;
-            turnDir = Math.random() < 0.5 ? -1 : 1;
+    // Always include straight pieces
+    for (const piece of TRACK_PIECES.STRAIGHT) {
+        if (hasPiece(piece)) {
+            available.push(piece);
+            weightList.push(weights.straight || 5);
         }
     }
 
-    piece._isTurn = isTurn;
-    piece._turnDir = turnDir;
-
-    // Add shadow casters
-    const shadowGen = scene.getLightByName('sunLight')?.getShadowGenerator();
-    if (shadowGen) {
-        shadowGen.addShadowCaster(piece._ground);
+    // Add turns if allowed
+    if (canTurn) {
+        for (const piece of TRACK_PIECES.TURN) {
+            if (hasPiece(piece)) {
+                available.push(piece);
+                weightList.push(weights.turn || 1);
+            }
+        }
     }
 
-    // Spawn obstacles, coins, powerups for this piece
-    spawnObstaclesForPiece(piece, scene);
-    spawnCoinsForPiece(piece, scene);
-    spawnPowerupForPiece(piece, scene);
+    // Force turn if must turn
+    if (mustTurn && hasPiece('turn_left_a') && hasPiece('turn_right_a')) {
+        // High probability of turn
+        available.push('turn_left_a', 'turn_right_a');
+        weightList.push(10, 10);
+    }
 
-    state.trackPieces.push(piece);
-    state.nextPieceZ += TRACK.PIECE_LENGTH;
-    state.distanceSinceLastTurn += TRACK.PIECE_LENGTH;
-    state.distanceSinceLastObstacle += TRACK.PIECE_LENGTH;
-    state.distanceSinceLastCoinRun += TRACK.PIECE_LENGTH;
-    state.distanceSinceLastPowerup += TRACK.PIECE_LENGTH;
+    // Add obstacle pieces based on distance since last obstacle
+    if (state.distanceSinceLastObstacle >= TRACK.MIN_DIST_BETWEEN_OBSTACLES) {
+        for (const piece of TRACK_PIECES.JUMP) {
+            if (hasPiece(piece)) {
+                available.push(piece);
+                weightList.push(weights.jump || 2);
+            }
+        }
+        for (const piece of TRACK_PIECES.SLIDE) {
+            if (hasPiece(piece)) {
+                available.push(piece);
+                weightList.push(weights.slide || 1);
+            }
+        }
+    }
 
-    // Handle turn - update track direction
-    if (isTurn) {
-        trackDirection = (trackDirection + (turnDir > 0 ? 1 : 3)) % 4;
+    // Select weighted random
+    if (available.length === 0) {
+        return 'straight_a'; // Safe fallback
+    }
+
+    return weightedRandom(available, weightList);
+}
+
+/**
+ * Generate next track piece
+ */
+function generateNextPiece() {
+    // Select piece type
+    const pieceType = selectPieceType();
+    const pieceLength = PIECE_LENGTHS[pieceType] || PIECE_LENGTHS.default;
+
+    // Create instance
+    let piece;
+    if (trackPiecesLoaded && hasPiece(pieceType)) {
+        piece = createTrackPieceInstance(pieceType, scene);
+    } else {
+        piece = createProceduralFallback(scene);
+    }
+
+    if (!piece) {
+        piece = createProceduralFallback(scene);
+    }
+
+    piece.setEnabled(true);
+
+    // Position based on track direction
+    const pieceZ = state.nextPieceZ;
+    const dirX = Math.sin(trackAngle);
+    const dirZ = Math.cos(trackAngle);
+
+    piece.position.set(dirX * pieceZ, 0, dirZ * pieceZ);
+    piece.rotation.y = trackAngle;
+
+    piece._pieceZ = pieceZ;
+    piece._pieceType = pieceType;
+    piece._pieceLength = pieceLength;
+
+    // Handle turn pieces - update direction after this piece
+    if (pieceType === 'turn_left_a') {
+        trackDirection = (trackDirection + 3) % 4; // Turn left
+        trackAngle = trackDirection * Math.PI / 2;
+        state.trackAngle = trackAngle;
+        state.distanceSinceLastTurn = 0;
+        state.distanceSinceLastObstacle = 0;
+    } else if (pieceType === 'turn_right_a') {
+        trackDirection = (trackDirection + 1) % 4; // Turn right
         trackAngle = trackDirection * Math.PI / 2;
         state.trackAngle = trackAngle;
         state.distanceSinceLastTurn = 0;
         state.distanceSinceLastObstacle = 0;
     }
+
+    // Spawn coins and powerups (obstacles are embedded in track pieces now)
+    spawnCoinsForPiece(piece, scene);
+    spawnPowerupForPiece(piece, scene);
+
+    state.trackPieces.push(piece);
+    state.nextPieceZ += pieceLength;
+    state.distanceSinceLastTurn += pieceLength;
+    state.distanceSinceLastObstacle += pieceLength;
+    state.distanceSinceLastCoinRun += pieceLength;
+    state.distanceSinceLastPowerup += pieceLength;
 }
 
-// === Update Track (scroll & recycle) ===
+/**
+ * Update track - recycle old pieces, generate new ones
+ */
 export function updateTrack(dt) {
-    // Remove pieces far behind the player
+    // Remove pieces behind player
     while (state.trackPieces.length > 0) {
         const firstPiece = state.trackPieces[0];
-        const pieceWorldZ = firstPiece._pieceZ;
-        if (pieceWorldZ < state.playerZ - TRACK.PIECE_LENGTH * (TRACK.VISIBLE_PIECES_BEHIND + 1)) {
-            removeObstaclesBehind(pieceWorldZ);
-            removeCoinsBehind(pieceWorldZ);
-            removePowerupsBehind(pieceWorldZ);
-            trackPiecePool.release(firstPiece);
+        const pieceZ = firstPiece._pieceZ;
+        const pieceLength = firstPiece._pieceLength || TRACK.PIECE_LENGTH;
+
+        if (pieceZ < state.playerZ - pieceLength * (TRACK.VISIBLE_PIECES_BEHIND + 1)) {
+            removeCoinsBehind(pieceZ);
+            removePowerupsBehind(pieceZ);
+
+            // Dispose instances
+            if (firstPiece._instances) {
+                for (const inst of firstPiece._instances) {
+                    inst.dispose();
+                }
+            }
+            firstPiece.dispose();
+
             state.trackPieces.shift();
         } else {
             break;
@@ -198,56 +258,131 @@ export function updateTrack(dt) {
         generateNextPiece();
     }
 
-    // Move pieces relative to camera (visual parallax)
-    for (const piece of state.trackPieces) {
-        const pieceZ = piece._pieceZ;
-        const relZ = pieceZ - state.playerZ;
-        const dirX = Math.sin(trackAngle);
-        const dirZ = Math.cos(trackAngle);
-        piece.position.set(dirX * pieceZ, 0, dirZ * pieceZ);
-    }
-
-    // Check collisions
+    // Check coin/powerup collection
     const playerBounds = {
         x: state.playerX,
         y: state.playerY,
         z: state.playerZ,
-        radius: COLLISION_RADIUS,
+        radius: 0.4,
         height: state.isSliding ? 0.6 : 1.8,
         isJumping: state.isJumping,
         isSliding: state.isSliding,
     };
 
-    const obstacleHit = checkObstacleCollision(playerBounds);
-    if (obstacleHit) {
-        return obstacleHit;
-    }
-
     checkCoinCollection(playerBounds, state);
     checkPowerupCollection(playerBounds, state);
+
+    // Obstacle collision is handled by track piece selection now
+    // Pieces like jump_over_a require jumping, slide_under_a require sliding
+    const currentPieceType = getCurrentPieceType(state.playerZ);
+    const obstacleCollision = checkPieceObstacleCollision(currentPieceType, playerBounds);
+
+    return obstacleCollision;
+}
+
+/**
+ * Get current piece type based on player position
+ */
+function getCurrentPieceType(playerZ) {
+    for (const piece of state.trackPieces) {
+        const pieceZ = piece._pieceZ;
+        const pieceLength = piece._pieceLength || TRACK.PIECE_LENGTH;
+        if (playerZ >= pieceZ && playerZ < pieceZ + pieceLength) {
+            return piece._pieceType || 'straight_a';
+        }
+    }
+    return 'straight_a';
+}
+
+/**
+ * Check collision based on piece type
+ */
+function checkPieceObstacleCollision(pieceType, playerBounds) {
+    // Jump pieces require jumping
+    if (TRACK_PIECES.JUMP.includes(pieceType)) {
+        if (!playerBounds.isJumping) {
+            return { type: 'jumpOver', obstacle: null };
+        }
+    }
+
+    // Slide pieces require sliding
+    if (TRACK_PIECES.SLIDE.includes(pieceType)) {
+        if (!playerBounds.isSliding) {
+            return { type: 'slideUnder', obstacle: null };
+        }
+    }
+
+    // Gap pieces - player falls if not jumping
+    if (TRACK_PIECES.GAP.includes(pieceType)) {
+        if (!playerBounds.isJumping && playerBounds.y <= 0) {
+            return { type: 'fall', obstacle: null };
+        }
+    }
 
     return null;
 }
 
-const COLLISION_RADIUS = 0.4;
+/**
+ * Procedural fallback piece (when GLB fails)
+ */
+function createProceduralFallback(scene) {
+    const root = new B.TransformNode('fallbackPiece', scene);
 
-// === Reset Track ===
+    // Simple ground
+    const ground = B.MeshBuilder.CreateBox('ground', {
+        width: 3,
+        height: 0.3,
+        depth: 30
+    }, scene);
+    ground.position.y = -0.15;
+    ground.parent = root;
+
+    // Walls
+    const leftWall = B.MeshBuilder.CreateBox('leftWall', { width: 0.4, height: 3, depth: 30 }, scene);
+    leftWall.position.set(-1.7, 1.5, 0);
+    leftWall.parent = root;
+
+    const rightWall = B.MeshBuilder.CreateBox('rightWall', { width: 0.4, height: 3, depth: 30 }, scene);
+    rightWall.position.set(1.7, 1.5, 0);
+    rightWall.parent = root;
+
+    root._pieceLength = 30;
+    root._pieceType = 'straight_a';
+
+    return root;
+}
+
+/**
+ * Reset piece
+ */
+function resetPiece(piece) {
+    piece.setEnabled(false);
+}
+
+/**
+ * Reset entire track
+ */
 export function resetTrack() {
     trackDirection = 0;
     trackAngle = 0;
     state.trackAngle = 0;
+
+    // Dispose all pieces
+    for (const piece of state.trackPieces) {
+        if (piece._instances) {
+            for (const inst of piece._instances) {
+                inst.dispose();
+            }
+        }
+        piece.dispose();
+    }
+
     state.trackPieces = [];
     state.nextPieceZ = 0;
 
-    if (trackPiecePool) {
-        trackPiecePool.releaseAll();
-    }
-
-    removeObstaclesBehind(Infinity);
     removeCoinsBehind(Infinity);
     removePowerupsBehind(Infinity);
 
-    // Regenerate initial pieces
     state.distanceSinceLastTurn = 0;
     state.distanceSinceLastObstacle = 0;
     state.distanceSinceLastCoinRun = 0;
@@ -260,3 +395,4 @@ export function resetTrack() {
 
 export function getTrackAngle() { return trackAngle; }
 export function getTrackDirection() { return trackDirection; }
+export function areTrackPiecesLoaded() { return trackPiecesLoaded; }

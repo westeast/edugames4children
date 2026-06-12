@@ -8,7 +8,7 @@ import { updatePlayer, getPlayerBounds, playerHit, resetPlayer } from './player.
 import { initTrack, updateTrack, resetTrack, getTrackAngle } from './track.js';
 import { initObstacles } from './obstacles.js';
 import { initCoins, updateCoins } from './coins.js';
-import { initPowerups, updatePowerups } from './powerups.js';
+import { initPowerups, updatePowerups, loadPowerupModels } from './powerups.js';
 import { loadChaser, updateChaser, chaserCatchUp } from './chaser.js';
 import { initUI, showScreen, showHUD, updateHUD, showGameOver, updateLoadingProgress, updateMenuStats } from './ui.js';
 import { playJump, playSlide, playCoinCollect, playPowerupCollect, playHit, playDeath, playTurn, playChaserGrowl, playShieldBreak, playBoostStart } from './audio.js';
@@ -23,33 +23,34 @@ async function init() {
 
     // Initialize Babylon.js engine
     const { engine: babylonEngine, scene, camera } = initEngine();
-    updateLoadingProgress(30);
+    updateLoadingProgress(20);
 
     // Load player character
-    updateLoadingProgress(40);
+    updateLoadingProgress(30);
     const playerRoot = await loadCharacter(scene);
-    updateLoadingProgress(60);
+    updateLoadingProgress(40);
 
     // Load chaser (demon monkey)
-    updateLoadingProgress(65);
+    updateLoadingProgress(50);
     const chaserRoot = await loadChaser(scene);
-    updateLoadingProgress(75);
+    updateLoadingProgress(55);
 
-    // Initialize track system
-    initTrack(scene);
-    updateLoadingProgress(80);
+    // Initialize track system (NOW ASYNC - loads real GLB track pieces)
+    await initTrack(scene);
+    updateLoadingProgress(70);
 
     // Initialize sub-systems
     initObstacles(scene);
     await initCoins(scene);
+    await loadPowerupModels(scene);
     initPowerups(scene);
-    updateLoadingProgress(90);
+    updateLoadingProgress(85);
 
     // Setup controls
     setupKeyboardControls();
     setupTouchControls();
     setupMobileOrientation();
-    updateLoadingProgress(95);
+    updateLoadingProgress(90);
 
     // Setup button handlers
     setupButtonHandlers();
@@ -66,7 +67,7 @@ async function init() {
         updateMenuStats();
     }, 500);
 
-    console.log('Temple Run initialized!');
+    console.log('Temple Run initialized with real track pieces!');
 }
 
 // === Main Game Loop ===
