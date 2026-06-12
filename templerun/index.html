@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <title>神庙逃亡 - Temple Run</title>
+    <link rel="icon" type="image/ico" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
+    <link rel="stylesheet" type="text/css" href="css/style.css">
+
+    <!-- Babylon.js from CDN (UMD) -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="screen">
+        <div class="loading-content">
+            <div class="label title-text">TEMPLE RUN</div>
+            <div class="loading-bar-container">
+                <div class="loading-bar" id="loadingBar"></div>
+            </div>
+            <div class="subheader" id="loadingText">加载中...</div>
+        </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="menuScreen" class="screen" style="display:none;">
+        <div class="menu-content">
+            <div class="label title-text">TEMPLE RUN</div>
+            <div class="label subtitle-text">神庙逃亡</div>
+            <div class="menu-buttons">
+                <button class="game-button play-button" id="playButton">
+                    <span class="label">PLAY</span>
+                </button>
+                <button class="game-button settings-button" id="settingsButton">
+                    <span class="label medium">⚙️ 设置</span>
+                </button>
+            </div>
+            <div class="menu-stats">
+                <div class="stat-item">
+                    <span class="subheader">最高分</span>
+                    <span class="label medium" id="menuHighScore">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="subheader">金币</span>
+                    <span class="label medium" id="menuTotalCoins">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Screen -->
+    <div id="settingsScreen" class="screen" style="display:none;">
+        <div class="settings-content">
+            <div class="label">设置</div>
+            <div class="settings-options">
+                <div class="setting-row">
+                    <span class="subheader">音效</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="soundToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <span class="subheader">灵敏度</span>
+                    <input type="range" id="sensitivitySlider" min="1" max="10" value="5" class="sensitivity-range">
+                </div>
+                <div class="setting-row controls-info">
+                    <span class="subheader">操控说明</span>
+                    <div class="controls-grid">
+                        <div>⬆️ 跳跃</div>
+                        <div>⬇️ 滑行</div>
+                        <div>⬅️ 左转</div>
+                        <div>➡️ 右转</div>
+                    </div>
+                </div>
+            </div>
+            <button class="game-button" id="settingsBackButton">
+                <span class="label medium">返回</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- In-Game HUD -->
+    <div id="gameHUD" class="hud" style="display:none;">
+        <div class="hud-top">
+            <div class="hud-left">
+                <div class="hud-score">
+                    <span class="label medium" id="hudScore">0</span>
+                </div>
+                <div class="hud-coins">
+                    <span class="coin-icon">🪙</span>
+                    <span class="label small" id="hudCoins">0</span>
+                </div>
+            </div>
+            <div class="hud-right">
+                <div class="hud-distance">
+                    <span class="label small" id="hudDistance">0m</span>
+                </div>
+                <button class="pause-button" id="pauseButton">⏸️</button>
+            </div>
+        </div>
+        <div class="hud-powerups" id="hudPowerups"></div>
+    </div>
+
+    <!-- Pause Overlay -->
+    <div id="pauseScreen" class="screen overlay" style="display:none;">
+        <div class="pause-content">
+            <div class="label">暂停</div>
+            <div class="pause-buttons">
+                <button class="game-button" id="resumeButton">
+                    <span class="label medium">继续</span>
+                </button>
+                <button class="game-button" id="restartButtonPause">
+                    <span class="label medium">重新开始</span>
+                </button>
+                <button class="game-button" id="menuButtonPause">
+                    <span class="label medium">主菜单</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="screen" style="display:none;">
+        <div class="gameover-content">
+            <div class="label title-text">GAME OVER</div>
+            <div class="gameover-stats">
+                <div class="stat-item">
+                    <span class="subheader">得分</span>
+                    <span class="label" id="finalScore">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="subheader">金币</span>
+                    <span class="label medium" id="finalCoins">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="subheader">距离</span>
+                    <span class="label medium" id="finalDistance">0m</span>
+                </div>
+                <div class="stat-item">
+                    <span class="subheader">最高分</span>
+                    <span class="label medium" id="finalHighScore">0</span>
+                </div>
+            </div>
+            <div class="gameover-buttons">
+                <button class="game-button play-button" id="playAgainButton">
+                    <span class="label">PLAY AGAIN</span>
+                </button>
+                <button class="game-button" id="menuButtonGameOver">
+                    <span class="label medium">主菜单</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile landscape prompt -->
+    <div id="landscapePrompt" style="display:none;">
+        <div>📱↔️</div>
+        <div>请横屏使用以获得最佳体验</div>
+    </div>
+
+    <!-- Game entry point -->
+    <script type="module" src="js/game.js?v=202606121200"></script>
+</body>
+</html>
