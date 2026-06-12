@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 恐龙跳跳 | `dinosaur-game/` | `/dinosaur-game/` | Dinosaur runner with Chinese characters |
 | 大疆虚拟飞行 | `flight/` | `/flight/` | DJI drone flight simulator (Three.js) |
 | 围棋读诗 | `weiqi/` | `/weiqi/` | 19x19 Go game with Tang poetry recitation |
+| 神庙逃亡 | `templerun/` | `/templerun/` | 3D infinite runner (Babylon.js) |
 
 ## Development Workflow
 
@@ -44,7 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture
 
 - **No build system** - All games are plain HTML/CSS/JS, opened directly in browser
-- **No dependencies** - Games use CDN libraries (Three.js, WGo.js) or vanilla JS
+- **No dependencies** - Games use CDN libraries (Three.js, Babylon.js, WGo.js) or vanilla JS
 - **Self-contained** - Each game directory is independent, no shared components
 - **Single-page apps** - Most games are a single HTML file; flight uses modular JS with ES imports
 
@@ -78,7 +79,29 @@ Key state: `state.fpvMode` toggles FPV camera (hides drone model, moves camera t
 | v1.2 | 2026-05-30 | `game.js`, `engine.js` | Fix window resize camera position issue |
 | v1.3 | 2026-05-30 | `index.html`, `css/style.css`, `js/controls.js` | Add FPV crosshair for first-person view |
 
-### Weiqi (围棋) Specific Notes
+### Temple Run Architecture (`templerun/`)
+
+3D infinite runner game using Babylon.js (CDN UMD). Uses ES modules for game logic, accesses Babylon via `window.BABYLON` global.
+
+```
+templerun/js/
+  game.js       - Entry point: init() + game loop + state transitions
+  engine.js     - Babylon.js engine, scene, camera, lighting, skybox
+  config.js     - All constants (track pacing, speeds), shared mutable state
+  controls.js   - Keyboard + touch/swipe input, action queue
+  player.js     - 3-lane movement, jump physics, slide, collision bounds
+  track.js      - Procedural track piece generation + recycling pool
+  obstacles.js  - 5 obstacle types (jump/slide/block/turnL/turnR), collision
+  coins.js      - Gold coin spawning (straight + arc), collection, magnet
+  powerups.js   - Shield/Boost/Magnet power-ups with timers
+  chaser.js     - Demon monkey chaser AI, catch-up mechanics
+  character.js  - GLB model loading, animation state machine (18 animations)
+  audio.js      - Web Audio API synthesized sound effects
+  ui.js         - HUD updates, screen transitions, golden gradient text
+  utils.js      - Math helpers, object pooling, weighted random
+```
+
+Key: `state.gamePhase` controls screen flow (loading→menu→playing→paused→gameover). GLB models: `guy_dangerous.glb` (player, 930KB, 18 anims), `demon_monkey_chaser.glb` (chaser), `default_coin_gold.glb` (coin), `Machu_Skybox.glb` (sky). Custom font: `temple-run-small-caps.woff2`.
 
 See `weiqi/CLAUDE.md` for Go game details including:
 - Chinese rules with 3.75 komi (贴目)
