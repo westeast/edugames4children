@@ -186,39 +186,38 @@ function generateNextPiece() {
 
     piece.setEnabled(true);
 
-    // Position based on track direction
+    // Get piece Z position
     const pieceZ = state.nextPieceZ;
 
-    // Use current track angle BEFORE any turn
+    // Use current track angle for positioning
     const currentAngle = trackAngle;
     const dirX = Math.sin(currentAngle);
     const dirZ = Math.cos(currentAngle);
 
+    // Position piece
     piece.position.set(dirX * pieceZ, 0, dirZ * pieceZ);
     piece.rotation.y = currentAngle;
 
     piece._pieceZ = pieceZ;
     piece._pieceType = pieceType;
     piece._pieceLength = pieceLength;
+    piece._trackAngle = currentAngle; // Store angle at creation time
 
-    // Handle turn pieces - update direction AFTER positioning this piece
-    // The turn piece itself contains the curved geometry
-    // After the turn, next pieces will use the new direction
-    if (pieceType === 'turn_left_a') {
-        trackDirection = (trackDirection + 3) % 4; // Turn left (-90 degrees)
-        trackAngle = trackDirection * Math.PI / 2;
-        state.trackAngle = trackAngle;
-        state.distanceSinceLastTurn = 0;
-        state.distanceSinceLastObstacle = 0;
-    } else if (pieceType === 'turn_right_a') {
-        trackDirection = (trackDirection + 1) % 4; // Turn right (+90 degrees)
+    // Handle turn pieces - update direction AFTER positioning
+    if (pieceType === 'turn_left_a' || pieceType === 'turn_right_a') {
+        // Turn pieces: update track direction for NEXT piece
+        if (pieceType === 'turn_left_a') {
+            trackDirection = (trackDirection + 3) % 4; // Turn left (-90°)
+        } else {
+            trackDirection = (trackDirection + 1) % 4; // Turn right (+90°)
+        }
         trackAngle = trackDirection * Math.PI / 2;
         state.trackAngle = trackAngle;
         state.distanceSinceLastTurn = 0;
         state.distanceSinceLastObstacle = 0;
     }
 
-    // Spawn coins and powerups (obstacles are embedded in track pieces now)
+    // Spawn coins and powerups
     spawnCoinsForPiece(piece, scene);
     spawnPowerupForPiece(piece, scene);
 
