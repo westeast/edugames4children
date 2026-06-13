@@ -59,24 +59,26 @@ export function updatePlayer(dt, action) {
     }
     state.currentLane = state.targetLane;
 
-    // === Check if player fell off track ===
-    // Stricter boundary: player must stay within lane boundaries
-    const maxLaneOffset = TRACK.LANE_WIDTH * 1.2; // Allow 20% deviation
-    if (Math.abs(state.playerX) > maxLaneOffset) {
-        // Player fell off the track!
-        console.log('💀 Player fell off track! X:', state.playerX.toFixed(2), 'max:', maxLaneOffset);
-        if (playerHit()) {
-            // Player died
-            return;
-        }
+    // === CRITICAL: Check player position validity ===
+    // Player must be on valid lane (-1, 0, 1) AND within track boundaries
+
+    // Check if player Y is too low (fell through gap or off cliff)
+    if (state.playerY < -5) {
+        console.log('💀 FELL OFF! Y:', state.playerY);
+        state.isDead = true;
+        state.movementState = 'death';
+        playAnimation('death', false);
+        return;
     }
 
-    // === Check if player Y is too low (fell through gap) ===
-    if (state.playerY < -2) {
-        console.log('💀 Player fell through gap! Y:', state.playerY.toFixed(2));
-        if (playerHit()) {
-            return;
-        }
+    // Check if player moved too far from center (should never happen with lane system,
+    // but this is safety check)
+    if (Math.abs(state.playerX) > TRACK.TRACK_WIDTH) {
+        console.log('💀 OUT OF BOUNDS! X:', state.playerX, 'max:', TRACK.TRACK_WIDTH);
+        state.isDead = true;
+        state.movementState = 'death';
+        playAnimation('death', false);
+        return;
     }
 
     // === Jump physics ===
