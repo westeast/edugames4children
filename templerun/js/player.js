@@ -110,6 +110,10 @@ export function updatePlayer(dt, action) {
     const currentSpeed = state.runSpeed * speedMultiplier;
     state.playerZ += currentSpeed * dt;
 
+    // === Check collision from track system ===
+    // This is now handled by updateTrack() which returns collision info
+    // If we get a collision here, we're dead
+
     // === Speed increase ===
     if (!state.boostActive) {
         state.runSpeed = Math.min(

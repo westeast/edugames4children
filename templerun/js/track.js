@@ -302,6 +302,25 @@ function getCurrentPieceType(playerZ) {
  * Check collision based on piece type
  */
 function checkPieceObstacleCollision(pieceType, playerBounds) {
+    // TURN PIECES: Check if player made the turn correctly
+    if (TRACK_PIECES.TURN.includes(pieceType)) {
+        // Player must be in center lane when entering turn
+        // Or they must have moved to correct lane
+        const piece = state.trackPieces.find(p => p._pieceType === pieceType);
+        if (piece) {
+            const pieceAngle = piece._trackAngle || 0;
+            const currentAngle = state.trackAngle || 0;
+
+            // If angles match, turn was successful
+            if (pieceAngle !== currentAngle) {
+                // Turn NOT made - player continues in wrong direction
+                // This means they missed the turn and will fall!
+                console.log('💀 Missed turn! Piece angle:', pieceAngle, 'Current angle:', currentAngle);
+                return { type: 'fall', obstacle: null };
+            }
+        }
+    }
+
     // Jump pieces require jumping
     if (TRACK_PIECES.JUMP.includes(pieceType)) {
         if (!playerBounds.isJumping) {
