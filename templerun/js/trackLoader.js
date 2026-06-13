@@ -49,27 +49,31 @@ export async function loadTrackPieces(scene) {
         // Load textures for materials
         console.log('Loading track textures...');
         const masterTexture = new B.Texture('assets/textures/machu_master_a.jpg', scene);
-        masterTexture.uScale = 1;
-        masterTexture.vScale = 1;
 
-        // Apply texture to machu_master_opaque material
-        const masterMaterial = scene.getMaterialByName('machu_master_opaque');
-        if (masterMaterial) {
-            masterMaterial.diffuseTexture = masterTexture;
-            masterMaterial.specularColor = new B.Color3(0.2, 0.2, 0.2);
-            masterMaterial.specularPower = 32;
-            console.log('Applied texture to machu_master_opaque');
-        }
+        // Apply texture to all relevant materials (GLB uses PBRMaterial)
+        for (const mat of scene.materials) {
+            if (mat.name === 'machu_master_opaque' ||
+                mat.name === 'lambert1' ||
+                mat.name === 'lambert2') {
 
-        // Apply to other materials if needed
-        const lambert1 = scene.getMaterialByName('lambert1');
-        if (lambert1) {
-            lambert1.diffuseTexture = masterTexture;
-        }
+                const matType = mat.getClassName ? mat.getClassName() : mat.constructor.name;
+                console.log('Applying texture to:', mat.name, 'type:', matType);
 
-        const lambert2 = scene.getMaterialByName('lambert2');
-        if (lambert2) {
-            lambert2.diffuseTexture = masterTexture;
+                // PBRMaterial (from GLB) needs different properties
+                if (mat.albedoTexture !== undefined) {
+                    // PBRMaterial
+                    mat.albedoTexture = masterTexture;
+                    mat.metallic = 0.1;
+                    mat.roughness = 0.8;
+                    console.log('  Applied as PBR albedoTexture');
+                } else if (mat.diffuseTexture !== undefined) {
+                    // StandardMaterial
+                    mat.diffuseTexture = masterTexture;
+                    console.log('  Applied as Standard diffuseTexture');
+                } else {
+                    console.log('  WARNING: No texture property found on material');
+                }
+            }
         }
 
         // Log material info
