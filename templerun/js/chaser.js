@@ -138,16 +138,19 @@ export function updateChaser(dt) {
 function updateChaserPosition() {
     if (!chaserRoot) return;
 
-    const dirX = Math.sin(state.trackAngle || 0);
-    const dirZ = Math.cos(state.trackAngle || 0);
+    const trackAngle = state.trackAngle || 0;
+    const dirX = Math.sin(trackAngle);
+    const dirZ = Math.cos(trackAngle);
 
+    // Chaser position in track-relative coordinates (behind player)
     const behindZ = state.playerZ - state.chaserDistance;
-    chaserRoot.position.set(
-        dirX * behindZ,
-        0,
-        dirZ * behindZ
-    );
-    chaserRoot.rotation.y = state.trackAngle || 0;
+
+    // Convert to world coordinates
+    const worldX = Math.sin(trackAngle) * behindZ + state.playerX;
+    const worldZ = Math.cos(trackAngle) * behindZ;
+
+    chaserRoot.position.set(worldX, 0, worldZ);
+    chaserRoot.rotation.y = trackAngle;
 
     // Scale based on distance (closer = more menacing)
     const scaleFactor = Math.max(0.5, 1.0 - state.chaserDistance / CHASER.MAX_DISTANCE * 0.5);

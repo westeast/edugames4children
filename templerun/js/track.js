@@ -188,25 +188,30 @@ function generateNextPiece() {
 
     // Position based on track direction
     const pieceZ = state.nextPieceZ;
-    const dirX = Math.sin(trackAngle);
-    const dirZ = Math.cos(trackAngle);
+
+    // Use current track angle BEFORE any turn
+    const currentAngle = trackAngle;
+    const dirX = Math.sin(currentAngle);
+    const dirZ = Math.cos(currentAngle);
 
     piece.position.set(dirX * pieceZ, 0, dirZ * pieceZ);
-    piece.rotation.y = trackAngle;
+    piece.rotation.y = currentAngle;
 
     piece._pieceZ = pieceZ;
     piece._pieceType = pieceType;
     piece._pieceLength = pieceLength;
 
-    // Handle turn pieces - update direction after this piece
+    // Handle turn pieces - update direction AFTER positioning this piece
+    // The turn piece itself contains the curved geometry
+    // After the turn, next pieces will use the new direction
     if (pieceType === 'turn_left_a') {
-        trackDirection = (trackDirection + 3) % 4; // Turn left
+        trackDirection = (trackDirection + 3) % 4; // Turn left (-90 degrees)
         trackAngle = trackDirection * Math.PI / 2;
         state.trackAngle = trackAngle;
         state.distanceSinceLastTurn = 0;
         state.distanceSinceLastObstacle = 0;
     } else if (pieceType === 'turn_right_a') {
-        trackDirection = (trackDirection + 1) % 4; // Turn right
+        trackDirection = (trackDirection + 1) % 4; // Turn right (+90 degrees)
         trackAngle = trackDirection * Math.PI / 2;
         state.trackAngle = trackAngle;
         state.distanceSinceLastTurn = 0;

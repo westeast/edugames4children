@@ -139,7 +139,13 @@ export function playAnimation(name, loop = false) {
 export function updateCharacterPosition(x, y, z, rotation, isSliding) {
     if (!playerRoot) return;
 
-    playerRoot.position.set(x, y, z);
+    // Convert track-relative coordinates to world coordinates
+    // playerZ is the distance traveled along the track
+    // trackAngle determines which direction the track is facing
+    const worldX = Math.sin(rotation) * z + x;
+    const worldZ = Math.cos(rotation) * z;
+
+    playerRoot.position.set(worldX, y, worldZ);
     playerRoot.rotation.y = rotation;
 
     // Scale for slide (squash character)
