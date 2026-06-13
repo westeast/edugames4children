@@ -59,6 +59,15 @@ export function updatePlayer(dt, action) {
     }
     state.currentLane = state.targetLane;
 
+    // === Check if player fell off track (outside lane boundaries) ===
+    const maxLaneOffset = TRACK.LANE_WIDTH * 1.5; // Allow slight deviation
+    if (Math.abs(state.playerX) > maxLaneOffset && !state.isJumping) {
+        // Player fell off the track!
+        console.log('Player fell off track! X:', state.playerX);
+        playerHit();
+        return;
+    }
+
     // === Jump physics ===
     if (state.isJumping) {
         state.playerVelocityY += SPEED.GRAVITY * dt;

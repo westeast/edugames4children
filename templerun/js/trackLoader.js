@@ -46,6 +46,43 @@ export async function loadTrackPieces(scene) {
 
         console.log('Loaded', result.meshes.length, 'meshes from base_pack.glb');
 
+        // Load textures for materials
+        console.log('Loading track textures...');
+        const masterTexture = new B.Texture('assets/textures/machu_master_a.jpg', scene);
+        masterTexture.uScale = 1;
+        masterTexture.vScale = 1;
+
+        // Apply texture to machu_master_opaque material
+        const masterMaterial = scene.getMaterialByName('machu_master_opaque');
+        if (masterMaterial) {
+            masterMaterial.diffuseTexture = masterTexture;
+            masterMaterial.specularColor = new B.Color3(0.2, 0.2, 0.2);
+            masterMaterial.specularPower = 32;
+            console.log('Applied texture to machu_master_opaque');
+        }
+
+        // Apply to other materials if needed
+        const lambert1 = scene.getMaterialByName('lambert1');
+        if (lambert1) {
+            lambert1.diffuseTexture = masterTexture;
+        }
+
+        const lambert2 = scene.getMaterialByName('lambert2');
+        if (lambert2) {
+            lambert2.diffuseTexture = masterTexture;
+        }
+
+        // Log material info
+        const materials = scene.materials;
+        console.log('Materials loaded:', materials.length);
+        for (const mat of materials) {
+            if (mat.name.includes('machu') || mat.name.includes('lambert')) {
+                console.log('  Material:', mat.name,
+                    'diffuse:', mat.diffuseColor?.toString(),
+                    'texture:', mat.diffuseTexture?.name);
+            }
+        }
+
         // Create a container for all track pieces
         trackPieceRoot = new B.TransformNode('trackPieceRoot', scene);
 
@@ -61,7 +98,7 @@ export async function loadTrackPieces(scene) {
             }
             meshGroups[baseName].push(mesh);
 
-            // Hide original meshes
+            // Hide original meshes but keep them for instancing
             mesh.setEnabled(false);
             mesh.isPickable = false;
         }
@@ -76,7 +113,7 @@ export async function loadTrackPieces(scene) {
                     boundingInfo: calculateCombinedBounding(meshes),
                     hasCollider: meshes.some(m => m.name.includes('Collider')),
                 };
-                console.log('  Template created:', baseName, '(', meshes.length, 'meshes)');
+                // console.log('  Template created:', baseName, '(', meshes.length, 'meshes)');
             }
         }
 
