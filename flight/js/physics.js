@@ -8,7 +8,8 @@ import { showNotif } from './ui.js';
 import { createRTHPath, removeRTHPath, isLanding } from './rth-path.js';
 import { isManualMode, updateManualControls, getManualTurnSpeed } from './manual-mode.js';
 import { initCrashSequence, updateCrashPhysics, CRASH_TYPES } from './crash-physics.js';
-import { buildingBounds, powerLines } from './maps/city-map.js';
+import { buildingBounds, powerLines, bridges } from './maps/city-map.js';
+import { updateFollowPath, removeFollowPath } from './follow-path.js';
 
 // Track which map we're on for collision detection
 let currentMapType = 'mountain';
@@ -38,6 +39,12 @@ export function updateDrone(dt) {
       showNotif('🚀 起飞');
     }
     // 降落状态下不处理其他输入
+    return;
+  }
+
+  // 处理跟随模式
+  if (state.isFollowMode && state.followTarget) {
+    updateFollowMode(dt);
     return;
   }
 
@@ -269,6 +276,9 @@ export function updateDrone(dt) {
   // Power line collision (city map only)
   checkPowerLineCollision();
 
+  // Bridge collision (city map only)
+  checkBridgeCollision();
+
   // Obstacle avoidance indicator
   if (state.obstacleEnabled) updateObstacleIndicator();
 }
@@ -311,6 +321,9 @@ function doCollisionAndBattery(dt) {
 
   // Power line collision (city map only)
   checkPowerLineCollision();
+
+  // Bridge collision (city map only)
+  checkBridgeCollision();
 
   // Obstacle avoidance indicator
   if (state.obstacleEnabled) updateObstacleIndicator();
@@ -511,4 +524,206 @@ function pointToLineSegmentDistance(px, py, pz, x1, y1, z1, x2, y2, z2) {
   const closestZ = z1 + t * dz;
 
   return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2 + (pz - closestZ) ** 2);
+}
+
+// === BRIDGE COLLISION DETECTION ===
+function checkBridgeCollision() {
+  if (bridges.length === 0) return;
+
+  const droneR = 1.5; // Drone collision radius
+  const pos = state.dronePos;
+
+  for (const bridge of bridges) {
+    // Check if drone is within bridge bounds
+    const inBounds =
+      pos.x + droneR > bridge.minX && pos.x - droneR < bridge.maxX &&
+      pos.y + droneR > bridge.minY && pos.y - droneR < bridge.maxY &&
+      pos.z + droneR > bridge.minZ && pos.z - droneR < bridge.maxZ;
+
+    if (inBounds) {
+      // Check if drone is in a hole
+      let inHole = false;
+      for (const hole of bridge.holes) {
+        const inHoleBounds =
+          pos.x > hole.minX && pos.x < hole.maxX &&
+          pos.y > hole.minY && pos.y < hole.maxY &&
+          pos.z > hole.minZ && pos.z < hole.maxZ;
+
+        if (inHoleBounds) {
+          inHole = true;
+          break;
+        }
+      }
+
+      // If not in a hole, collision with bridge deck
+      if (!inHole) {
+        const impactSpeed = state.droneVel.length();
+
+        // If obstacle avoidance is enabled, try to avoid
+        if (state.obstacleEnabled) {
+          // Push drone down or up to avoid bridge
+          if (pos.y > (bridge.minY + bridge.maxY) / 2) {
+            // Drone is above bridge, push up
+            state.droneVel.y += 5;
+            showNotif('⚠️ 检测到桥梁，正在上升避障');
+          } else {
+            // Drone is below bridge, push down
+            state.droneVel.y -= 5;
+            showNotif('⚠️ 检测到桥梁，正在下降避障');
+          }
+          return;
+        }
+
+        // No obstacle avoidance - CRASH!
+        state.impactSpeed = impactSpeed;
+        crash(CRASH_TYPES.COLLISION);
+        showNotif('💥 撞到桥梁！炸机！');
+        return;
+      } else {
+        // Drone is flying through a hole
+        // Show notification when near hole edges
+        const nearEdge = false;
+        for (const hole of bridge.holes) {
+          const edgeThreshold = 0.3;
+          if (Math.abs(pos.x - hole.minX) < edgeThreshold ||
+              Math.abs(pos.x - hole.maxX) < edgeThreshold ||
+              Math.abs(pos.z - hole.minZ) < edgeThreshold ||
+              Math.abs(pos.z - hole.maxZ) < edgeThreshold) {
+            showNotif('✈️ 穿过桥梁洞口！');
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+// === FOLLOW MODE UPDATE ===
+function updateFollowMode(dt) {
+  if (!state.followTarget) {
+    state.isFollowMode = false;
+    return;
+  }
+
+  const target = state.followTarget;
+
+  // Calculate vector to target
+  const toTarget = new THREE.Vector3().subVectors(target.position, state.dronePos);
+  toTarget.y = 0; // Only consider horizontal distance
+
+  const dist = toTarget.length();
+
+  // Check if target is too far (lost)
+  if (dist > 200) {
+    showNotif('⚠️ 目标丢失，跟随已停止');
+    state.isFollowMode = false;
+    removeFollowPath();
+    return;
+  }
+
+  // Calculate direction to target
+  const targetDir = Math.atan2(toTarget.x, toTarget.z);
+
+  // Adjust yaw to face target
+  let yawDiff = targetDir - state.droneYaw;
+  while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+  while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+
+  // Smooth yaw adjustment
+  state.droneYaw += yawDiff * 2.0 * dt;
+
+  // Maintain follow height
+  const heightDiff = state.followHeight - state.dronePos.y;
+  if (Math.abs(heightDiff) > 2) {
+    state.droneVel.y = heightDiff > 0 ? 3 : -2; // Climb or descend
+  } else {
+    state.droneVel.y = 0; // Maintain height
+  }
+
+  // Calculate forward direction based on current yaw
+  const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
+
+  // Maintain follow distance
+  if (dist > state.followDistance + 5) {
+    // Target is far, accelerate forward
+    const speed = Math.min(state.followSpeed, dist * 0.3);
+    state.droneVel.x = forward.x * speed;
+    state.droneVel.z = forward.z * speed;
+  } else if (dist < state.followDistance - 3) {
+    // Target is too close, slow down and backup
+    state.droneVel.x = -forward.x * state.followSpeed * 0.5;
+    state.droneVel.z = -forward.z * state.followSpeed * 0.5;
+  } else {
+    // Maintain distance, match target speed
+    const targetSpeed = target.userData?.speed || 10;
+    state.droneVel.x = forward.x * Math.min(targetSpeed, state.followSpeed);
+    state.droneVel.z = forward.z * Math.min(targetSpeed, state.followSpeed);
+  }
+
+  // Update position
+  const prevPos = state.dronePos.clone();
+  state.dronePos.add(state.droneVel.clone().multiplyScalar(dt));
+
+  // Ground collision
+  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  if (state.dronePos.y < groundH) {
+    state.dronePos.y = groundH;
+    state.droneVel.y = 0;
+  }
+
+  // Height ceiling
+  if (state.dronePos.y > 500) {
+    state.dronePos.y = 500;
+    state.droneVel.y = 0;
+  }
+
+  // Distance tracking
+  const moved = state.dronePos.distanceTo(prevPos);
+  state.totalDist += moved;
+
+  // Battery drain
+  const spd = state.droneVel.length();
+  state.battery -= state.droneSpec.batteryDrain * dt * (1 + spd * 0.05);
+  if (state.battery <= 0) {
+    state.battery = 0;
+    crash(CRASH_TYPES.BATTERY);
+    showNotif('电池耗尽！炸机！');
+    return;
+  }
+  if (state.battery < 20 && state.battery > 19.5) {
+    showNotif('⚠️ 电量低于 20%');
+  }
+
+  // Visual tilt
+  const inputF = state.droneVel.length() / state.followSpeed;
+  const inputR = yawDiff / Math.PI;
+  state.dronePitch = THREE.MathUtils.lerp(state.dronePitch, -inputF * 0.15, 3 * dt);
+  state.droneRoll = THREE.MathUtils.lerp(state.droneRoll, -inputR * 0.2, 3 * dt);
+
+  // Propeller speed
+  const basePropSpeed = 15;
+  const maxPropSpeed = 50;
+  const horizontalSpeedRatio = Math.sqrt(state.droneVel.x * state.droneVel.x + state.droneVel.z * state.droneVel.z) / state.followSpeed;
+  const targetPropSpeed = basePropSpeed + horizontalSpeedRatio * (maxPropSpeed - basePropSpeed);
+  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, targetPropSpeed, 15 * dt);
+
+  // Update follow path visualization
+  updateFollowPath();
+
+  // Collision detection
+  for (const bird of birds) {
+    if (bird.position.distanceTo(state.dronePos) < 3) {
+      crash(CRASH_TYPES.BIRD);
+      showNotif('💥 撞到飞鸟！炸机！');
+      return;
+    }
+  }
+
+  checkBuildingCollision();
+  checkPowerLineCollision();
+  checkBridgeCollision();
+
+  if (state.obstacleEnabled) {
+    updateObstacleIndicator();
+  }
 }
