@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打砖块 - 3D版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #gameCanvas {
+            border-radius: 10px;
+            box-shadow: 0 0 50px rgba(0, 150, 255, 0.3);
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 40px;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 150, 255, 0.8);
+            z-index: 100;
+        }
+
+        .stat {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 25px;
+            border-radius: 25px;
+            border: 2px solid rgba(0, 150, 255, 0.5);
+        }
+
+        #startScreen, #gameOverScreen, #winScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            backdrop-filter: blur(5px);
+        }
+
+        #gameOverScreen, #winScreen {
+            display: none;
+        }
+
+        h1 {
+            color: #00d4ff;
+            font-size: 64px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.8);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 30px rgba(0, 212, 255, 0.8); }
+            to { text-shadow: 0 0 50px rgba(0, 212, 255, 1), 0 0 80px rgba(0, 212, 255, 0.6); }
+        }
+
+        .subtitle {
+            color: #a0a0a0;
+            font-size: 20px;
+            margin-bottom: 40px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+            color: #fff;
+            border: none;
+            padding: 15px 50px;
+            font-size: 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+            font-weight: bold;
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.6);
+        }
+
+        .instructions {
+            color: #c0c0c0;
+            font-size: 16px;
+            margin-top: 30px;
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        .final-score {
+            color: #00d4ff;
+            font-size: 48px;
+            margin: 20px 0;
+        }
+
+        #lives {
+            color: #ff4757;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui">
+            <div class="stat">分数: <span id="score">0</span></div>
+            <div class="stat">生命: <span id="lives">❤️❤️❤️</span></div>
+            <div class="stat">关卡: <span id="level">1</span></div>
+        </div>
+
+        <div id="startScreen">
+            <h1>🧱 打砖块 3D</h1>
+            <p class="subtitle">使用 Three.js 构建的炫酷 3D 游戏</p>
+            <button onclick="startGame()">开始游戏</button>
+            <div class="instructions">
+                <p>🖱️ 鼠标移动控制挡板</p>
+                <p>⌨️ 左右箭头键移动</p>
+                <p>📱 触摸屏滑动控制</p>
+            </div>
+        </div>
+
+        <div id="gameOverScreen">
+            <h1>💀 游戏结束</h1>
+            <p class="final-score">最终分数: <span id="finalScore">0</span></p>
+            <button onclick="restartGame()">重新开始</button>
+        </div>
+
+        <div id="winScreen">
+            <h1>🎉 恭喜通关!</h1>
+            <p class="final-score">最终分数: <span id="winScore">0</span></p>
+            <button onclick="restartGame()">再玩一次</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // Game State
+        const state = {
+            score: 0,
+            lives: 3,
+            level: 1,
+            gameStarted: false,
+            gameOver: false,
+            paused: false
+        };
+
+        // Three.js Setup
+        const canvas = document.getElementById('gameCanvas');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Post-processing
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            1.5, 0.4, 0.85
+        );
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 1.2;
+        bloomPass.radius = 0.5;
+        composer.addPass(bloomPass);
+
+        // Camera Position
+        camera.position.set(0, 25, 30);
+        camera.lookAt(0, 0, 0);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(20, 30, 20);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 100;
+        directionalLight.shadow.camera.left = -30;
+        directionalLight.shadow.camera.right = 30;
+        directionalLight.shadow.camera.top = 30;
+        directionalLight.shadow.camera.bottom = -30;
+        scene.add(directionalLight);
+
+        const pointLight = new THREE.PointLight(0x00d4ff, 1, 100);
+        pointLight.position.set(0, 10, 0);
+        scene.add(pointLight);
+
+        // Game Boundaries
+        const GAME_WIDTH = 30;
+        const GAME_HEIGHT = 40;
+        const PADDLE_WIDTH = 8;
+        const PADDLE_HEIGHT = 1;
+        const BALL_RADIUS = 0.8;
+        const BRICK_ROWS = 5;
+        const BRICK_COLS = 10;
+        const BRICK_WIDTH = 2.5;
+        const BRICK_HEIGHT = 1;
+        const BRICK_DEPTH = 1.5;
+
+        // Create Game Floor
+        const floorGeometry = new THREE.PlaneGeometry(GAME_WIDTH + 10, GAME_HEIGHT + 10);
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x0a0a1a,
+            metalness: 0.8,
+            roughness: 0.2,
+            transparent: true,
+            opacity: 0.8
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Create Grid Lines
+        const gridHelper = new THREE.GridHelper(GAME_WIDTH + 10, 20, 0x00d4ff, 0x004466);
+        gridHelper.position.y = -1.9;
+        scene.add(gridHelper);
+
+        // Create Boundary Walls
+        const wallMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00d4ff,
+            emissive: 0x00d4ff,
+            emissiveIntensity: 0.3,
+            metalness: 0.9,
+            roughness: 0.1,
+            transparent: true,
+            opacity: 0.3
+        });
+
+        // Left Wall
+        const leftWall = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 5, GAME_HEIGHT),
+            wallMaterial
+        );
+        leftWall.position.set(-GAME_WIDTH / 2 - 0.5, 0, 0);
+        scene.add(leftWall);
+
+        // Right Wall
+        const rightWall = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 5, GAME_HEIGHT),
+            wallMaterial
+        );
+        rightWall.position.set(GAME_WIDTH / 2 + 0.5, 0, 0);
+        scene.add(rightWall);
+
+        // Back Wall
+        const backWall = new THREE.Mesh(
+            new THREE.BoxGeometry(GAME_WIDTH + 2, 5, 1),
+            wallMaterial
+        );
+        backWall.position.set(0, 0, -GAME_HEIGHT / 2 - 0.5);
+        scene.add(backWall);
+
+        // Create Paddle
+        const paddleGeometry = new THREE.BoxGeometry(PADDLE_WIDTH, PADDLE_HEIGHT, 1.5);
+        const paddleMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00d4ff,
+            emissive: 0x00d4ff,
+            emissiveIntensity: 0.5,
+            metalness: 0.8,
+            roughness: 0.2
+        });
+        const paddle = new THREE.Mesh(paddleGeometry, paddleMaterial);
+        paddle.position.set(0, 0, GAME_HEIGHT / 2 - 3);
+        paddle.castShadow = true;
+        paddle.receiveShadow = true;
+        scene.add(paddle);
+
+        // Paddle Glow Effect
+        const paddleGlowGeometry = new THREE.BoxGeometry(PADDLE_WIDTH + 0.5, PADDLE_HEIGHT + 0.5, 2);
+        const paddleGlowMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00d4ff,
+            transparent: true,
+            opacity: 0.3
+        });
+        const paddleGlow = new THREE.Mesh(paddleGlowGeometry, paddleGlowMaterial);
+        paddle.add(paddleGlow);
+
+        // Create Ball
+        const ballGeometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
+        const ballMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.8,
+            metalness: 0.9,
+            roughness: 0.1
+        });
+        const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+        ball.castShadow = true;
+        scene.add(ball);
+
+        // Ball Trail Effect
+        const ballTrail = [];
+        const trailMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00d4ff,
+            transparent: true,
+            opacity: 0.5
+        });
+
+        for (let i = 0; i < 10; i++) {
+            const trail = new THREE.Mesh(
+                new THREE.SphereGeometry(BALL_RADIUS * (1 - i * 0.08), 16, 16),
+                trailMaterial.clone()
+            );
+            trail.material.opacity = 0.5 - i * 0.05;
+            trail.visible = false;
+            scene.add(trail);
+            ballTrail.push(trail);
+        }
+
+        // Ball physics
+        const ballVelocity = new THREE.Vector3(0.3, 0, -0.3);
+        const initialBallSpeed = 0.35;
+
+        // Create Bricks
+        const bricks = [];
+        const brickColors = [
+            0xff4757, // Red
+            0xff6b81, // Pink
+            0xffa502, // Orange
+            0xffdd59, // Yellow
+            0x7bed9f, // Green
+            0x00d4ff, // Cyan
+            0x5352ed, // Purple
+            0xff6348  // Tomato
+        ];
+
+        function createBricks() {
+            // Clear existing bricks
+            bricks.forEach(brick => {
+                scene.remove(brick);
+                brick.geometry.dispose();
+                brick.material.dispose();
+            });
+            bricks.length = 0;
+
+            const startX = -((BRICK_COLS - 1) * (BRICK_WIDTH + 0.5)) / 2;
+            const startZ = -GAME_HEIGHT / 2 + 5;
+
+            for (let row = 0; row < BRICK_ROWS; row++) {
+                for (let col = 0; col < BRICK_COLS; col++) {
+                    const colorIndex = row % brickColors.length;
+                    const brickGeometry = new THREE.BoxGeometry(BRICK_WIDTH, BRICK_HEIGHT, BRICK_DEPTH);
+                    const brickMaterial = new THREE.MeshStandardMaterial({
+                        color: brickColors[colorIndex],
+                        emissive: brickColors[colorIndex],
+                        emissiveIntensity: 0.3,
+                        metalness: 0.7,
+                        roughness: 0.3
+                    });
+
+                    const brick = new THREE.Mesh(brickGeometry, brickMaterial);
+                    brick.position.set(
+                        startX + col * (BRICK_WIDTH + 0.5),
+                        0,
+                        startZ + row * (BRICK_DEPTH + 0.5)
+                    );
+                    brick.castShadow = true;
+                    brick.receiveShadow = true;
+                    brick.userData = {
+                        row: row,
+                        col: col,
+                        color: brickColors[colorIndex],
+                        hit: false
+                    };
+
+                    scene.add(brick);
+                    bricks.push(brick);
+                }
+            }
+        }
+
+        // Particle System for Brick Destruction
+        const particles = [];
+
+        function createParticles(position, color) {
+            const particleCount = 20;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const velocities = [];
+
+            for (let i = 0; i < particleCount; i++) {
+                positions[i * 3] = position.x;
+                positions[i * 3 + 1] = position.y;
+                positions[i * 3 + 2] = position.z;
+
+                velocities.push(new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.5,
+                    Math.random() * 0.3,
+                    (Math.random() - 0.5) * 0.5
+                ));
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const material = new THREE.PointsMaterial({
+                color: color,
+                size: 0.3,
+                transparent: true,
+                opacity: 1
+            });
+
+            const particleSystem = new THREE.Points(geometry, material);
+            particleSystem.userData = {
+                velocities: velocities,
+                life: 60
+            };
+
+            scene.add(particleSystem);
+            particles.push(particleSystem);
+        }
+
+        // Update Particles
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.userData.life--;
+
+                if (particle.userData.life <= 0) {
+                    scene.remove(particle);
+                    particle.geometry.dispose();
+                    particle.material.dispose();
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                const positions = particle.geometry.attributes.position.array;
+                for (let j = 0; j < positions.length; j += 3) {
+                    positions[j] += particle.userData.velocities[j / 3].x;
+                    positions[j + 1] += particle.userData.velocities[j / 3].y;
+                    positions[j + 2] += particle.userData.velocities[j / 3].z;
+                    particle.userData.velocities[j / 3].y -= 0.01; // Gravity
+                }
+                particle.geometry.attributes.position.needsUpdate = true;
+                particle.material.opacity = particle.userData.life / 60;
+            }
+        }
+
+        // Reset Ball Position
+        function resetBall() {
+            ball.position.set(0, 0, GAME_HEIGHT / 2 - 5);
+            const angle = Math.random() * Math.PI / 3 + Math.PI / 3;
+            ballVelocity.set(
+                Math.cos(angle) * initialBallSpeed * (Math.random() > 0.5 ? 1 : -1),
+                0,
+                -Math.sin(angle) * initialBallSpeed
+            );
+        }
+
+        // Initialize game
+        createBricks();
+        resetBall();
+
+        // Input handling
+        let targetPaddleX = 0;
+        const paddleSpeed = 0.8;
+
+        // Mouse/Touch Input
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            targetPaddleX = x * (GAME_WIDTH / 2 - PADDLE_WIDTH / 2);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = ((e.touches[0].clientX - rect.left) / rect.width) * 2 - 1;
+            targetPaddleX = x * (GAME_WIDTH / 2 - PADDLE_WIDTH / 2);
+        }, { passive: false });
+
+        // Keyboard Input
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Collision Detection
+        function checkCollisions() {
+            // Wall collisions
+            if (ball.position.x <= -GAME_WIDTH / 2 + BALL_RADIUS ||
+                ball.position.x >= GAME_WIDTH / 2 - BALL_RADIUS) {
+                ballVelocity.x *= -1;
+                ball.position.x = Math.max(-GAME_WIDTH / 2 + BALL_RADIUS, Math.min(GAME_WIDTH / 2 - BALL_RADIUS, ball.position.x));
+            }
+
+            if (ball.position.z <= -GAME_HEIGHT / 2 + BALL_RADIUS) {
+                ballVelocity.z *= -1;
+            }
+
+            // Bottom - lose life
+            if (ball.position.z >= GAME_HEIGHT / 2) {
+                state.lives--;
+                updateUI();
+
+                if (state.lives <= 0) {
+                    gameOver();
+                } else {
+                    resetBall();
+                }
+                return;
+            }
+
+            // Paddle collision
+            if (ball.position.z >= paddle.position.z - 1 &&
+                ball.position.z <= paddle.position.z + 1 &&
+                ball.position.x >= paddle.position.x - PADDLE_WIDTH / 2 - BALL_RADIUS &&
+                ball.position.x <= paddle.position.x + PADDLE_WIDTH / 2 + BALL_RADIUS) {
+
+                const hitPoint = (ball.position.x - paddle.position.x) / (PADDLE_WIDTH / 2);
+                const angle = hitPoint * (Math.PI / 3);
+                const speed = Math.sqrt(ballVelocity.x ** 2 + ballVelocity.z ** 2) * 1.02;
+
+                ballVelocity.x = Math.sin(angle) * speed;
+                ballVelocity.z = -Math.abs(Math.cos(angle) * speed);
+                ball.position.z = paddle.position.z - 1;
+
+                // Visual feedback
+                paddle.material.emissiveIntensity = 1;
+                setTimeout(() => paddle.material.emissiveIntensity = 0.5, 100);
+            }
+
+            // Brick collision
+            for (let i = bricks.length - 1; i >= 0; i--) {
+                const brick = bricks[i];
+                const brickBounds = {
+                    minX: brick.position.x - BRICK_WIDTH / 2,
+                    maxX: brick.position.x + BRICK_WIDTH / 2,
+                    minZ: brick.position.z - BRICK_DEPTH / 2,
+                    maxZ: brick.position.z + BRICK_DEPTH / 2
+                };
+
+                if (ball.position.x >= brickBounds.minX - BALL_RADIUS &&
+                    ball.position.x <= brickBounds.maxX + BALL_RADIUS &&
+                    ball.position.z >= brickBounds.minZ - BALL_RADIUS &&
+                    ball.position.z <= brickBounds.maxZ + BALL_RADIUS) {
+
+                    // Create particles
+                    createParticles(brick.position.clone(), brick.userData.color);
+
+                    // Remove brick
+                    scene.remove(brick);
+                    brick.geometry.dispose();
+                    brick.material.dispose();
+                    bricks.splice(i, 1);
+
+                    // Update score
+                    state.score += 10 * state.level;
+                    updateUI();
+
+                    // Determine bounce direction
+                    const overlapX = Math.min(
+                        ball.position.x + BALL_RADIUS - brickBounds.minX,
+                        brickBounds.maxX - (ball.position.x - BALL_RADIUS)
+                    );
+                    const overlapZ = Math.min(
+                        ball.position.z + BALL_RADIUS - brickBounds.minZ,
+                        brickBounds.maxZ - (ball.position.z - BALL_RADIUS)
+                    );
+
+                    if (overlapX < overlapZ) {
+                        ballVelocity.x *= -1;
+                    } else {
+                        ballVelocity.z *= -1;
+                    }
+
+                    // Check win condition
+                    if (bricks.length === 0) {
+                        nextLevel();
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        // Update ball trail
+        function updateBallTrail() {
+            for (let i = ballTrail.length - 1; i > 0; i--) {
+                ballTrail[i].position.copy(ballTrail[i - 1].position);
+                ballTrail[i].visible = state.gameStarted;
+            }
+            if (ballTrail.length > 0) {
+                ballTrail[0].position.copy(ball.position);
+                ballTrail[0].visible = state.gameStarted;
+            }
+        }
+
+        // Game Loop
+        function animate() {
+            if (!state.gameStarted || state.gameOver || state.paused) {
+                requestAnimationFrame(animate);
+                composer.render();
+                return;
+            }
+
+            // Keyboard paddle movement
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                targetPaddleX = Math.max(-GAME_WIDTH / 2 + PADDLE_WIDTH / 2, targetPaddleX - paddleSpeed);
+            }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                targetPaddleX = Math.min(GAME_WIDTH / 2 - PADDLE_WIDTH / 2, targetPaddleX + paddleSpeed);
+            }
+
+            // Smooth paddle movement
+            paddle.position.x += (targetPaddleX - paddle.position.x) * 0.15;
+
+            // Ball movement
+            ball.position.add(ballVelocity);
+
+            // Update trail
+            updateBallTrail();
+
+            // Check collisions
+            checkCollisions();
+
+            // Update particles
+            updateParticles();
+
+            // Animate light
+            pointLight.position.x = Math.sin(Date.now() * 0.001) * 5;
+            pointLight.position.z = Math.cos(Date.now() * 0.001) * 5;
+
+            requestAnimationFrame(animate);
+            composer.render();
+        }
+
+        // UI Update
+        function updateUI() {
+            document.getElementById('score').textContent = state.score;
+            document.getElementById('lives').textContent = '❤️'.repeat(state.lives);
+            document.getElementById('level').textContent = state.level;
+        }
+
+        // Next Level
+        function nextLevel() {
+            state.level++;
+            createBricks();
+            resetBall();
+
+            // Increase difficulty
+            const speedMultiplier = 1 + (state.level - 1) * 0.1;
+            ballVelocity.multiplyScalar(speedMultiplier);
+
+            updateUI();
+        }
+
+        // Game Over
+        function gameOver() {
+            state.gameOver = true;
+            document.getElementById('finalScore').textContent = state.score;
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+
+        // Win Game
+        function winGame() {
+            state.gameOver = true;
+            document.getElementById('winScore').textContent = state.score;
+            document.getElementById('winScreen').style.display = 'flex';
+        }
+
+        // Start Game
+        window.startGame = function() {
+            document.getElementById('startScreen').style.display = 'none';
+            state.gameStarted = true;
+            state.gameOver = false;
+            state.score = 0;
+            state.lives = 3;
+            state.level = 1;
+            createBricks();
+            resetBall();
+            updateUI();
+        };
+
+        // Restart Game
+        window.restartGame = function() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('winScreen').style.display = 'none';
+            state.gameStarted = true;
+            state.gameOver = false;
+            state.score = 0;
+            state.lives = 3;
+            state.level = 1;
+            createBricks();
+            resetBall();
+            updateUI();
+        };
+
+        // Window Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start Animation Loop
+        animate();
+    </script>
+</body>
+</html>
