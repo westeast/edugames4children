@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset='utf-8'>
+	<meta name='viewport' content='width=device-width, initial-scale=1.0,
+		minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no'>
+
+	<title>Temple Run 2</title>
+
+	<link rel='icon' type='image/ico' href='./favicon.ico'>
+	<link rel='stylesheet' type="text/css" href='./global.css'>
+
+	<style>
+		html,
+		body {
+			overflow: hidden;
+			width: 100%;
+			height: 100%;
+			min-height: 100%;
+			max-height: 100%;
+			position: absolute;
+			top: 0;
+			left: 0;
+			margin: 0;
+			padding: 0;
+			-webkit-text-size-adjust: none;
+			touch-action: pan-x pan-y;
+		}
+	</style>
+</head>
+
+<body>
+	<!-- Initialize mock SDKs before bundle.js -->
+	<script>
+		// Mock PokiSDK minimal interface
+		window.PokiSDK = {
+			init: () => Promise.resolve(),
+			gameLoadingStart: () => {},
+			gameLoadingFinish: () => {},
+			gameLoadingProgress: () => {},
+			gameInteractive: () => {},
+			commercialBreak: () => Promise.resolve(),
+			gameplayStart: () => {},
+			gameplayStop: () => {},
+			rewardedBreak: () => Promise.resolve(),
+			log: () => {},
+			setDebugAdPlay: () => {},
+			getURLParam: () => null
+		};
+
+		// Mock GGEMU minimal interface
+		window.GGEMU = {
+			init: () => Promise.resolve(),
+			startLive: () => {},
+			on: () => {},
+			emit: () => {},
+			requestLiveRoom: () => Promise.resolve()
+		};
+
+		window.__GGEMU_CONFIG__ = {
+			game: 'temple-run-2',
+			engine: 'babylonjs',
+			autoStartLive: false,
+			logInputs: false,
+			debug: false
+		};
+	</script>
+
+	<script src='bundle.js'></script>
+</body>
+
+</html>

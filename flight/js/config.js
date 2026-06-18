@@ -60,6 +60,19 @@ export const state = {
   impactSpeed: 5, // 撞击速度，用于控制旋转强度
   // Gimbal pitch (degrees): 0 = horizontal forward, -90 = straight down, +70 = up 70°
   gimbalPitch: 0,
+  // Gimbal mode: 'follow' (cloud台 stays level) or 'fpv' (cloud台 tilts with drone)
+  gimbalMode: 'follow',
+  // Follow mode state
+  isFollowMode: false,        // Whether follow mode is active
+  followTarget: null,         // Target object (car or bird mesh)
+  followTargetType: 'car',    // Target type: 'car' | 'bird'
+  followHeight: 30,           // Follow height (meters)
+  followMinHeight: 5,         // Minimum follow height
+  followMaxHeight: 120,       // Maximum follow height
+  followSpeed: 20,            // Follow speed (m/s)
+  followMinSpeed: 30,         // Minimum follow speed
+  followMaxSpeed: 50,         // Maximum follow speed
+  followDistance: 15,         // Maintain distance from target (meters)
   // Landed state - drone is on ground after RTH landing, needs takeoff to fly again
   isLanded: false,
 };

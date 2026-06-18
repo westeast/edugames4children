@@ -5,6 +5,9 @@ import { state } from './config.js';
 import { getTerrainHeight, ROAD_WIDTH, getRoadDirectionAt } from './terrain.js';
 import { SimplexNoise } from './noise.js';
 
+// Cache building bounds reference
+let buildingBoundsCache = null;
+
 export const birds = [];
 export const cars = [];
 export const people = [];
@@ -250,10 +253,78 @@ export function spawnCars() {
 export function updateCars(dt) {
   const { dronePos } = state;
 
+  // Get building bounds for collision detection
+  if (!buildingBoundsCache) {
+    try {
+      // Dynamic import for city map
+      import('./maps/city-map.js').then(module => {
+        buildingBoundsCache = module.buildingBounds;
+      }).catch(() => {
+        buildingBoundsCache = []; // Mountain map has no buildings
+      });
+    } catch (e) {
+      buildingBoundsCache = [];
+    }
+  }
+
   cars.forEach(car => {
-    // Move car first
-    car.position.x += car.userData.vx * dt;
-    car.position.z += car.userData.vz * dt;
+    // Check for building collision before moving
+    let newX = car.position.x + car.userData.vx * dt;
+    let newZ = car.position.z + car.userData.vz * dt;
+
+    // Car collision radius
+    const carRadius = 2.0;
+
+    // Check if new position collides with any building
+    let collidesWithBuilding = false;
+    if (buildingBoundsCache && buildingBoundsCache.length > 0) {
+      for (const b of buildingBoundsCache) {
+        // AABB collision check with car radius
+        if (newX + carRadius > b.minX && newX - carRadius < b.maxX &&
+            newZ + carRadius > b.minZ && newZ - carRadius < b.maxZ) {
+          collidesWithBuilding = true;
+
+          // Determine which side of the building we're on
+          const distToLeft = Math.abs(newX - b.minX);
+          const distToRight = Math.abs(newX - b.maxX);
+          const distToFront = Math.abs(newZ - b.minZ);
+          const distToBack = Math.abs(newZ - b.maxZ);
+
+          // Find the nearest edge and turn away from it
+          const minDist = Math.min(distToLeft, distToRight, distToFront, distToBack);
+
+          // Turn perpendicular to the building edge
+          if (minDist === distToLeft || minDist === distToRight) {
+            // Near left or right edge - turn to go parallel in Z direction
+            const targetDir = Math.PI / 2 * (car.userData.vz > 0 ? 1 : -1);
+            car.userData.vx = Math.sin(targetDir) * car.userData.speed;
+            car.userData.vz = Math.cos(targetDir) * car.userData.speed;
+          } else {
+            // Near front or back edge - turn to go parallel in X direction
+            const targetDir = 0 * (car.userData.vx > 0 ? 1 : -1);
+            car.userData.vx = Math.sin(targetDir) * car.userData.speed;
+            car.userData.vz = Math.cos(targetDir) * car.userData.speed;
+          }
+
+          // Push car away from building slightly
+          const pushX = (newX < (b.minX + b.maxX) / 2) ? -2 : 2;
+          const pushZ = (newZ < (b.minZ + b.maxZ) / 2) ? -2 : 2;
+          newX = car.position.x + pushX;
+          newZ = car.position.z + pushZ;
+
+          break;
+        }
+      }
+    }
+
+    // Move car
+    if (!collidesWithBuilding) {
+      car.position.x = newX;
+      car.position.z = newZ;
+    } else {
+      car.position.x += car.userData.vx * dt;
+      car.position.z += car.userData.vz * dt;
+    }
 
     // Check if still on road
     if (isOnRoad(car.position.x, car.position.z)) {

@@ -71,6 +71,7 @@ export function cleanup() {
   localChunks.clear();
   buildingBounds.length = 0;
   powerLines.length = 0;
+  bridges.length = 0;
 }
 
 // City terrain: mostly flat with slight variations
@@ -154,6 +155,52 @@ function isOnRoadInternal(wx, wz) {
     return true;
   }
 
+  // === NEW: Diagonal connecting roads (Y-junctions) ===
+  // Add diagonal roads connecting some intersections
+  const blockSeed = Math.floor(wx / BLOCK_SIZE) * 10000 + Math.floor(wz / BLOCK_SIZE);
+  const diagNoise = cityNoise.noise2D(blockSeed * 0.1, 0);
+
+  // Only add diagonal roads for some blocks (deterministic based on noise)
+  if (Math.abs(diagNoise) > 0.5) {
+    // Check if near a diagonal road
+    const { localX: lx, localZ: lz } = getBlockCoords(wx, wz);
+
+    // Diagonal from corner to corner
+    const diagDist = Math.abs(lx - lz);
+    if (diagDist < ROAD_WIDTH_SIDE / 2) {
+      return true;
+    }
+
+    // Anti-diagonal
+    const antiDiagDist = Math.abs(lx - (BLOCK_SIZE - lz));
+    if (antiDiagDist < ROAD_WIDTH_SIDE / 2) {
+      return true;
+    }
+  }
+
+  // === NEW: T-junction approach roads ===
+  // Additional roads leading into T-junctions
+  const tJunctionNoise = cityNoise.noise2D(blockSeed * 0.05 + 500, 0);
+  if (Math.abs(tJunctionNoise) > 0.6) {
+    const { localX: lx, localZ: lz } = getBlockCoords(wx, wz);
+
+    // Horizontal approach
+    if (lz < ROAD_WIDTH_SIDE && Math.abs(lx - BLOCK_SIZE / 3) < ROAD_WIDTH_SIDE / 2) {
+      return true;
+    }
+    if (lz > BLOCK_SIZE - ROAD_WIDTH_SIDE && Math.abs(lx - BLOCK_SIZE * 2 / 3) < ROAD_WIDTH_SIDE / 2) {
+      return true;
+    }
+
+    // Vertical approach
+    if (lx < ROAD_WIDTH_SIDE && Math.abs(lz - BLOCK_SIZE / 3) < ROAD_WIDTH_SIDE / 2) {
+      return true;
+    }
+    if (lx > BLOCK_SIZE - ROAD_WIDTH_SIDE && Math.abs(lz - BLOCK_SIZE * 2 / 3) < ROAD_WIDTH_SIDE / 2) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -175,7 +222,7 @@ function isOnSidewalk(wx, wz) {
 
 // Get road direction (for entity movement)
 export function getRoadDirectionAt(x, z) {
-  const { localX, localZ } = getBlockCoords(x, z);
+  const { localX, localZ, bx, bz } = getBlockCoords(x, z);
   const halfMain = ROAD_WIDTH_MAIN / 2;
 
   // Check if in roundabout
@@ -186,7 +233,67 @@ export function getRoadDirectionAt(x, z) {
     return angle + Math.PI / 2;
   }
 
-  // Determine if we're closer to an X-aligned road or Z-aligned road
+  // === NEW: Check diagonal roads ===
+  const blockSeed = bx * 10000 + bz;
+  const diagNoise = cityNoise.noise2D(blockSeed * 0.1, 0);
+
+  if (Math.abs(diagNoise) > 0.5) {
+    // Check if on diagonal (main diagonal: x = z)
+    const diagDist = Math.abs(localX - localZ);
+    if (diagDist < ROAD_WIDTH_SIDE) {
+      // Diagonal road direction (45 degrees)
+      return Math.PI / 4; // Northeast
+    }
+
+    // Check if on anti-diagonal (x + z = BLOCK_SIZE)
+    const antiDiagDist = Math.abs(localX - (BLOCK_SIZE - localZ));
+    if (antiDiagDist < ROAD_WIDTH_SIDE) {
+      // Anti-diagonal road direction (-45 degrees)
+      return -Math.PI / 4; // Southeast
+    }
+  }
+
+  // === NEW: Check T-junction approach roads ===
+  const tJunctionNoise = cityNoise.noise2D(blockSeed * 0.05 + 500, 0);
+  if (Math.abs(tJunctionNoise) > 0.6) {
+    // Horizontal approaches
+    if (localZ < ROAD_WIDTH_SIDE) {
+      if (Math.abs(localX - BLOCK_SIZE / 3) < ROAD_WIDTH_SIDE) {
+        return 0; // Going +Z
+      }
+      if (Math.abs(localX - BLOCK_SIZE * 2 / 3) < ROAD_WIDTH_SIDE) {
+        return Math.PI; // Going -Z
+      }
+    }
+    if (localZ > BLOCK_SIZE - ROAD_WIDTH_SIDE) {
+      if (Math.abs(localX - BLOCK_SIZE / 3) < ROAD_WIDTH_SIDE) {
+        return 0; // Going +Z
+      }
+      if (Math.abs(localX - BLOCK_SIZE * 2 / 3) < ROAD_WIDTH_SIDE) {
+        return Math.PI; // Going -Z
+      }
+    }
+
+    // Vertical approaches
+    if (localX < ROAD_WIDTH_SIDE) {
+      if (Math.abs(localZ - BLOCK_SIZE / 3) < ROAD_WIDTH_SIDE) {
+        return Math.PI / 2; // Going +X
+      }
+      if (Math.abs(localZ - BLOCK_SIZE * 2 / 3) < ROAD_WIDTH_SIDE) {
+        return -Math.PI / 2; // Going -X
+      }
+    }
+    if (localX > BLOCK_SIZE - ROAD_WIDTH_SIDE) {
+      if (Math.abs(localZ - BLOCK_SIZE / 3) < ROAD_WIDTH_SIDE) {
+        return Math.PI / 2; // Going +X
+      }
+      if (Math.abs(localZ - BLOCK_SIZE * 2 / 3) < ROAD_WIDTH_SIDE) {
+        return -Math.PI / 2; // Going -X
+      }
+    }
+  }
+
+  // Default: Determine if we're closer to an X-aligned road or Z-aligned road
   const distToXEdge = Math.min(localX, BLOCK_SIZE - localX);
   const distToZEdge = Math.min(localZ, BLOCK_SIZE - localZ);
 
@@ -439,6 +546,9 @@ function populateChunk(cx, cz, ox, oz) {
 
   // Road markings (lane lines)
   createRoadMarkings(ox, oz, CHUNK_SIZE, objs);
+
+  // Bridges (overpasses with holes)
+  addBridgesToChunk(ox, oz, CHUNK_SIZE, objs, rng);
 
   MapBase.chunkObjects.set(key, objs);
 }
@@ -703,29 +813,141 @@ function createStreetLamp(x, y, z) {
 }
 
 function createRoadMarkings(ox, oz, size, objs) {
-  // Lane markings on main roads
-  const markingGeo = new THREE.PlaneGeometry(1, 3);
-  markingGeo.rotateX(-Math.PI / 2);
-  const markingMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  // === ADVANCED ROAD MARKINGS ===
+  // Yellow center line (solid)
+  const yellowMat = new THREE.MeshLambertMaterial({ color: 0xffcc00 });
+  // White lane separator (dashed)
+  const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  // White edge line (solid)
+  const whiteSolidMat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
 
-  // This is simplified - in a full implementation we'd trace road edges
-  // For now, add some markings near block boundaries
+  // Main roads: Double yellow center line + white dashed lane lines + white solid edge lines
   for (let x = ox; x < ox + size; x += BLOCK_SIZE) {
-    for (let z = oz; z < oz + size; z += 8) {
-      const marking = new THREE.Mesh(markingGeo, markingMat);
-      marking.position.set(x, 0.05, z);
-      sceneRef.add(marking);
-      objs.push(marking);
+    const blockInGroupX = (Math.floor(x / BLOCK_SIZE) % 2 + 2) % 2;
+    if (blockInGroupX !== 0) continue; // Only main roads every 2 blocks
+
+    // Yellow center line (double solid)
+    for (let offset = -0.15; offset <= 0.15; offset += 0.3) {
+      const centerLineGeo = new THREE.PlaneGeometry(0.15, size);
+      centerLineGeo.rotateX(-Math.PI / 2);
+      const centerLine = new THREE.Mesh(centerLineGeo, yellowMat);
+      centerLine.position.set(x + offset, 0.05, oz + size / 2);
+      sceneRef.add(centerLine);
+      objs.push(centerLine);
     }
+
+    // White dashed lane lines (left and right of center)
+    const laneWidth = ROAD_WIDTH_MAIN / 3; // 3 lanes per direction
+    for (let lane = 1; lane <= 2; lane++) {
+      const laneOffset = lane * laneWidth;
+      // Left lanes
+      for (let z = oz; z < oz + size; z += 6) {
+        const dashGeo = new THREE.PlaneGeometry(0.12, 3);
+        dashGeo.rotateX(-Math.PI / 2);
+        const dash = new THREE.Mesh(dashGeo, whiteMat);
+        dash.position.set(x - laneOffset, 0.05, z);
+        sceneRef.add(dash);
+        objs.push(dash);
+      }
+      // Right lanes
+      for (let z = oz; z < oz + size; z += 6) {
+        const dashGeo = new THREE.PlaneGeometry(0.12, 3);
+        dashGeo.rotateX(-Math.PI / 2);
+        const dash = new THREE.Mesh(dashGeo, whiteMat);
+        dash.position.set(x + laneOffset, 0.05, z);
+        sceneRef.add(dash);
+        objs.push(dash);
+      }
+    }
+
+    // White solid edge lines
+    const edgeGeo = new THREE.PlaneGeometry(0.2, size);
+    edgeGeo.rotateX(-Math.PI / 2);
+    const leftEdge = new THREE.Mesh(edgeGeo, whiteSolidMat);
+    leftEdge.position.set(x - ROAD_WIDTH_MAIN / 2, 0.05, oz + size / 2);
+    sceneRef.add(leftEdge);
+    objs.push(leftEdge);
+
+    const rightEdge = new THREE.Mesh(edgeGeo.clone(), whiteSolidMat);
+    rightEdge.position.set(x + ROAD_WIDTH_MAIN / 2, 0.05, oz + size / 2);
+    sceneRef.add(rightEdge);
+    objs.push(rightEdge);
   }
 
+  // Vertical roads (along X axis)
   for (let z = oz; z < oz + size; z += BLOCK_SIZE) {
-    for (let x = ox; x < ox + size; x += 8) {
-      const marking = new THREE.Mesh(markingGeo.clone(), markingMat);
-      marking.rotation.y = Math.PI / 2;
-      marking.position.set(x, 0.05, z);
-      sceneRef.add(marking);
-      objs.push(marking);
+    const blockInGroupZ = (Math.floor(z / BLOCK_SIZE) % 2 + 2) % 2;
+    if (blockInGroupZ !== 0) continue;
+
+    // Yellow center line
+    for (let offset = -0.15; offset <= 0.15; offset += 0.3) {
+      const centerLineGeo = new THREE.PlaneGeometry(size, 0.15);
+      centerLineGeo.rotateX(-Math.PI / 2);
+      const centerLine = new THREE.Mesh(centerLineGeo, yellowMat);
+      centerLine.position.set(ox + size / 2, 0.05, z + offset);
+      sceneRef.add(centerLine);
+      objs.push(centerLine);
+    }
+
+    // White dashed lane lines
+    const laneWidth = ROAD_WIDTH_MAIN / 3;
+    for (let lane = 1; lane <= 2; lane++) {
+      const laneOffset = lane * laneWidth;
+      for (let x = ox; x < ox + size; x += 6) {
+        const dashGeo = new THREE.PlaneGeometry(3, 0.12);
+        dashGeo.rotateX(-Math.PI / 2);
+        const dashFront = new THREE.Mesh(dashGeo, whiteMat);
+        dashFront.position.set(x, 0.05, z - laneOffset);
+        sceneRef.add(dashFront);
+        objs.push(dashFront);
+
+        const dashBack = new THREE.Mesh(dashGeo.clone(), whiteMat);
+        dashBack.position.set(x, 0.05, z + laneOffset);
+        sceneRef.add(dashBack);
+        objs.push(dashBack);
+      }
+    }
+
+    // White solid edge lines
+    const edgeGeo = new THREE.PlaneGeometry(size, 0.2);
+    edgeGeo.rotateX(-Math.PI / 2);
+    const frontEdge = new THREE.Mesh(edgeGeo, whiteSolidMat);
+    frontEdge.position.set(ox + size / 2, 0.05, z - ROAD_WIDTH_MAIN / 2);
+    sceneRef.add(frontEdge);
+    objs.push(frontEdge);
+
+    const backEdge = new THREE.Mesh(edgeGeo.clone(), whiteSolidMat);
+    backEdge.position.set(ox + size / 2, 0.05, z + ROAD_WIDTH_MAIN / 2);
+    sceneRef.add(backEdge);
+    objs.push(backEdge);
+  }
+
+  // Crosswalks at intersections (斑马线)
+  const crosswalkMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const crosswalkStripeGeo = new THREE.PlaneGeometry(0.5, ROAD_WIDTH_MAIN);
+  crosswalkStripeGeo.rotateX(-Math.PI / 2);
+
+  // Add crosswalks at main road intersections
+  for (let x = ox; x < ox + size; x += BLOCK_SIZE * 2) {
+    for (let z = oz; z < oz + size; z += BLOCK_SIZE * 2) {
+      // Check if this is a main road intersection
+      const blockX = (Math.floor(x / BLOCK_SIZE) % 2 + 2) % 2;
+      const blockZ = (Math.floor(z / BLOCK_SIZE) % 2 + 2) % 2;
+      if (blockX === 0 && blockZ === 0) {
+        // Add crosswalk stripes
+        for (let stripeOffset = -3; stripeOffset <= 3; stripeOffset += 1.2) {
+          const stripeX = new THREE.Mesh(crosswalkStripeGeo.clone(), crosswalkMat);
+          stripeX.position.set(x + stripeOffset, 0.05, z);
+          sceneRef.add(stripeX);
+          objs.push(stripeX);
+
+          const stripeZ = new THREE.Mesh(crosswalkStripeGeo.clone(), crosswalkMat);
+          stripeZ.rotation.y = Math.PI / 2;
+          stripeZ.position.set(x, 0.05, z + stripeOffset);
+          sceneRef.add(stripeZ);
+          objs.push(stripeZ);
+        }
+      }
     }
   }
 }
@@ -888,5 +1110,170 @@ function createPowerLines(ox, oz, size, objs, rng) {
         });
       }
     }
+  }
+}
+
+// === BRIDGE SYSTEM ===
+// Store bridge data for collision detection
+export const bridges = [];
+
+// Bridge parameters
+const BRIDGE_HEIGHT = 20; // Height above ground (meters)
+const BRIDGE_WIDTH = ROAD_WIDTH_MAIN * 2; // Bridge width
+const BRIDGE_LENGTH = BLOCK_SIZE * 1.5; // Bridge length
+const BRIDGE_THICKNESS = 0.8; // Bridge deck thickness
+const HOLE_SIZE = 2.0; // Hole size (2m x 2m, allows Air3/Mini4/Mavic3 to pass)
+const HOLE_COUNT = 3; // Number of holes per bridge
+
+function createBridge(ox, oz, size, objs, rng) {
+  const group = new THREE.Group();
+
+  // Determine bridge position (cross over a road intersection)
+  const bridgeX = ox + size / 2 + (rng() - 0.5) * size * 0.3;
+  const bridgeZ = oz + size / 2 + (rng() - 0.5) * size * 0.3;
+
+  // Bridge direction (cross over main road)
+  const bridgeAngle = rng() > 0.5 ? 0 : Math.PI / 2;
+
+  // Bridge deck (main structure)
+  const deckGeo = new THREE.BoxGeometry(BRIDGE_WIDTH, BRIDGE_THICKNESS, BRIDGE_LENGTH);
+  const deckMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+  const deck = new THREE.Mesh(deckGeo, deckMat);
+  deck.position.y = BRIDGE_HEIGHT;
+  deck.castShadow = true;
+  deck.receiveShadow = true;
+  group.add(deck);
+
+  // Bridge railings
+  const railingHeight = 1.2;
+  const railingMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+
+  // Left railing
+  const leftRailingGeo = new THREE.BoxGeometry(0.15, railingHeight, BRIDGE_LENGTH);
+  const leftRailing = new THREE.Mesh(leftRailingGeo, railingMat);
+  leftRailing.position.set(-BRIDGE_WIDTH / 2 + 0.15, BRIDGE_HEIGHT + railingHeight / 2, 0);
+  group.add(leftRailing);
+
+  // Right railing
+  const rightRailing = new THREE.Mesh(leftRailingGeo.clone(), railingMat);
+  rightRailing.position.set(BRIDGE_WIDTH / 2 - 0.15, BRIDGE_HEIGHT + railingHeight / 2, 0);
+  group.add(rightRailing);
+
+  // === HOLES IN BRIDGE DECK ===
+  // Create holes that drones can fly through
+  // Since we can't use CSG (Constructive Solid Geometry) easily in Three.js,
+  // we'll create visual holes using transparency and define collision bounds
+
+  const holePositions = [];
+  for (let i = 0; i < HOLE_COUNT; i++) {
+    // Distribute holes along the bridge
+    const holeX = (i - (HOLE_COUNT - 1) / 2) * (BRIDGE_WIDTH / HOLE_COUNT);
+    const holeZ = (rng() - 0.5) * BRIDGE_LENGTH * 0.5;
+
+    holePositions.push({ x: holeX, z: holeZ });
+
+    // Visual hole (dark rectangle on bridge deck)
+    const holeGeo = new THREE.PlaneGeometry(HOLE_SIZE, HOLE_SIZE);
+    holeGeo.rotateX(-Math.PI / 2);
+    const holeMat = new THREE.MeshLambertMaterial({
+      color: 0x222222,
+      transparent: true,
+      opacity: 0.8
+    });
+    const hole = new THREE.Mesh(holeGeo, holeMat);
+    hole.position.set(holeX, BRIDGE_HEIGHT + 0.01, holeZ);
+    group.add(hole);
+
+    // Hole frame (edge markings)
+    const frameMat = new THREE.MeshLambertMaterial({ color: 0xffaa00 }); // Yellow warning frame
+    const frameThick = 0.1;
+
+    // Frame edges
+    const frameTop = new THREE.Mesh(
+      new THREE.BoxGeometry(HOLE_SIZE + frameThick * 2, frameThick, frameThick),
+      frameMat
+    );
+    frameTop.position.set(holeX, BRIDGE_HEIGHT + 0.02, holeZ - HOLE_SIZE / 2 - frameThick / 2);
+    group.add(frameTop);
+
+    const frameBottom = new THREE.Mesh(
+      new THREE.BoxGeometry(HOLE_SIZE + frameThick * 2, frameThick, frameThick),
+      frameMat
+    );
+    frameBottom.position.set(holeX, BRIDGE_HEIGHT + 0.02, holeZ + HOLE_SIZE / 2 + frameThick / 2);
+    group.add(frameBottom);
+
+    const frameLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThick, frameThick, HOLE_SIZE),
+      frameMat
+    );
+    frameLeft.position.set(holeX - HOLE_SIZE / 2 - frameThick / 2, BRIDGE_HEIGHT + 0.02, holeZ);
+    group.add(frameLeft);
+
+    const frameRight = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThick, frameThick, HOLE_SIZE),
+      frameMat
+    );
+    frameRight.position.set(holeX + HOLE_SIZE / 2 + frameThick / 2, BRIDGE_HEIGHT + 0.02, holeZ);
+    group.add(frameRight);
+  }
+
+  // Bridge support columns
+  const supportMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+  const supportRadius = 0.8;
+  const supportGeo = new THREE.CylinderGeometry(supportRadius, supportRadius, BRIDGE_HEIGHT, 8);
+
+  // Four corner supports
+  const supportPositions = [
+    [-BRIDGE_WIDTH / 2 + 1, -BRIDGE_LENGTH / 2 + 1],
+    [BRIDGE_WIDTH / 2 - 1, -BRIDGE_LENGTH / 2 + 1],
+    [-BRIDGE_WIDTH / 2 + 1, BRIDGE_LENGTH / 2 - 1],
+    [BRIDGE_WIDTH / 2 - 1, BRIDGE_LENGTH / 2 - 1]
+  ];
+
+  supportPositions.forEach(([sx, sz]) => {
+    const support = new THREE.Mesh(supportGeo, supportMat);
+    support.position.set(sx, BRIDGE_HEIGHT / 2, sz);
+    support.castShadow = true;
+    group.add(support);
+  });
+
+  // Position the bridge
+  group.position.set(bridgeX, 0, bridgeZ);
+  group.rotation.y = bridgeAngle;
+  sceneRef.add(group);
+  objs.push(group);
+
+  // Store bridge collision data
+  // Bridge deck: solid except for holes
+  const bridgeBounds = {
+    // Bridge deck bounds (with rotation)
+    minX: bridgeX - BRIDGE_WIDTH / 2,
+    maxX: bridgeX + BRIDGE_WIDTH / 2,
+    minY: BRIDGE_HEIGHT,
+    maxY: BRIDGE_HEIGHT + BRIDGE_THICKNESS,
+    minZ: bridgeZ - BRIDGE_LENGTH / 2,
+    maxZ: bridgeZ + BRIDGE_LENGTH / 2,
+    holes: holePositions.map(h => ({
+      minX: bridgeX + h.x - HOLE_SIZE / 2,
+      maxX: bridgeX + h.x + HOLE_SIZE / 2,
+      minY: BRIDGE_HEIGHT - HOLE_SIZE / 2,
+      maxY: BRIDGE_HEIGHT + BRIDGE_THICKNESS,
+      minZ: bridgeZ + h.z - HOLE_SIZE / 2,
+      maxZ: bridgeZ + h.z + HOLE_SIZE / 2
+    })),
+    angle: bridgeAngle
+  };
+
+  bridges.push(bridgeBounds);
+}
+
+// Add bridges to populateChunk
+function addBridgesToChunk(ox, oz, size, objs, rng) {
+  // Create 1-2 bridges per chunk
+  const numBridges = Math.floor(rng() * 2) + 1;
+
+  for (let i = 0; i < numBridges; i++) {
+    createBridge(ox + i * size / 2, oz, size, objs, rng);
   }
 }

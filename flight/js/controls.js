@@ -145,6 +145,67 @@ window.toggleGimbal = function() {
   btn.classList.toggle('active', !isVisible);
 };
 
+window.setGimbalMode = function(mode) {
+  state.gimbalMode = mode;
+
+  // Update button states
+  document.getElementById('gimbalFollow').classList.toggle('active', mode === 'follow');
+  document.getElementById('gimbalFPV').classList.toggle('active', mode === 'fpv');
+
+  // Update description
+  const desc = document.getElementById('gimbalModeDesc');
+  if (mode === 'follow') {
+    desc.textContent = '跟随模式：云台保持水平，画面稳定';
+    showNotif('云台跟随模式');
+  } else {
+    desc.textContent = '穿越模式：云台随机体倾斜，画面随侧飞倾斜（±30°）';
+    showNotif('云台穿越模式 - 画面将随无人机倾斜');
+  }
+};
+
+// === FOLLOW MODE CONTROLS ===
+window.startFollowMode = function(targetType) {
+  import('./follow-path.js').then(module => {
+    const success = module.startFollow(targetType);
+    if (success) {
+      document.getElementById('followSettings').style.display = 'block';
+    }
+  });
+};
+
+window.stopFollowMode = function() {
+  import('./follow-path.js').then(module => {
+    module.stopFollow();
+    document.getElementById('followSettings').style.display = 'none';
+  });
+};
+
+window.updateFollowHeight = function() {
+  const slider = document.getElementById('followHeight');
+  const value = parseInt(slider.value);
+
+  state.followHeight = value;
+  document.getElementById('followHeightVal').textContent = value + '米';
+
+  // Show warning for low height
+  if (value <= 10) {
+    showNotif('⚠️ 跟随高度较低，请注意避障！请谨慎跟随！');
+  }
+};
+
+window.updateFollowSpeed = function() {
+  const slider = document.getElementById('followSpeed');
+  const value = parseInt(slider.value);
+
+  state.followSpeed = value;
+  document.getElementById('followSpeedVal').textContent = value + ' m/s';
+
+  // Show warning for slow speed
+  if (value <= 35) {
+    showNotif('⚠️ 跟随速度较慢，容易跟丢。请小心！');
+  }
+};
+
 // Gimbal pitch slider setup
 export function setupGimbalControl() {
   const slider = document.getElementById('gimbalSlider');

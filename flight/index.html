@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>大疆虚拟飞行 3D - DJI Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=202606110400">
+<link rel="stylesheet" href="css/style.css?v=202606132117">
 </head>
 <body>
 
@@ -290,8 +290,37 @@
         <div class="setting-item">
           <div class="setting-label">云台模式</div>
           <div class="setting-options">
-            <button class="option-btn active">跟随</button>
-            <button class="option-btn">FPV</button>
+            <button class="option-btn active" id="gimbalFollow" onclick="setGimbalMode('follow')">跟随</button>
+            <button class="option-btn" id="gimbalFPV" onclick="setGimbalMode('fpv')">穿越</button>
+          </div>
+          <div class="setting-desc" id="gimbalModeDesc">跟随模式：云台保持水平，画面稳定</div>
+        </div>
+        <div class="setting-item">
+          <div class="setting-label">跟随模式</div>
+          <div class="setting-row">
+            <button class="action-btn" onclick="startFollowMode('car')">跟随车辆</button>
+            <button class="action-btn" onclick="startFollowMode('bird')">跟随飞鸟</button>
+          </div>
+          <div class="setting-desc">点击按钮跟随最近的车辆或飞鸟（范围150米）</div>
+        </div>
+        <div class="setting-item" id="followSettings" style="display:none;">
+          <div class="setting-label">跟随设置</div>
+          <div class="setting-row">
+            <div style="flex:1;">
+              <div class="slider-label" style="margin-bottom:5px;">跟随高度</div>
+              <input type="range" id="followHeight" min="5" max="120" value="30" style="width:70%;" oninput="updateFollowHeight()">
+              <span id="followHeightVal" style="margin-left:10px;color:#ff9500;">30米</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div style="flex:1;">
+              <div class="slider-label" style="margin-bottom:5px;">跟随速度</div>
+              <input type="range" id="followSpeed" min="30" max="50" value="20" style="width:70%;" oninput="updateFollowSpeed()">
+              <span id="followSpeedVal" style="margin-left:10px;color:#ff9500;">20 m/s</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <button class="action-btn danger" onclick="stopFollowMode()">停止跟随</button>
           </div>
         </div>
       </div>
@@ -577,7 +606,7 @@ function showNotif(msg) {
   }
 }
 </script>
-<script type="module" src="js/game.js?v=202606110400"></script>
+<script type="module" src="js/game.js?v=202606132117"></script></script>
 
 </body>
 </html>
