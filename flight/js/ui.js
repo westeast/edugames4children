@@ -40,19 +40,10 @@ export function updateCamera(gameStarted = false) {
     camera.lookAt(camera.position.clone().add(lookDir.multiplyScalar(100)));
 
     // === GIMBAL FPV MODE (穿越模式) ===
-    // Apply camera tilt based on drone roll (侧飞倾斜)
-    if (state.gimbalMode === 'fpv') {
-      // Tilt angle = drone roll * tilt factor (±30° max)
-      // Drone roll is already computed in physics.js
-      // Apply to camera rotation.z for screen tilt effect
-      const tiltAngle = state.droneRoll * 1.5; // Amplify roll for stronger tilt effect
-      // Clamp tilt to ±30° (约 0.52 弧度)
-      const clampedTilt = Math.max(-0.52, Math.min(0.52, tiltAngle));
-      camera.rotation.z = clampedTilt;
-    } else {
-      // Follow mode: camera stays level (no tilt)
-      camera.rotation.z = 0;
-    }
+    // 禁用相机倾斜,保持画面水平
+    // 修复问题:之前 camera.rotation.z 会跟随 droneRoll 持续倾斜导致画面倒置
+    // 现在强制设置为 0,让画面始终保持水平
+    camera.rotation.z = 0;
   } else {
     // Third-person camera with offset based on drone yaw
     const offset = new THREE.Vector3(0, 8, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);

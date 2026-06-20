@@ -326,8 +326,11 @@ export function updateCars(dt) {
       car.position.z += car.userData.vz * dt;
     }
 
-    // Check if still on road
-    if (isOnRoad(car.position.x, car.position.z)) {
+    // Check if still on road - follow road more strictly
+    const wasOnRoad = car.userData.onRoad;
+    car.userData.onRoad = isOnRoad(car.position.x, car.position.z);
+
+    if (car.userData.onRoad) {
       // Get road direction at current position
       const roadDir = getRoadDirection(car.position.x, car.position.z);
 
@@ -336,22 +339,50 @@ export function updateCars(dt) {
       const dirDiff = Math.abs(((roadDir - currentDir + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       const finalDir = dirDiff < Math.PI / 2 ? roadDir : roadDir + Math.PI;
 
-      // Smoothly adjust direction to follow road (lerp)
+      // Smoothly adjust direction to follow road (faster response)
       const currentAngle = Math.atan2(car.userData.vx, car.userData.vz);
-      const turnRate = 2 * dt; // Smooth turning
+      const turnRate = 8 * dt; // Increased from 2 to 8 for tighter road following
       let newAngle = currentAngle;
 
       const diff = finalDir - currentAngle;
       // Normalize angle difference to -PI..PI
       const normalizedDiff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI;
 
-      if (Math.abs(normalizedDiff) > 0.1) {
-        newAngle = currentAngle + Math.sign(normalizedDiff) * Math.min(Math.abs(normalizedDiff), turnRate * Math.PI);
+      // Apply turning with higher rate for better road adherence
+      if (Math.abs(normalizedDiff) > 0.05) {
+        newAngle = currentAngle + Math.sign(normalizedDiff) * Math.min(Math.abs(normalizedDiff), turnRate);
+      } else {
+        // Snap to road direction when close enough
+        newAngle = finalDir;
       }
 
       car.userData.vx = Math.sin(newAngle) * car.userData.speed;
       car.userData.vz = Math.cos(newAngle) * car.userData.speed;
       car.rotation.y = newAngle;
+    } else {
+      // Off road - try to get back to road
+      const roadPoint = getNearestRoadPoint(car.position.x, car.position.z);
+      if (roadPoint) {
+        const toRoadX = roadPoint.x - car.position.x;
+        const toRoadZ = roadPoint.z - car.position.z;
+        const toRoadAngle = Math.atan2(toRoadX, toRoadZ);
+
+        // Gradually turn towards road
+        const currentAngle = Math.atan2(car.userData.vx, car.userData.vz);
+        const turnRate = 4 * dt;
+        let newAngle = currentAngle;
+
+        const diff = toRoadAngle - currentAngle;
+        const normalizedDiff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI;
+
+        if (Math.abs(normalizedDiff) > 0.1) {
+          newAngle = currentAngle + Math.sign(normalizedDiff) * Math.min(Math.abs(normalizedDiff), turnRate);
+        }
+
+        car.userData.vx = Math.sin(newAngle) * car.userData.speed;
+        car.userData.vz = Math.cos(newAngle) * car.userData.speed;
+        car.rotation.y = newAngle;
+      }
     }
 
     // Get terrain height and slope
