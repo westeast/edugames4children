@@ -268,15 +268,17 @@ export function updateCars(dt) {
   }
 
   cars.forEach(car => {
-    // Check for building collision before moving
+    // Predict next position
     let newX = car.position.x + car.userData.vx * dt;
     let newZ = car.position.z + car.userData.vz * dt;
 
     // Car collision radius
     const carRadius = 2.0;
 
-    // Check if new position collides with any building
+    // Check if new position collides with any building BEFORE moving
     let collidesWithBuilding = false;
+    let collisionNormal = { x: 0, z: 0 };
+
     if (buildingBoundsCache && buildingBoundsCache.length > 0) {
       for (const b of buildingBoundsCache) {
         // AABB collision check with car radius
@@ -284,47 +286,51 @@ export function updateCars(dt) {
             newZ + carRadius > b.minZ && newZ - carRadius < b.maxZ) {
           collidesWithBuilding = true;
 
-          // Determine which side of the building we're on
-          const distToLeft = Math.abs(newX - b.minX);
-          const distToRight = Math.abs(newX - b.maxX);
-          const distToFront = Math.abs(newZ - b.minZ);
-          const distToBack = Math.abs(newZ - b.maxZ);
+          // Determine which side of the building we're hitting
+          const overlapLeft = (newX + carRadius) - b.minX;
+          const overlapRight = b.maxX - (newX - carRadius);
+          const overlapFront = (newZ + carRadius) - b.minZ;
+          const overlapBack = b.maxZ - (newZ - carRadius);
 
-          // Find the nearest edge and turn away from it
-          const minDist = Math.min(distToLeft, distToRight, distToFront, distToBack);
+          // Find the smallest overlap (which side we're closest to)
+          const minOverlap = Math.min(overlapLeft, overlapRight, overlapFront, overlapBack);
 
-          // Turn perpendicular to the building edge
-          if (minDist === distToLeft || minDist === distToRight) {
-            // Near left or right edge - turn to go parallel in Z direction
-            const targetDir = Math.PI / 2 * (car.userData.vz > 0 ? 1 : -1);
-            car.userData.vx = Math.sin(targetDir) * car.userData.speed;
-            car.userData.vz = Math.cos(targetDir) * car.userData.speed;
-          } else {
-            // Near front or back edge - turn to go parallel in X direction
-            const targetDir = 0 * (car.userData.vx > 0 ? 1 : -1);
-            car.userData.vx = Math.sin(targetDir) * car.userData.speed;
-            car.userData.vz = Math.cos(targetDir) * car.userData.speed;
+          // Set collision normal to push car away
+          if (minOverlap === overlapLeft) {
+            collisionNormal.x = -1;
+          } else if (minOverlap === overlapRight) {
+            collisionNormal.x = 1;
+          } else if (minOverlap === overlapFront) {
+            collisionNormal.z = -1;
+          } else if (minOverlap === overlapBack) {
+            collisionNormal.z = 1;
           }
-
-          // Push car away from building slightly
-          const pushX = (newX < (b.minX + b.maxX) / 2) ? -2 : 2;
-          const pushZ = (newZ < (b.minZ + b.maxZ) / 2) ? -2 : 2;
-          newX = car.position.x + pushX;
-          newZ = car.position.z + pushZ;
 
           break;
         }
       }
     }
 
-    // Move car
-    if (!collidesWithBuilding) {
-      car.position.x = newX;
-      car.position.z = newZ;
-    } else {
-      car.position.x += car.userData.vx * dt;
-      car.position.z += car.userData.vz * dt;
+    // If collision detected, turn away from building
+    if (collidesWithBuilding) {
+      // Calculate turn angle based on collision normal
+      const avoidAngle = Math.atan2(collisionNormal.x, collisionNormal.z);
+      const currentAngle = Math.atan2(car.userData.vx, car.userData.vz);
+
+      // Turn 90 degrees away from collision
+      const turnAngle = avoidAngle + Math.PI / 2;
+      car.userData.vx = Math.sin(turnAngle) * car.userData.speed;
+      car.userData.vz = Math.cos(turnAngle) * car.userData.speed;
+      car.rotation.y = turnAngle;
+
+      // Don't move into the building
+      newX = car.position.x;
+      newZ = car.position.z;
     }
+
+    // Move car
+    car.position.x = newX;
+    car.position.z = newZ;
 
     // Check if still on road - follow road more strictly
     const wasOnRoad = car.userData.onRoad;
@@ -341,7 +347,7 @@ export function updateCars(dt) {
 
       // Smoothly adjust direction to follow road (faster response)
       const currentAngle = Math.atan2(car.userData.vx, car.userData.vz);
-      const turnRate = 8 * dt; // Increased from 2 to 8 for tighter road following
+      const turnRate = 8 * dt; // Fast turning to follow road curves
       let newAngle = currentAngle;
 
       const diff = finalDir - currentAngle;
@@ -387,56 +393,70 @@ export function updateCars(dt) {
 
     // Get terrain height and slope
     const h = getTerrainHeight(car.position.x, car.position.z);
-    
+
     // Calculate movement direction
     const moveAngle = Math.atan2(car.userData.vx, car.userData.vz);
-    
+
     // Sample points for slope alignment
     const hFront = getTerrainHeight(car.position.x + Math.sin(moveAngle) * 1.5, car.position.z + Math.cos(moveAngle) * 1.5);
     const hRight = getTerrainHeight(car.position.x + Math.sin(moveAngle + Math.PI/2) * 1, car.position.z + Math.cos(moveAngle + Math.PI/2) * 1);
-    
+
     const pitch = Math.atan2(hFront - h, 1.5);
     const roll = Math.atan2(hRight - h, 1);
-    
+
     car.position.y = h + 0.35;
     car.rotation.x = pitch * 0.4;
     car.rotation.z = -roll * 0.4;
-    
+
     // Rotate wheels
     car.children.forEach(child => {
       if (child.name === 'wheel') {
         child.rotation.x += car.userData.speed * dt * 0.6;
       }
     });
-    
+
     // Respawn if too far
     if (car.position.distanceTo(dronePos) > 280) {
       const a = Math.random() * Math.PI * 2;
       const nd = 50 + Math.random() * 150;
       let nx = dronePos.x + Math.cos(a) * nd;
       let nz = dronePos.z + Math.sin(a) * nd;
-      
+
       const roadPoint = getNearestRoadPoint(nx, nz);
       if (roadPoint) {
         nx = roadPoint.x;
         nz = roadPoint.z;
       }
-      
-      car.position.x = nx;
-      car.position.z = nz;
-      car.position.y = getTerrainHeight(nx, nz) + 0.35;
-      
-      let dir;
-      if (roadPoint) {
-        dir = getRoadDirection(nx, nz);
-        if (Math.random() > 0.5) dir += Math.PI;
-      } else {
-        dir = Math.random() * Math.PI * 2;
+
+      // Check if spawn position is inside a building
+      let validSpawn = true;
+      if (buildingBoundsCache && buildingBoundsCache.length > 0) {
+        for (const b of buildingBoundsCache) {
+          if (nx + carRadius > b.minX && nx - carRadius < b.maxX &&
+              nz + carRadius > b.minZ && nz - carRadius < b.maxZ) {
+            validSpawn = false;
+            break;
+          }
+        }
       }
-      
-      car.userData.vx = Math.sin(dir) * car.userData.speed;
-      car.userData.vz = Math.cos(dir) * car.userData.speed;
-      car.rotation.y = dir;
+
+      if (validSpawn) {
+        car.position.x = nx;
+        car.position.z = nz;
+        car.position.y = getTerrainHeight(nx, nz) + 0.35;
+
+        let dir;
+        if (roadPoint) {
+          dir = getRoadDirection(nx, nz);
+          if (Math.random() > 0.5) dir += Math.PI;
+        } else {
+          dir = Math.random() * Math.PI * 2;
+        }
+
+        car.userData.vx = Math.sin(dir) * car.userData.speed;
+        car.userData.vz = Math.cos(dir) * car.userData.speed;
+        car.rotation.y = dir;
+      }
     }
   });
 }
