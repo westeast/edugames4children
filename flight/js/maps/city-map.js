@@ -311,8 +311,12 @@ export function getNearestRoadPoint(x, z) {
 
   // Check if in roundabout first
   const centerDist = Math.sqrt((localX - BLOCK_SIZE / 2) ** 2 + (localZ - BLOCK_SIZE / 2) ** 2);
-  if (centerDist < ROAD_WIDTH_MAIN * 1.2) {
-    // Place on roundabout ring
+  if (centerDist < ROAD_WIDTH_MAIN * 1.2 && centerDist > ROAD_WIDTH_MAIN * 0.4) {
+    // Already on roundabout ring
+    return { x, z };
+  }
+  if (centerDist < ROAD_WIDTH_MAIN * 0.4) {
+    // Inside roundabout hole - push to ring
     const angle = Math.atan2(localZ - BLOCK_SIZE / 2, localX - BLOCK_SIZE / 2);
     const ringRadius = ROAD_WIDTH_MAIN * 0.8;
     return {
@@ -321,26 +325,67 @@ export function getNearestRoadPoint(x, z) {
     };
   }
 
-  // Find nearest road edge
-  const distToLeft = localX;
-  const distToRight = BLOCK_SIZE - localX;
-  const distToBottom = localZ;
-  const distToTop = BLOCK_SIZE - localZ;
+  // Find nearest road edge with correct width (main vs side)
+  // Roads are at block boundaries. Main roads every 2 blocks, side roads in between.
+  const candidates = [];
 
-  let rx = x, rz = z;
+  // X-aligned roads (vertical boundaries, roads run along Z axis)
+  const leftBx = bx;   // Left boundary of current block
+  const rightBx = bx + 1; // Right boundary
 
-  // Snap to nearest road
-  if (distToLeft < distToRight && distToLeft < distToBottom && distToLeft < distToTop) {
-    rx = bx * BLOCK_SIZE + ROAD_WIDTH_MAIN / 2;
-  } else if (distToRight < distToBottom && distToRight < distToTop) {
-    rx = (bx + 1) * BLOCK_SIZE - ROAD_WIDTH_MAIN / 2;
-  } else if (distToBottom < distToTop) {
-    rz = bz * BLOCK_SIZE + ROAD_WIDTH_MAIN / 2;
-  } else {
-    rz = (bz + 1) * BLOCK_SIZE - ROAD_WIDTH_MAIN / 2;
+  for (const edgeBx of [leftBx, rightBx]) {
+    const isMain = ((edgeBx % 2 + 2) % 2) === 0;
+    const halfWidth = isMain ? ROAD_WIDTH_MAIN / 2 : ROAD_WIDTH_SIDE / 2;
+    const roadX = edgeBx * BLOCK_SIZE + halfWidth;
+    const distX = Math.abs(x - roadX);
+    candidates.push({ x: roadX, z: z, dist: distX });
   }
 
-  return { x: rx, z: rz };
+  // Z-aligned roads (horizontal boundaries, roads run along X axis)
+  const bottomBz = bz;
+  const topBz = bz + 1;
+
+  for (const edgeBz of [bottomBz, topBz]) {
+    const isMain = ((edgeBz % 2 + 2) % 2) === 0;
+    const halfWidth = isMain ? ROAD_WIDTH_MAIN / 2 : ROAD_WIDTH_SIDE / 2;
+    const roadZ = edgeBz * BLOCK_SIZE + halfWidth;
+    const distZ = Math.abs(z - roadZ);
+    candidates.push({ x: x, z: roadZ, dist: distZ });
+  }
+
+  // Also check diagonal roads if present
+  const blockSeed = bx * 10000 + bz;
+  const diagNoise = cityNoise.noise2D(blockSeed * 0.1, 0);
+  if (Math.abs(diagNoise) > 0.5) {
+    // Diagonal road (x = z): nearest point on line x=z within block
+    const diagX = localX;
+    const diagZ = localX; // On diagonal, x == z in local coords
+    const diagDist = Math.abs(localZ - diagZ);
+    candidates.push({
+      x: bx * BLOCK_SIZE + diagX,
+      z: bz * BLOCK_SIZE + diagZ,
+      dist: diagDist
+    });
+
+    // Anti-diagonal road (x + z = BLOCK_SIZE)
+    const antiDiagZ = BLOCK_SIZE - localX;
+    const antiDiagDist = Math.abs(localZ - antiDiagZ);
+    candidates.push({
+      x: bx * BLOCK_SIZE + localX,
+      z: bz * BLOCK_SIZE + antiDiagZ,
+      dist: antiDiagDist
+    });
+  }
+
+  // Pick the candidate closest to the original position
+  let best = candidates[0];
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i].dist < best.dist) {
+      best = candidates[i];
+    }
+  }
+
+  return { x: best.x, z: best.z };
 }
 
 // Check if a block is a park

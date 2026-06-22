@@ -2,8 +2,10 @@
 import * as THREE from 'three';
 import { scene } from './engine.js';
 import { state } from './config.js';
-import { getTerrainHeight, ROAD_WIDTH, getRoadDirectionAt } from './terrain.js';
-import { SimplexNoise } from './noise.js';
+import { getTerrainHeight, ROAD_WIDTH, getRoadDirectionAt, isOnRoad, getNearestRoadPoint } from './terrain.js';
+
+// Alias - delegates to current active map (city or mountain)
+const getRoadDirection = getRoadDirectionAt;
 
 // Cache building bounds reference
 let buildingBoundsCache = null;
@@ -23,62 +25,6 @@ export function clearEntities() {
   cars.length = 0;
   people.length = 0;
   clouds.length = 0;
-}
-
-// Noise for road generation - same seed as terrain.js
-const roadNoise = new SimplexNoise(123);
-
-// Check if position is on mountain road (same logic as terrain.js)
-function isOnRoad(x, z) {
-  const h = getTerrainHeight(x, z);
-
-  if (h < 5 || h > 80) return false;
-
-  const delta = 5;
-  const h_dx = getTerrainHeight(x + delta, z) - h;
-  const h_dz = getTerrainHeight(x, z + delta) - h;
-  const slope = Math.sqrt(h_dx * h_dx + h_dz * h_dz) / delta;
-  if (slope > 0.8) return false;
-
-  // Mountain roads at elevation bands
-  const elevationBands = [
-    { base: 15, range: 8 },
-    { base: 30, range: 8 },
-    { base: 50, range: 8 },
-  ];
-
-  for (const band of elevationBands) {
-    const heightDiff = Math.abs(h - band.base);
-    if (heightDiff < band.range) {
-      const nx = x / 100, nz = z / 100;
-      const winding = roadNoise.noise2D(nx * 0.5, nz * 0.5);
-      const spiralFactor = Math.sin(x * 0.02 + winding * 5) * Math.cos(z * 0.02 + winding * 5);
-      if (Math.abs(spiralFactor + winding * 0.3) < 0.25) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-// Get road direction - use terrain gradient (along contour)
-function getRoadDirection(x, z) {
-  return getRoadDirectionAt(x, z);
-}
-
-// Get nearest point on road
-function getNearestRoadPoint(x, z) {
-  for (let r = 0; r <= 60; r += 8) {
-    for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
-      const testX = x + Math.cos(a) * r;
-      const testZ = z + Math.sin(a) * r;
-      if (isOnRoad(testX, testZ)) {
-        return { x: testX, z: testZ };
-      }
-    }
-  }
-  return null;
 }
 
 // ---- BIRDS ----
@@ -203,48 +149,76 @@ function createCarMesh(color) {
 export function spawnCars() {
   const { dronePos } = state;
   const cc = [0xe53935, 0x1e88e5, 0x43a047, 0xfdd835, 0xff9800, 0x8e24aa, 0x00acc1, 0x5e35b1, 0x3949ab, 0xd81b60];
-  
+
   for (let i = 0; i < 15; i++) {
     const car = createCarMesh(cc[Math.floor(Math.random() * cc.length)]);
-    
-    // Place car on road
-    const a = Math.random() * Math.PI * 2;
-    const d = 40 + Math.random() * 180;
-    let cx = dronePos.x + Math.cos(a) * d;
-    let cz = dronePos.z + Math.sin(a) * d;
-    
-    const roadPoint = getNearestRoadPoint(cx, cz);
-    if (roadPoint) {
-      cx = roadPoint.x;
-      cz = roadPoint.z;
+
+    // Generate car position directly on road grid
+    // Roads are at block boundaries (BLOCK_SIZE=100)
+    // Main roads every 2 blocks, side roads at every other boundary
+    let cx, cz;
+    let attempts = 0;
+    let onRoad = false;
+
+    while (!onRoad && attempts < 20) {
+      const a = Math.random() * Math.PI * 2;
+      const d = 40 + Math.random() * 180;
+      const rx = dronePos.x + Math.cos(a) * d;
+      const rz = dronePos.z + Math.sin(a) * d;
+
+      // Snap to nearest road
+      const snapped = getNearestRoadPoint(rx, rz);
+      if (snapped) {
+        cx = snapped.x;
+        cz = snapped.z;
+        onRoad = isOnRoad(cx, cz);
+      }
+
+      attempts++;
     }
-    
+
+    // Fallback: place at a guaranteed road position near drone
+    if (!onRoad) {
+      // Find nearest block boundary that's a road
+      const blockX = Math.floor(dronePos.x / 100);
+      const blockZ = Math.floor(dronePos.z / 100);
+      // Place on a main road (every 2 blocks)
+      const mainRoadX = Math.round(blockX / 2) * 200 + 6; // +6 for road center offset
+      const mainRoadZ = Math.round(blockZ / 2) * 200 + 6;
+
+      // Randomly choose X-aligned or Z-aligned road
+      if (Math.random() > 0.5) {
+        cx = mainRoadX;
+        cz = mainRoadZ + (Math.random() - 0.5) * 80;
+      } else {
+        cx = mainRoadX + (Math.random() - 0.5) * 80;
+        cz = mainRoadZ;
+      }
+      onRoad = isOnRoad(cx, cz);
+    }
+
     car.position.set(cx, getTerrainHeight(cx, cz) + 0.35, cz);
-    
+
     // Determine movement direction along road
     let dir;
-    if (roadPoint) {
+    if (onRoad) {
       dir = getRoadDirection(cx, cz);
       // Randomly go forward or backward along road
       if (Math.random() > 0.5) dir += Math.PI;
     } else {
       dir = Math.random() * Math.PI * 2;
     }
-    
+
     const sp = 12 + Math.random() * 10;
-    // Car model faces +Z by default, rotation.y = 0
-    // Movement: vx = sin(dir), vz = cos(dir)
     car.userData = {
       vx: Math.sin(dir) * sp,
       vz: Math.cos(dir) * sp,
       speed: sp,
-      onRoad: !!roadPoint
+      onRoad
     };
-    
-    // Set rotation so car faces movement direction
-    // Car's front is +Z (hood at z=1.4), so rotation.y should match movement direction
+
     car.rotation.y = dir;
-    
+
     scene.add(car);
     cars.push(car);
   }
