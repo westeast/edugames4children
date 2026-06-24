@@ -21,6 +21,7 @@ window.addEventListener('keydown', e => {
   if (e.key === '1') window.selectDrone(0);
   if (e.key === '2') window.selectDrone(1);
   if (e.key === '3') window.selectDrone(2);
+  if (e.key === '4') window.selectDrone(3);
 });
 window.addEventListener('keyup', e => { state.keys[e.key] = false; });
 
@@ -58,7 +59,31 @@ export function setupJoystick(baseId, thumbId, stickObj) {
 }
 
 // Global control functions (called from HTML onclick handlers)
+let pendingDroneIdx = null;
+
 window.selectDrone = function(idx) {
+  // 切换到全景无人机需二次确认
+  if (DRONES[idx].panoramic && idx !== state.currentDroneIdx) {
+    pendingDroneIdx = idx;
+    const modal = document.getElementById('avataPromptModal');
+    if (modal) { modal.style.display = 'flex'; return; }
+  }
+  applyDroneSelection(idx);
+};
+
+window.confirmAvataPrompt = function() {
+  const modal = document.getElementById('avataPromptModal');
+  if (modal) modal.style.display = 'none';
+  if (pendingDroneIdx !== null) { applyDroneSelection(pendingDroneIdx); pendingDroneIdx = null; }
+};
+
+window.closeAvataPrompt = function() {
+  const modal = document.getElementById('avataPromptModal');
+  if (modal) modal.style.display = 'none';
+  pendingDroneIdx = null;
+};
+
+function applyDroneSelection(idx) {
   state.currentDroneIdx = idx; state.droneSpec = DRONES[idx];
   // Reset gimbal pitch to 0 and clamp to new drone limits
   state.gimbalPitch = Math.max(DRONES[idx].gimbalMin === -Infinity ? -90 : DRONES[idx].gimbalMin,

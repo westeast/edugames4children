@@ -68,6 +68,11 @@
     <div class="specs">轻量旗舰 · 单摄系统</div>
     <div class="stats"><div class="stat">极速 <span>16m/s</span></div><div class="stat">续航 <span>34min</span></div></div>
   </div>
+  <div class="drone-card" onclick="selectDrone(3)" id="droneCard3">
+    <div class="name">🌐 Avata 360</div>
+    <div class="specs">全景无人机 · 360°镜头</div>
+    <div class="stats"><div class="stat">极速 <span>27m/s</span></div><div class="stat">续航 <span>23min</span></div></div>
+  </div>
   <div class="panel-title" style="margin-top:14px;">操作说明</div>
   <div style="font-size:10px;color:#666;line-height:1.8;">
     左遥杆：升降 / 转向<br>
@@ -388,6 +393,24 @@
     <div class="modal-buttons">
       <button class="modal-btn cancel" onclick="cancelAvoidOff()">取消</button>
       <button class="modal-btn danger" onclick="confirmAvoidOff()">不关闭（推荐）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 全景无人机切换确认弹窗 -->
+<div id="avataPromptModal" style="display:none;">
+  <div class="modal-overlay" onclick="closeAvataPrompt()"></div>
+  <div class="modal-container">
+    <div class="modal-icon">🌐</div>
+    <div class="modal-title">切换全景无人机</div>
+    <div class="modal-desc">
+      你确定要切换全景无人机<br>
+      <strong>DJI Avata 360</strong> 吗？<br><br>
+      <small style="color:#666;">灰色机身 · 前置360°全景镜头 · 四叶涵道桨</small>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn primary" onclick="confirmAvataPrompt()">确定切换</button>
+      <button class="modal-btn" onclick="closeAvataPrompt()">取消</button>
     </div>
   </div>
 </div>
