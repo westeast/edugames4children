@@ -17,6 +17,10 @@ export function updateCamera(gameStarted = false) {
     return;
   }
 
+  // 重置 camera.up 防止 FPV 模式切换时画面倒置
+  // Three.js lookAt() 在云台俯仰角极端时会导致 up 向量翻转
+  camera.up.set(0, 1, 0);
+
   skyMesh.position.copy(state.dronePos);
   sunLight.position.set(state.dronePos.x + 200, 300, state.dronePos.z + 100);
   sunLight.target.position.copy(state.dronePos);

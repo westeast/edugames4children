@@ -124,16 +124,20 @@ function gameLoop(time) {
         p.rotation.y += state.propSpeed * dt * (i % 2 === 0 ? 1 : -1);
         p.visible = blurAmount < 0.7; // Hide blades when spinning fast
       });
-      // propBlurs: [disk0, ring0, disk1, ring1, ...] - 8 elements for 4 propellers
+      // propBlurs: Avata 360 = 8 items (disk+ring pairs), others = 4 disks only
       for (let i = 0; i < 4; i++) {
-        const disk = propBlurs[i * 2];
-        const ring = propBlurs[i * 2 + 1];
+        const isPaired = propBlurs.length === 8;
+        const diskIdx = isPaired ? i * 2 : i;
+        const disk = propBlurs[diskIdx];
         if (disk) {
           disk.material.opacity = blurAmount * 0.5;
           disk.visible = !state.fpvMode;
         }
-        if (ring) {
-          ring.visible = blurAmount >= 0.7 && !state.fpvMode;
+        if (isPaired) {
+          const ring = propBlurs[i * 2 + 1];
+          if (ring) {
+            ring.visible = blurAmount >= 0.7 && !state.fpvMode;
+          }
         }
       }
     }
