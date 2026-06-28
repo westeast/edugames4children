@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { state } from './config.js';
 import { getTerrainHeight } from './terrain.js';
 import { showNotif } from './ui.js';
+import { spawnDebris, detachDroneParts, cleanupAllDebris } from './crash-debris.js';
+import { droneGroup, propellers, propBlurs, createDroneModel } from './drone-model.js';
 
 // 炸机类型
 const CRASH_TYPES = {
@@ -46,6 +48,11 @@ export function initCrashSequence(crashType = CRASH_TYPES.COLLISION) {
   };
 
   showNotif(messages[crashType] || '💥 炸机！');
+
+  // 生成碎片和脱落零件
+  const severity = impactSpeed < 8 ? 'light' : impactSpeed < 15 ? 'medium' : 'heavy';
+  spawnDebris(impactSpeed, state.dronePos.clone(), state.droneYaw, state.droneSpec.color, state.currentDroneIdx);
+  detachDroneParts(droneGroup, propellers, propBlurs, severity, state.currentDroneIdx);
 }
 
 // 更新炸机物理 - 在游戏循环中调用
@@ -99,13 +106,13 @@ function handleGroundImpact() {
     // 2秒后重返家园
     setTimeout(resetAfterCrash, 2000);
   } else {
-    // 弹跳: 反转垂直速度并减弱
-    state.droneVel.y = -state.droneVel.y * 0.3;
+    // 弹跳: 反转垂直速度并减弱（更低弹起）
+    state.droneVel.y = -state.droneVel.y * 0.15;
 
-    // 减弱翻滚速度
-    state.tumblePitch *= 0.5;
-    state.tumbleRoll *= 0.5;
-    state.tumbleYaw *= 0.5;
+    // 减弱翻滚速度（更多翻滚感）
+    state.tumblePitch *= 0.3;
+    state.tumbleRoll *= 0.3;
+    state.tumbleYaw *= 0.3;
 
     // 弹跳音效提示
     showNotif('💥 弹跳 ' + state.crashBounceCount);
@@ -119,6 +126,10 @@ function resetAfterCrash() {
   state.isLanded = false;  // 确保清除降落状态
   state.crashBounceCount = 0;
   state.crashType = null;
+
+  // 清理碎片并重建无人机模型
+  cleanupAllDebris();
+  createDroneModel(state.currentDroneIdx);
 
   // 重置位置到家园点
   state.dronePos.copy(state.homePos);

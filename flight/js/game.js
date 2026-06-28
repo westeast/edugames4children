@@ -8,6 +8,7 @@ import { createDroneModel, droneGroup, propellers, propBlurs } from './drone-mod
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick, setupGimbalControl } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
+import { updateDebris } from './crash-debris.js';
 import { updateRTHPath, isLanding, createHomeMarker, updateHomeMarker, getHomeMarker, removeRTHPath } from './rth-path.js';
 import { getTerrainHeight } from './terrain.js';
 import * as MapBase from './maps/map-base.js';
@@ -103,6 +104,7 @@ function gameLoop(time) {
     updatePeople(dt);
     updateClouds(dt);
     updateTerrainChunks();
+    updateDebris(dt);
 
     // Update RTH path visualization
     if (state.isRTH) {

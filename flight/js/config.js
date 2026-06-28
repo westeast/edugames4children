@@ -76,4 +76,9 @@ export const state = {
   followDistance: 15,         // Maintain distance from target (meters)
   // Landed state - drone is on ground after RTH landing, needs takeoff to fly again
   isLanded: false,
+  // Crash debris state
+  cameraDetached: false,
+  cameraWobbleDir: 0,      // +1 or -1
+  cameraWobblePhase: 0,
+  cameraWobbleDecay: 0,
 };

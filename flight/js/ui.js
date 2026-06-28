@@ -48,6 +48,14 @@ export function updateCamera(gameStarted = false) {
     // 修复问题:之前 camera.rotation.z 会跟随 droneRoll 持续倾斜导致画面倒置
     // 现在强制设置为 0,让画面始终保持水平
     camera.rotation.z = 0;
+
+    // === 镜头脱落晃动效果 ===
+    if (state.cameraDetached && state.cameraWobbleDecay > 0.01) {
+      const wx = Math.sin(state.cameraWobblePhase) * state.cameraWobbleDecay * state.cameraWobbleDir;
+      const wy = -Math.abs(Math.sin(state.cameraWobblePhase * 0.7)) * state.cameraWobbleDecay * 0.5;
+      camera.position.x += wx;
+      camera.position.y += wy;
+    }
   } else {
     // Third-person camera with offset based on drone yaw
     const offset = new THREE.Vector3(0, 8, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
