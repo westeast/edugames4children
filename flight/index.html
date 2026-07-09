@@ -105,6 +105,7 @@
   <div class="quick-buttons">
     <button class="ctrl-btn-inline" id="btnCruise" onclick="toggleCruise()"><span class="icon">🚀</span><span>巡航</span></button>
     <button class="ctrl-btn-inline" id="btnRTH" onclick="triggerRTH()"><span class="icon">🏠</span><span>返航</span></button>
+    <button class="ctrl-btn-inline" id="btnWaypoint" onclick="toggleWaypoint()"><span class="icon">🧭</span><span>航点</span></button>
     <button class="ctrl-btn-inline" id="btnOBS" onclick="toggleObstacle()"><span class="icon">🛡️</span><span>避障</span></button>
     <button class="ctrl-btn-inline" id="btnFPV" onclick="toggleFPV()"><span class="icon">👁️</span><span>视角</span></button>
     <button class="ctrl-btn-inline half-width" id="btnPause" onclick="togglePause()"><span class="icon">⏸️</span><span>暂停</span></button>
@@ -429,6 +430,47 @@
     </div>
     <div class="modal-buttons">
       <button class="modal-btn primary" onclick="confirmManualModePrompt()">开始飞行</button>
+    </div>
+  </div>
+</div>
+
+<!-- 航点飞行规划弹窗 -->
+<div id="waypointModal" style="display:none;">
+  <div class="modal-overlay" onclick="closeWaypointPlanner()"></div>
+  <div class="waypoint-container">
+    <div class="waypoint-header">
+      <span class="waypoint-title">🧭 航点飞行</span>
+      <button class="waypoint-close" onclick="closeWaypointPlanner()">✕</button>
+    </div>
+    <canvas id="waypointMap" width="500" height="500"></canvas>
+    <div class="waypoint-controls">
+      <div class="waypoint-speed-row">
+        <span>飞行速度</span>
+        <input type="range" id="wpSpeed" min="5" max="30" value="10" oninput="updateWPSpeed()">
+        <span id="wpSpeedVal" style="color:#ff9500;font-weight:600;">10 m/s</span>
+      </div>
+      <div class="waypoint-info" id="wpInfo">点击地图添加航点</div>
+      <div class="waypoint-buttons">
+        <button class="waypoint-btn clear" onclick="clearWaypoints()">清除</button>
+        <button class="waypoint-btn go" onclick="startWaypointFlight()">Go</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 航点飞行确认弹窗（未起飞时） -->
+<div id="waypointConfirmModal" style="display:none;">
+  <div class="modal-overlay" onclick="cancelWaypointConfirm()"></div>
+  <div class="modal-container">
+    <div class="modal-icon">🧭</div>
+    <div class="modal-title">航点飞行</div>
+    <div class="modal-desc">
+      你确定要开启航点飞行功能吗？<br>
+      <strong>开启后飞机将起飞后再继续执行</strong>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn primary" onclick="confirmWaypointFlight()">确定起飞</button>
+      <button class="modal-btn" onclick="cancelWaypointConfirm()">取消</button>
     </div>
   </div>
 </div>

@@ -3,6 +3,7 @@ import { state, DRONES, GEAR_DESC, GEAR_MULT, MANUAL_TURN_MULT } from './config.
 import { showNotif, updateGimbalUI } from './ui.js';
 import { createDroneModel } from './drone-model.js';
 import { isManualMode, showManualModePrompt, updateGearButtonsUI } from './manual-mode.js';
+import { openWaypointPlanner, closeWaypointPlanner, stopWaypointFlight, isWaypointActive, handleMapClick, setWaypointSpeed, clearWaypoints, startWaypointFlight, confirmWaypointFlight, cancelWaypointConfirm } from './waypoint.js';
 
 // Gimbal pitch control state
 let gimbalDragging = false;
@@ -187,6 +188,32 @@ window.setGimbalMode = function(mode) {
     showNotif('云台穿越模式 - 画面将随无人机倾斜');
   }
 };
+
+// === WAYPOINT CONTROLS ===
+window.toggleWaypoint = function() {
+  if (isWaypointActive()) { stopWaypointFlight(); return; }
+  openWaypointPlanner();
+};
+window.closeWaypointPlanner = closeWaypointPlanner;
+window.clearWaypoints = clearWaypoints;
+window.startWaypointFlight = startWaypointFlight;
+window.confirmWaypointFlight = confirmWaypointFlight;
+window.cancelWaypointConfirm = cancelWaypointConfirm;
+window.updateWPSpeed = function() {
+  const slider = document.getElementById('wpSpeed');
+  const val = document.getElementById('wpSpeedVal');
+  if (slider && val) {
+    const speed = parseInt(slider.value);
+    setWaypointSpeed(speed);
+    val.textContent = speed + ' m/s';
+  }
+};
+
+// Setup waypoint map click handler after DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('waypointMap');
+  if (canvas) canvas.addEventListener('click', handleMapClick);
+});
 
 // === FOLLOW MODE CONTROLS ===
 window.startFollowMode = function(targetType) {

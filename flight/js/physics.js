@@ -10,6 +10,7 @@ import { isManualMode, updateManualControls, getManualTurnSpeed } from './manual
 import { initCrashSequence, updateCrashPhysics, CRASH_TYPES } from './crash-physics.js';
 import { buildingBounds, powerLines, bridges } from './maps/city-map.js';
 import { updateFollowPath, removeFollowPath } from './follow-path.js';
+import { updateWaypointFlight } from './waypoint.js';
 
 // Track which map we're on for collision detection
 let currentMapType = 'mountain';
@@ -45,6 +46,12 @@ export function updateDrone(dt) {
   // 处理跟随模式
   if (state.isFollowMode && state.followTarget) {
     updateFollowMode(dt);
+    return;
+  }
+
+  // 处理航点飞行 - waypoint.js handles movement directly
+  if (state.isWaypointFlying) {
+    updateWaypointPhysics(dt);
     return;
   }
 
@@ -726,4 +733,59 @@ function updateFollowMode(dt) {
   if (state.obstacleEnabled) {
     updateObstacleIndicator();
   }
+}
+
+// === WAYPOINT FLIGHT PHYSICS ===
+// waypoint.js handles position/velocity/yaw; this handles collision, battery, prop visuals
+function updateWaypointPhysics(dt) {
+  // First, let waypoint.js update position/velocity
+  updateWaypointFlight(dt);
+  if (!state.isWaypointFlying) return; // Waypoint flight ended or crashed
+
+  const maxSpd = state.droneSpec.maxSpeed;
+
+  // Ground collision
+  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  if (state.dronePos.y < groundH) {
+    state.dronePos.y = groundH;
+    if (state.droneVel.y < -8) { crash(CRASH_TYPES.COLLISION); return; }
+    else state.droneVel.y = 0;
+  }
+  if (state.dronePos.y > 500) state.dronePos.y = 500;
+
+  // Visual tilt based on velocity direction
+  const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
+  const right = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
+  const inputF = state.droneVel.dot(forward) / maxSpd;
+  const inputR = state.droneVel.dot(right) / maxSpd;
+  state.dronePitch = THREE.MathUtils.lerp(state.dronePitch, -inputF * 0.3, 3 * dt);
+  state.droneRoll = THREE.MathUtils.lerp(state.droneRoll, -inputR * 0.3, 3 * dt);
+
+  // Propeller speed
+  const basePropSpeed = 15;
+  const maxPropSpeed = 50;
+  const horizontalSpeedRatio = Math.sqrt(state.droneVel.x * state.droneVel.x + state.droneVel.z * state.droneVel.z) / maxSpd;
+  const targetPropSpeed = basePropSpeed + horizontalSpeedRatio * (maxPropSpeed - basePropSpeed);
+  state.propSpeed = THREE.MathUtils.lerp(state.propSpeed, Math.min(targetPropSpeed, maxPropSpeed), 15 * dt);
+
+  // Distance tracking
+  // (waypoint.js updates dronePos, so we track distance here)
+  // Battery drain
+  const spd = state.droneVel.length();
+  state.battery -= state.droneSpec.batteryDrain * dt * (1 + spd * 0.05);
+  if (state.battery <= 0) { state.battery = 0; crash(CRASH_TYPES.BATTERY); showNotif('电池耗尽！炸机！'); return; }
+  if (state.battery < 20 && state.battery > 19.5) showNotif('⚠️ 电量低于 20%');
+
+  // Bird collision
+  for (const bird of birds) {
+    if (bird.position.distanceTo(state.dronePos) < 3) {
+      crash(CRASH_TYPES.BIRD); showNotif('💥 撞到飞鸟！炸机！'); return;
+    }
+  }
+
+  checkBuildingCollision();
+  checkPowerLineCollision();
+  checkBridgeCollision();
+
+  if (state.obstacleEnabled) updateObstacleIndicator();
 }

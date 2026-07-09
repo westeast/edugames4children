@@ -81,4 +81,7 @@ export const state = {
   cameraWobbleDir: 0,      // +1 or -1
   cameraWobblePhase: 0,
   cameraWobbleDecay: 0,
+  // Waypoint flight state
+  isWaypointFlying: false,
+  waypointSpeed: 10,
 };
