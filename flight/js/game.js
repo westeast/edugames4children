@@ -4,7 +4,7 @@ import { renderer, scene, camera } from './engine.js';
 import { state } from './config.js';
 import { updateTerrainChunks } from './terrain.js';
 import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds, birds, cars, people, clouds, clearEntities } from './entities.js';
-import { createDroneModel, droneGroup, propellers, propBlurs } from './drone-model.js';
+import { createDroneModel, droneGroup, propellers, propBlurs, updateDroneAnimations, toggleLid, toggleModuleBay, toggleZoom, startDrag4G, updateDrag4G, endDrag4G, isDragging4GModule, lidOpen, moduleBayOpen, zoomLevel } from './drone-model.js';
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick, setupGimbalControl } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
@@ -105,6 +105,9 @@ function gameLoop(time) {
     updateClouds(dt);
     updateTerrainChunks();
     updateDebris(dt);
+
+    // Update drone interactive animations (lid, IR blink, aux light, zoom, aperture)
+    updateDroneAnimations(time / 1000);
 
     // Update RTH path visualization
     if (state.isRTH) {
@@ -263,6 +266,39 @@ function onPointerDown(event) {
 
   raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
+  // Check drone interactive parts first (lid, 4G module, module bay)
+  if (droneGroup && !state.fpvMode) {
+    const droneIntersects = raycaster.intersectObjects(droneGroup.children, true);
+    if (droneIntersects.length > 0) {
+      const hit = droneIntersects[0].object;
+
+      // Check for lid click (Air 3)
+      if (hit.userData.isLid || (hit.name === 'lid')) {
+        toggleLid();
+        showNotif(lidOpen ? '📂 盖子已打开' : '📁 盖子已关闭');
+        return;
+      }
+
+      // Check for module bay click (Mavic 3 Pro)
+      if (hit.userData.isModuleBay || (hit.name === 'bayLid')) {
+        toggleModuleBay();
+        showNotif(moduleBayOpen ? '📂 模块仓已打开' : '📁 模块仓已关闭');
+        return;
+      }
+
+      // Check for 4G module drag start
+      if (hit.userData.is4G || (hit.name === 'fourGBody') || (hit.name === 'fourGModule')) {
+        const point = droneIntersects[0].point;
+        if (startDrag4G(point)) {
+          event.preventDefault();
+          showNotif('📦 拖动4G模块到盖子内');
+          return;
+        }
+      }
+    }
+  }
+
+  // Check home marker drag
   const homeMarker = getHomeMarker();
   if (homeMarker) {
     const intersects = raycaster.intersectObject(homeMarker, true);
@@ -275,6 +311,22 @@ function onPointerDown(event) {
 }
 
 function onPointerMove(event) {
+  // Handle 4G module dragging
+  if (isDragging4GModule()) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+    // Intersect with plane at drone height
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -state.dronePos.y);
+    const point = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, point);
+    if (point && Number.isFinite(point.x)) {
+      updateDrag4G(point);
+    }
+    return;
+  }
+
   if (!isDraggingHome) return;
 
   const rect = renderer.domElement.getBoundingClientRect();
@@ -297,6 +349,12 @@ function onPointerMove(event) {
 }
 
 function onPointerUp(event) {
+  // End 4G module drag
+  if (isDragging4GModule()) {
+    endDrag4G();
+    return;
+  }
+
   if (isDraggingHome) {
     isDraggingHome = false;
     showNotif('✅ 返航点已更新');

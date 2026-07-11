@@ -1,7 +1,7 @@
 // Input handling: keyboard, virtual joystick, mobile orientation
 import { state, DRONES, GEAR_DESC, GEAR_MULT, MANUAL_TURN_MULT } from './config.js';
 import { showNotif, updateGimbalUI } from './ui.js';
-import { createDroneModel } from './drone-model.js';
+import { createDroneModel, toggleZoom, toggleLid, toggleModuleBay, zoomLevel } from './drone-model.js';
 import { isManualMode, showManualModePrompt, updateGearButtonsUI } from './manual-mode.js';
 import { openWaypointPlanner, closeWaypointPlanner, stopWaypointFlight, isWaypointActive, handleMapClick, setWaypointSpeed, clearWaypoints, startWaypointFlight, confirmWaypointFlight, cancelWaypointConfirm } from './waypoint.js';
 
@@ -23,6 +23,9 @@ window.addEventListener('keydown', e => {
   if (e.key === '2') window.selectDrone(1);
   if (e.key === '3') window.selectDrone(2);
   if (e.key === '4') window.selectDrone(3);
+  if (e.key === 'z' || e.key === 'Z') { toggleZoom(); showNotif('🔍 变焦 ' + (zoomLevel === 0 ? '1x' : zoomLevel === 1 ? '2x' : '4x')); }
+  if (e.key === 'l' || e.key === 'L') { toggleLid(); }
+  if (e.key === 'b' || e.key === 'B') { toggleModuleBay(); }
 });
 window.addEventListener('keyup', e => { state.keys[e.key] = false; });
 

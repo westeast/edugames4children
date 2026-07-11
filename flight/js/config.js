@@ -2,9 +2,9 @@
 import * as THREE from 'three';
 
 export const DRONES = [
-  { name: 'Air 3', maxSpeed: 21, color: 0xff9500, accel: 8, batteryDrain: 0.012, gimbalMin: -90, gimbalMax: 30 },
-  { name: 'Mavic 3 Pro', maxSpeed: 19, color: 0xff3b30, accel: 6, batteryDrain: 0.015, gimbalMin: -90, gimbalMax: 30 },
-  { name: 'Mini 4 Pro', maxSpeed: 16, color: 0xd0d0d0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity },
+  { name: 'Air 3', maxSpeed: 21, color: 0xc0c0c0, accel: 8, batteryDrain: 0.012, gimbalMin: -90, gimbalMax: 30 },
+  { name: 'Mavic 3 Pro', maxSpeed: 19, color: 0x3a3a3a, accel: 6, batteryDrain: 0.015, gimbalMin: -90, gimbalMax: 30 },
+  { name: 'Mini 4 Pro', maxSpeed: 16, color: 0xf0f0f0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity },
   { name: 'Avata 360', maxSpeed: 27, color: 0x9a9a9a, accel: 10, batteryDrain: 0.022, gimbalMin: -90, gimbalMax: 90, panoramic: true },
 ];
 
