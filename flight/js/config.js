@@ -84,4 +84,8 @@ export const state = {
   // Waypoint flight state
   isWaypointFlying: false,
   waypointSpeed: 10,
+  // Preflight (起飞准备流程) state
+  isPreflight: false,
+  preflightCamPos: new THREE.Vector3(0, 40, 14),
+  preflightLookAt: new THREE.Vector3(0, 30, 0),
 };

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>大疆虚拟飞行 3D - DJI Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=202606132117">
+<link rel="stylesheet" href="css/style.css?v=202607251400">
 </head>
 <body>
 
@@ -161,6 +161,40 @@
 </div>
 
 <div id="crosshair" style="display:none;"></div>
+
+<!-- 起飞准备：顶部提示条 -->
+<div id="preflightHint" style="display:none;"></div>
+
+<!-- 起飞准备：左上角连接面板（Air 3 形象 + 连接状态） -->
+<div id="linkPanel" style="display:none;"></div>
+
+<style>
+#preflightHint {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(10,10,15,0.85); color: #fff; padding: 10px 22px;
+  border-radius: 20px; font-size: 14px; z-index: 300;
+  border: 1px solid rgba(255,149,0,0.5); white-space: nowrap;
+}
+#preflightHint b { color: #ff9500; }
+#linkPanel {
+  position: fixed; top: 56px; left: 196px; z-index: 300;
+  background: rgba(10,10,15,0.88); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px; color: #fff;
+}
+#linkPanel .link-drone { font-size: 40px; line-height: 1; }
+#linkPanel .link-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+#linkPanel .link-status { font-size: 13px; color: #aaa; display: flex; align-items: center; gap: 6px; }
+#linkPanel .link-status.ok { color: #4dff88; font-weight: 600; }
+#linkPanel .link-tip { font-size: 12px; color: #ff9500; margin-top: 4px; }
+#linkPanel .link-spinner {
+  width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.25);
+  border-top-color: #ff9500; border-radius: 50%; display: inline-block;
+  animation: linkSpin 0.8s linear infinite;
+}
+@keyframes linkSpin { to { transform: rotate(360deg); } }
+@media (max-width: 768px) { #linkPanel { left: 16px; top: 52px; } }
+</style>
 
 <div id="notification"></div>
 
@@ -671,7 +705,7 @@ function showNotif(msg) {
   }
 }
 </script>
-<script type="module" src="js/game.js?v=202606132117"></script></script>
+<script type="module" src="js/game.js?v=202607251400"></script></script>
 
 </body>
 </html>

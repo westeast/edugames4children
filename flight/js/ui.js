@@ -21,6 +21,17 @@ export function updateCamera(gameStarted = false) {
   // Three.js lookAt() 在云台俯仰角极端时会导致 up 向量翻转
   camera.up.set(0, 1, 0);
 
+  // 起飞准备阶段：相机看向部署场景（由 preflight.js 写入目标位置）
+  if (state.isPreflight) {
+    skyMesh.position.copy(state.preflightCamPos);
+    sunLight.position.set(state.preflightCamPos.x + 200, 300, state.preflightCamPos.z + 100);
+    sunLight.target.position.copy(state.preflightLookAt);
+    sunLight.target.updateMatrixWorld();
+    camera.position.lerp(state.preflightCamPos, 0.08);
+    camera.lookAt(state.preflightLookAt);
+    return;
+  }
+
   skyMesh.position.copy(state.dronePos);
   sunLight.position.set(state.dronePos.x + 200, 300, state.dronePos.z + 100);
   sunLight.target.position.copy(state.dronePos);

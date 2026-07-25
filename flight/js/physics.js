@@ -16,7 +16,7 @@ import { updateWaypointFlight } from './waypoint.js';
 let currentMapType = 'mountain';
 
 export function updateDrone(dt) {
-  if (state.isCrashed || state.isPaused || !state.gameStarted) return;
+  if (state.isCrashed || state.isPaused || !state.gameStarted || state.isPreflight) return;
 
   // 处理炸机物理
   if (state.isCrashing) {

@@ -12,6 +12,7 @@ import { updateDebris } from './crash-debris.js';
 import { updateRTHPath, isLanding, createHomeMarker, updateHomeMarker, getHomeMarker, removeRTHPath } from './rth-path.js';
 import { getTerrainHeight } from './terrain.js';
 import * as MapBase from './maps/map-base.js';
+import { startPreflight, updatePreflight, getPreflightPhase, preflightPointerDown, preflightPointerMove, preflightPointerUp } from './preflight.js';
 import * as MountainMap from './maps/mountain-map.js';
 import * as CityMap from './maps/city-map.js';
 
@@ -93,8 +94,11 @@ function gameLoop(time) {
   lastTime = time;
 
   if (state.gameStarted && !state.isPaused) {
-    // Handle emergency stop tumbling crash
-    if (state.isEmergencyStop) {
+    // Preflight sequence (选点/部署/开机流程) replaces drone physics
+    if (state.isPreflight) {
+      updatePreflight(dt);
+    } else if (state.isEmergencyStop) {
+      // Handle emergency stop tumbling crash
       updateEmergencyStop(dt);
     } else {
       updateDrone(dt);
@@ -120,7 +124,7 @@ function gameLoop(time) {
     }
 
     if (droneGroup) {
-      droneGroup.visible = !state.fpvMode;
+      droneGroup.visible = !state.fpvMode && !state.isPreflight;
       droneGroup.position.copy(state.dronePos);
       droneGroup.rotation.set(state.dronePitch, state.droneYaw, state.droneRoll);
       // Propeller visual: show blur disk at high speed, blades at low speed
@@ -213,13 +217,15 @@ async function init() {
   setupJoystick('baseL', 'thumbL', state.leftStick);
   setupJoystick('baseR', 'thumbR', state.rightStick);
   setupGimbalControl();
-  showNotif('🛫 起飞！祝飞行愉快', 5);
 
   // Create home marker (H) for return point
   createHomeMarker();
 
   // Setup home marker dragging
   setupHomeMarkerDrag();
+
+  // 进入起飞准备流程（选起飞点 → 背包人部署 → 开机 → 起飞）
+  startPreflight();
 
   // Force landscape orientation hint on mobile
   if (/Mobi|Android/i.test(navigator.userAgent)) {
@@ -259,6 +265,9 @@ function setupHomeMarkerDrag() {
 
 function onPointerDown(event) {
   if (!state.gameStarted) return;
+
+  // 起飞准备阶段：拖动移动起飞点
+  if (state.isPreflight) { preflightPointerDown(event); return; }
 
   const rect = renderer.domElement.getBoundingClientRect();
   const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -311,6 +320,8 @@ function onPointerDown(event) {
 }
 
 function onPointerMove(event) {
+  if (state.isPreflight) { preflightPointerMove(event); return; }
+
   // Handle 4G module dragging
   if (isDragging4GModule()) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -349,6 +360,8 @@ function onPointerMove(event) {
 }
 
 function onPointerUp(event) {
+  if (state.isPreflight) { preflightPointerUp(event); return; }
+
   // End 4G module drag
   if (isDragging4GModule()) {
     endDrag4G();
