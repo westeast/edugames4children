@@ -229,6 +229,14 @@
             border: 2px solid #333;
         }
 
+        .piece.detail {
+            width: 34px;
+            height: 34px;
+            font-size: 10px;
+            letter-spacing: -0.5px;
+            white-space: nowrap;
+        }
+
         .danger-point {
             position: absolute;
             width: 8px;
@@ -439,6 +447,40 @@
                 <div class="info-label">下一步</div>
                 <div class="info-value" id="nextPlayer">黑棋</div>
             </div>
+            <hr style="border: none; border-top: 1px dashed #ccc; margin: 10px 0;">
+            <div class="info-item">
+                <div class="info-label">音标</div>
+                <div class="info-value" id="soundSymbol">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">类型</div>
+                <div class="info-value" id="soundCat">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">清浊/长短</div>
+                <div class="info-value" id="soundVoice">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">字母组合</div>
+                <div class="info-value" id="soundLetters">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">例词</div>
+                <div class="info-value" id="soundSample">—</div>
+            </div>
+            <hr style="border: none; border-top: 1px dashed #ccc; margin: 10px 0;">
+            <div class="info-item">
+                <div class="info-label">单词拼写</div>
+                <div class="info-value" id="wordSpelling">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">单词音标</div>
+                <div class="info-value" id="wordPhonetic">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">单词含义</div>
+                <div class="info-value" id="wordMeaning">—</div>
+            </div>
         </div>
         
         <div class="game-container">
@@ -451,6 +493,8 @@
                         <option value="final">3. 拼音韵母</option>
                         <option value="uppercase">4. 大写字母</option>
                         <option value="lowercase">5. 小写字母</option>
+                        <option value="ipaVowel">6. 国际音标元音</option>
+                        <option value="ipaConsonant">7. 国际音标辅音</option>
                     </select>
                 </div>
                 <div class="button-group">
@@ -483,13 +527,126 @@
             displayType: 'number'
         };
 
+        // 国际音标元音（12 单元音 + 8 双元音）
+        const IPA_VOWELS = [
+            // —— 单元音 12 个 ——
+            { symbol: '/iː/', cat: '单元音', voice: '长元音', zh: '衣', sample: 'see', samplePhonetic: '/siː/' },
+            { symbol: '/ɪ/', cat: '单元音', voice: '短元音', zh: '衣', sample: 'sit', samplePhonetic: '/sɪt/' },
+            { symbol: '/e/', cat: '单元音', voice: '短元音', zh: '哎', sample: 'bed', samplePhonetic: '/bed/' },
+            { symbol: '/æ/', cat: '单元音', voice: '短元音', zh: '艾', sample: 'cat', samplePhonetic: '/kæt/' },
+            { symbol: '/ɜː/', cat: '单元音', voice: '长元音', zh: '鹅', sample: 'bird', samplePhonetic: '/bɜːd/' },
+            { symbol: '/ə/', cat: '单元音', voice: '短元音', zh: '呃', sample: 'water', samplePhonetic: '/ˈwɔːtə/' },
+            { symbol: '/ʌ/', cat: '单元音', voice: '短元音', zh: '啊', sample: 'cup', samplePhonetic: '/kʌp/' },
+            { symbol: '/ɑː/', cat: '单元音', voice: '长元音', zh: '啊', sample: 'car', samplePhonetic: '/kɑː/' },
+            { symbol: '/ɒ/', cat: '单元音', voice: '短元音', zh: '奥', sample: 'hot', samplePhonetic: '/hɒt/' },
+            { symbol: '/ɔː/', cat: '单元音', voice: '长元音', zh: '奥', sample: 'door', samplePhonetic: '/dɔː/' },
+            { symbol: '/ʊ/', cat: '单元音', voice: '短元音', zh: '乌', sample: 'book', samplePhonetic: '/bʊk/' },
+            { symbol: '/uː/', cat: '单元音', voice: '长元音', zh: '乌', sample: 'moon', samplePhonetic: '/muːn/' },
+            // —— 双元音 8 个 ——
+            { symbol: '/eɪ/', cat: '双元音', voice: '', zh: '诶', sample: 'cake', samplePhonetic: '/keɪk/' },
+            { symbol: '/aɪ/', cat: '双元音', voice: '', zh: '爱', sample: 'bike', samplePhonetic: '/baɪk/' },
+            { symbol: '/ɔɪ/', cat: '双元音', voice: '', zh: '奥衣', sample: 'toy', samplePhonetic: '/tɔɪ/' },
+            { symbol: '/aʊ/', cat: '双元音', voice: '', zh: '傲', sample: 'house', samplePhonetic: '/haʊs/' },
+            { symbol: '/əʊ/', cat: '双元音', voice: '', zh: '欧', sample: 'goat', samplePhonetic: '/ɡəʊt/' },
+            { symbol: '/ɪə/', cat: '双元音', voice: '', zh: '衣呃', sample: 'ear', samplePhonetic: '/ɪə/' },
+            { symbol: '/eə/', cat: '双元音', voice: '', zh: '哎呃', sample: 'hair', samplePhonetic: '/heə/' },
+            { symbol: '/ʊə/', cat: '双元音', voice: '', zh: '乌呃', sample: 'tour', samplePhonetic: '/tʊə/' }
+        ];
+
+        // 国际音标辅音（爆破→摩擦→破擦→鼻音→边音→半元音，共 28 个）
+        const IPA_CONSONANTS = [
+            // —— 爆破音 6 ——
+            { symbol: '/p/', cat: '爆破音', voice: '清辅音', zh: '泼', sample: 'pig', samplePhonetic: '/pɪɡ/', letters: 'p, pp' },
+            { symbol: '/b/', cat: '爆破音', voice: '浊辅音', zh: '波', sample: 'book', samplePhonetic: '/bʊk/', letters: 'b, bb' },
+            { symbol: '/t/', cat: '爆破音', voice: '清辅音', zh: '特', sample: 'tea', samplePhonetic: '/tiː/', letters: 't, tt, ed' },
+            { symbol: '/d/', cat: '爆破音', voice: '浊辅音', zh: '得', sample: 'dog', samplePhonetic: '/dɒɡ/', letters: 'd, dd, ed' },
+            { symbol: '/k/', cat: '爆破音', voice: '清辅音', zh: '科', sample: 'kite', samplePhonetic: '/kaɪt/', letters: 'k, c, ck, ch, q' },
+            { symbol: '/ɡ/', cat: '爆破音', voice: '浊辅音', zh: '哥', sample: 'goat', samplePhonetic: '/ɡəʊt/', letters: 'g, gg, gh' },
+            // —— 摩擦音 10 ——
+            { symbol: '/f/', cat: '摩擦音', voice: '清辅音', zh: '夫', sample: 'fish', samplePhonetic: '/fɪʃ/', letters: 'f, ff, ph, gh' },
+            { symbol: '/v/', cat: '摩擦音', voice: '浊辅音', zh: '呜', sample: 'van', samplePhonetic: '/væn/', letters: 'v, ve' },
+            { symbol: '/θ/', cat: '摩擦音', voice: '清辅音', zh: '思', sample: 'three', samplePhonetic: '/θriː/', letters: 'th' },
+            { symbol: '/ð/', cat: '摩擦音', voice: '浊辅音', zh: '兹', sample: 'this', samplePhonetic: '/ðɪs/', letters: 'th' },
+            { symbol: '/s/', cat: '摩擦音', voice: '清辅音', zh: '思', sample: 'sun', samplePhonetic: '/sʌn/', letters: 's, ss, c, ce, sc' },
+            { symbol: '/z/', cat: '摩擦音', voice: '浊辅音', zh: '兹', sample: 'zoo', samplePhonetic: '/zuː/', letters: 'z, zz, s, se' },
+            { symbol: '/ʃ/', cat: '摩擦音', voice: '清辅音', zh: '诗', sample: 'ship', samplePhonetic: '/ʃɪp/', letters: 'sh, ti, si, ci' },
+            { symbol: '/ʒ/', cat: '摩擦音', voice: '浊辅音', zh: '日', sample: 'vision', samplePhonetic: '/ˈvɪʒn/', letters: 's, si, ge' },
+            { symbol: '/h/', cat: '摩擦音', voice: '清辅音', zh: '喝', sample: 'hat', samplePhonetic: '/hæt/', letters: 'h, wh' },
+            { symbol: '/r/', cat: '摩擦音', voice: '浊辅音', zh: '若', sample: 'red', samplePhonetic: '/red/', letters: 'r, rr, wr' },
+            // —— 破擦音 6 ——
+            { symbol: '/tʃ/', cat: '破擦音', voice: '清辅音', zh: '吃', sample: 'chair', samplePhonetic: '/tʃeə/', letters: 'ch, tch' },
+            { symbol: '/dʒ/', cat: '破擦音', voice: '浊辅音', zh: '知', sample: 'jump', samplePhonetic: '/dʒʌmp/', letters: 'j, ge, dge' },
+            { symbol: '/tr/', cat: '破擦音', voice: '清辅音', zh: '戳', sample: 'tree', samplePhonetic: '/triː/', letters: 'tr' },
+            { symbol: '/dr/', cat: '破擦音', voice: '浊辅音', zh: '捉', sample: 'dream', samplePhonetic: '/driːm/', letters: 'dr' },
+            { symbol: '/ts/', cat: '破擦音', voice: '清辅音', zh: '次', sample: 'cats', samplePhonetic: '/kæts/', letters: 'ts' },
+            { symbol: '/dz/', cat: '破擦音', voice: '浊辅音', zh: '自', sample: 'friends', samplePhonetic: '/frendz/', letters: 'ds, des' },
+            // —— 鼻音 3 ——
+            { symbol: '/m/', cat: '鼻音', voice: '浊辅音', zh: '摸', sample: 'moon', samplePhonetic: '/muːn/', letters: 'm, mm, mb' },
+            { symbol: '/n/', cat: '鼻音', voice: '浊辅音', zh: '讷', sample: 'nose', samplePhonetic: '/nəʊz/', letters: 'n, nn, kn, gn' },
+            { symbol: '/ŋ/', cat: '鼻音', voice: '浊辅音', zh: '嗯', sample: 'sing', samplePhonetic: '/sɪŋ/', letters: 'ng, n' },
+            // —— 边音 1 ——
+            { symbol: '/l/', cat: '边音', voice: '浊辅音', zh: '勒', sample: 'leg', samplePhonetic: '/leɡ/', letters: 'l, ll' },
+            // —— 半元音 2 ——
+            { symbol: '/j/', cat: '半元音', voice: '浊辅音', zh: '衣', sample: 'yes', samplePhonetic: '/jes/', letters: 'y, u' },
+            { symbol: '/w/', cat: '半元音', voice: '浊辅音', zh: '乌', sample: 'water', samplePhonetic: '/ˈwɔːtə/', letters: 'w, wh' }
+        ];
+
+        // 常用单词（元音/辅音音标读完后接着读的组合单词）
+        const WORDS = [
+            { word: 'Stop', phonetic: '/stɒp/', meaning: '停止' },
+            { word: 'Apple', phonetic: '/ˈæpl/', meaning: '苹果' },
+            { word: 'Dog', phonetic: '/dɒɡ/', meaning: '小狗' },
+            { word: 'Cat', phonetic: '/kæt/', meaning: '小猫' },
+            { word: 'Bird', phonetic: '/bɜːd/', meaning: '小鸟' },
+            { word: 'Fish', phonetic: '/fɪʃ/', meaning: '鱼' },
+            { word: 'Book', phonetic: '/bʊk/', meaning: '书' },
+            { word: 'Milk', phonetic: '/mɪlk/', meaning: '牛奶' },
+            { word: 'Water', phonetic: '/ˈwɔːtə/', meaning: '水' },
+            { word: 'Family', phonetic: '/ˈfæməli/', meaning: '家庭' },
+            { word: 'Mother', phonetic: '/ˈmʌðə/', meaning: '妈妈' },
+            { word: 'Father', phonetic: '/ˈfɑːðə/', meaning: '爸爸' },
+            { word: 'Brother', phonetic: '/ˈbrʌðə/', meaning: '兄弟' },
+            { word: 'Sister', phonetic: '/ˈsɪstə/', meaning: '姐妹' },
+            { word: 'Baby', phonetic: '/ˈbeɪbi/', meaning: '宝宝' },
+            { word: 'Sun', phonetic: '/sʌn/', meaning: '太阳' },
+            { word: 'Moon', phonetic: '/muːn/', meaning: '月亮' },
+            { word: 'Star', phonetic: '/stɑː/', meaning: '星星' },
+            { word: 'Tree', phonetic: '/triː/', meaning: '大树' },
+            { word: 'Flower', phonetic: '/ˈflaʊə/', meaning: '花朵' },
+            { word: 'Ball', phonetic: '/bɔːl/', meaning: '球' },
+            { word: 'Duck', phonetic: '/dʌk/', meaning: '小鸭子' },
+            { word: 'Pig', phonetic: '/pɪɡ/', meaning: '小猪' },
+            { word: 'Cow', phonetic: '/kaʊ/', meaning: '奶牛' },
+            { word: 'Horse', phonetic: '/hɔːs/', meaning: '马' },
+            { word: 'Sheep', phonetic: '/ʃiːp/', meaning: '绵羊' },
+            { word: 'Rabbit', phonetic: '/ˈræbɪt/', meaning: '兔子' },
+            { word: 'Monkey', phonetic: '/ˈmʌŋki/', meaning: '猴子' },
+            { word: 'Panda', phonetic: '/ˈpændə/', meaning: '熊猫' },
+            { word: 'School', phonetic: '/skuːl/', meaning: '学校' },
+            { word: 'Teacher', phonetic: '/ˈtiːtʃə/', meaning: '老师' },
+            { word: 'Student', phonetic: '/ˈstjuːdənt/', meaning: '学生' },
+            { word: 'Happy', phonetic: '/ˈhæpi/', meaning: '开心' },
+            { word: 'House', phonetic: '/haʊs/', meaning: '房子' },
+            { word: 'Door', phonetic: '/dɔː/', meaning: '门' },
+            { word: 'Chair', phonetic: '/tʃeə/', meaning: '椅子' },
+            { word: 'Table', phonetic: '/ˈteɪbl/', meaning: '桌子' },
+            { word: 'Car', phonetic: '/kɑː/', meaning: '小汽车' },
+            { word: 'Bus', phonetic: '/bʌs/', meaning: '公交车' },
+            { word: 'Train', phonetic: '/treɪn/', meaning: '火车' },
+            { word: 'Plane', phonetic: '/pleɪn/', meaning: '飞机' },
+            { word: 'Bike', phonetic: '/baɪk/', meaning: '自行车' }
+        ];
+
         // 显示内容数据
         const displayData = {
             number: Array.from({length: 255}, (_, i) => (i + 1).toString()),
             initial: ['b', 'p', 'm', 'f', 'd', 't', 'n', 'l', 'g', 'k', 'h', 'j', 'q', 'x', 'zh', 'ch', 'sh', 'r', 'z', 'c', 's', 'y', 'w'],
             final: ['a', 'o', 'e', 'i', 'u', 'ü', 'ai', 'ei', 'ui', 'ao', 'ou', 'iu', 'ie', 'üe', 'er', 'an', 'en', 'in', 'un', 'ün', 'ang', 'eng', 'ing', 'ong'],
             uppercase: Array.from({length: 26}, (_, i) => String.fromCharCode(65 + i)),
-            lowercase: Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i))
+            lowercase: Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i)),
+            // 音标读完不循环回开头，接着读组合单词
+            ipaVowel: [...IPA_VOWELS, ...WORDS],
+            ipaConsonant: [...IPA_CONSONANTS, ...WORDS]
         };
 
         // 声音对象
@@ -573,14 +730,23 @@
         function createPiece(row, col, player) {
             const piece = document.createElement('div');
             piece.className = `piece ${player}`;
-            
+
             // 根据显示类型设置内容
             const content = getDisplayContent();
-            piece.textContent = content;
-            
+            if (typeof content === 'object') {
+                // 国际音标或单词对象
+                piece.textContent = content.symbol || content.word;
+                piece.classList.add('detail');
+            } else {
+                piece.textContent = content;
+            }
+
             // 播放棋子内容的语音
             speakContent(content);
-            
+
+            // 更新左侧学习信息栏
+            updateSoundInfo(content);
+
             return piece;
         }
 
@@ -839,36 +1005,84 @@
 
         // 朗读内容（优化发音）
         function speakContent(content) {
-            if ('speechSynthesis' in window) {
-                // 为汉语拼音声母和韵母提供正确的发音
-                const pinyinMap = {
-                    // 声母
-                    'b': '玻', 'p': '坡', 'm': '摸', 'f': '佛',
-                    'd': '得', 't': '特', 'n': '讷', 'l': '勒',
-                    'g': '哥', 'k': '科', 'h': '喝',
-                    'j': '基', 'q': '欺', 'x': '希',
-                    'zh': '知', 'ch': '吃', 'sh': '诗', 'r': '日',
-                    'z': '资', 'c': '雌', 's': '思', 'y': '衣', 'w': '乌',
-                    // 韵母
-                    'a': '啊', 'o': '喔', 'e': '鹅', 'i': '衣', 'u': '乌', 'ü': '迂',
-                    'ai': '爱', 'ei': '诶', 'ui': '威', 'ao': '熬', 'ou': '欧', 'iu': '优',
-                    'ie': '耶', 'üe': '约', 'er': '儿',
-                    'an': '安', 'en': '恩', 'in': '因', 'un': '温', 'ün': '晕',
-                    'ang': '昂', 'eng': '亨', 'ing': '英', 'ong': '轰'
-                };
-                
-                // 检查是否是汉语拼音
-                let speakContent = content;
-                if (pinyinMap[content]) {
-                    speakContent = pinyinMap[content];
+            if (!('speechSynthesis' in window)) return;
+
+            // 国际音标 / 单词对象
+            if (typeof content === 'object') {
+                // 音标：先中文近似音，再英文例词（发出实际声音）
+                if (content.zh) {
+                    const u1 = new SpeechSynthesisUtterance(content.zh);
+                    u1.lang = 'zh-CN';
+                    u1.rate = 0.9;   // 稍微放慢语速，更适合儿童
+                    u1.pitch = 1.1;  // 稍微提高音调，更有趣
+                    speechSynthesis.speak(u1);
                 }
-                
-                const utterance = new SpeechSynthesisUtterance(speakContent);
-                // 优化发音 - 使用中文语音
-                utterance.lang = 'zh-CN';
-                utterance.rate = 0.9; // 稍微放慢语速，更适合儿童
-                utterance.pitch = 1.1; // 稍微提高音调，更有趣
-                speechSynthesis.speak(utterance);
+                const enText = content.sample || content.word;
+                if (enText) {
+                    const u2 = new SpeechSynthesisUtterance(enText);
+                    u2.lang = 'en-US';
+                    u2.rate = 0.7;
+                    u2.pitch = 1.1;
+                    speechSynthesis.speak(u2);
+                }
+                return;
+            }
+
+            // 为汉语拼音声母和韵母提供正确的发音
+            const pinyinMap = {
+                // 声母
+                'b': '玻', 'p': '坡', 'm': '摸', 'f': '佛',
+                'd': '得', 't': '特', 'n': '讷', 'l': '勒',
+                'g': '哥', 'k': '科', 'h': '喝',
+                'j': '基', 'q': '欺', 'x': '希',
+                'zh': '知', 'ch': '吃', 'sh': '诗', 'r': '日',
+                'z': '资', 'c': '雌', 's': '思', 'y': '衣', 'w': '乌',
+                // 韵母
+                'a': '啊', 'o': '喔', 'e': '鹅', 'i': '衣', 'u': '乌', 'ü': '迂',
+                'ai': '爱', 'ei': '诶', 'ui': '威', 'ao': '熬', 'ou': '欧', 'iu': '优',
+                'ie': '耶', 'üe': '约', 'er': '儿',
+                'an': '安', 'en': '恩', 'in': '因', 'un': '温', 'ün': '晕',
+                'ang': '昂', 'eng': '亨', 'ing': '英', 'ong': '轰'
+            };
+
+            // 检查是否是汉语拼音
+            let speakText = content;
+            if (pinyinMap[content]) {
+                speakText = pinyinMap[content];
+            }
+
+            const utterance = new SpeechSynthesisUtterance(speakText);
+            // 优化发音 - 使用中文语音
+            utterance.lang = 'zh-CN';
+            utterance.rate = 0.9; // 稍微放慢语速，更适合儿童
+            utterance.pitch = 1.1; // 稍微提高音调，更有趣
+            speechSynthesis.speak(utterance);
+        }
+
+        // 更新左侧学习信息栏（音标/单词）
+        function updateSoundInfo(content) {
+            const clear = (ids) => ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '—';
+            });
+
+            clear(['soundSymbol', 'soundCat', 'soundVoice', 'soundLetters', 'soundSample', 'wordSpelling', 'wordPhonetic', 'wordMeaning']);
+
+            if (!content || typeof content !== 'object') return;
+
+            if (content.word) {
+                // 单词：显示拼写、音标、含义
+                document.getElementById('wordSpelling').textContent = content.word;
+                document.getElementById('wordPhonetic').textContent = content.phonetic;
+                document.getElementById('wordMeaning').textContent = content.meaning;
+            } else {
+                // 音标：显示符号、类型、清浊/长短、字母组合、例词
+                document.getElementById('soundSymbol').textContent = content.symbol;
+                document.getElementById('soundCat').textContent = content.cat;
+                document.getElementById('soundVoice').textContent = content.voice || '—';
+                document.getElementById('soundLetters').textContent = content.letters || '—';
+                document.getElementById('soundSample').textContent =
+                    content.sample ? `${content.sample} ${content.samplePhonetic || ''}` : '—';
             }
         }
 
@@ -884,6 +1098,7 @@
             initBoard();
             updateStatus();
             document.querySelectorAll('.danger-point').forEach(point => point.remove());
+            updateSoundInfo(null); // 重置左侧学习信息栏
         }
 
         // 开始游戏
