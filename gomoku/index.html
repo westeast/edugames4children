@@ -1003,27 +1003,63 @@
             }
         }
 
-        // 朗读内容（优化发音）
+        // —— 语音朗读（优选清晰、标准、自然悦耳的音色） ——
+        let ttsVoices = [];
+
+        // 加载可用语音（部分浏览器需等 voiceschanged 事件后才有列表）
+        function loadTTSVoices() {
+            if ('speechSynthesis' in window) {
+                ttsVoices = speechSynthesis.getVoices();
+            }
+        }
+        if ('speechSynthesis' in window) {
+            loadTTSVoices();
+            speechSynthesis.onvoiceschanged = loadTTSVoices;
+        }
+
+        // 优选音色：优先「在线自然(神经)」语音，其次 Google / Microsoft 女声，保证清晰悦耳
+        function pickVoice(lang) {
+            const voices = (ttsVoices && ttsVoices.length) ? ttsVoices : (window.speechSynthesis ? speechSynthesis.getVoices() : []);
+            const prefix = (lang === 'zh-CN' ? 'zh' : 'en').toLowerCase();
+            const matches = voices.filter(v => (v.lang || '').toLowerCase().replace('_', '-').startsWith(prefix));
+            if (!matches.length) return null;
+
+            const score = (v) => {
+                const n = v.name || '';
+                let s = 0;
+                if (/natural|online|neural/i.test(n)) s += 100;      // 神经网络自然语音
+                if (/google/i.test(n)) s += 60;                       // Google 合成女声，标准清晰
+                if (/xiaoxiao|huihui|yaoyao|kangkang|aria|jenny|zira|anna/i.test(n)) s += 50; // 优选悦耳女声
+                if (/female/i.test(n)) s += 30;
+                return s;
+            };
+            return matches.slice().sort((a, b) => score(b) - score(a))[0];
+        }
+
+        // 朗读一段文本（统一参数：洪亮、清晰、标准、不变调）
+        function speakText(text, lang, rate) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = lang;
+            utterance.volume = 1.0;        // 洪亮
+            utterance.rate = rate || 0.9;  // 稍慢、清晰，适合儿童
+            utterance.pitch = 1.0;         // 自然、不变调（避免机器人/怪兽音）
+            const voice = pickVoice(lang);
+            if (voice) utterance.voice = voice;
+            speechSynthesis.speak(utterance);
+        }
+
+        // 朗读棋子内容（优化发音）
         function speakContent(content) {
             if (!('speechSynthesis' in window)) return;
 
             // 国际音标 / 单词对象
-            if (typeof content === 'object') {
-                // 音标：先中文近似音，再英文例词（发出实际声音）
+            if (content && typeof content === 'object') {
                 if (content.zh) {
-                    const u1 = new SpeechSynthesisUtterance(content.zh);
-                    u1.lang = 'zh-CN';
-                    u1.rate = 0.9;   // 稍微放慢语速，更适合儿童
-                    u1.pitch = 1.1;  // 稍微提高音调，更有趣
-                    speechSynthesis.speak(u1);
-                }
-                const enText = content.sample || content.word;
-                if (enText) {
-                    const u2 = new SpeechSynthesisUtterance(enText);
-                    u2.lang = 'en-US';
-                    u2.rate = 0.7;
-                    u2.pitch = 1.1;
-                    speechSynthesis.speak(u2);
+                    // 音标阶段：先完整读完全部音标，此阶段只读音标发音（中文近似音）
+                    speakText(content.zh, 'zh-CN');
+                } else if (content.word) {
+                    // 单词阶段：音标全部读完后，读单词的实际英文发音
+                    speakText(content.word, 'en-US', 0.8);
                 }
                 return;
             }
@@ -1046,17 +1082,11 @@
             };
 
             // 检查是否是汉语拼音
-            let speakText = content;
+            let speakStr = content;
             if (pinyinMap[content]) {
-                speakText = pinyinMap[content];
+                speakStr = pinyinMap[content];
             }
-
-            const utterance = new SpeechSynthesisUtterance(speakText);
-            // 优化发音 - 使用中文语音
-            utterance.lang = 'zh-CN';
-            utterance.rate = 0.9; // 稍微放慢语速，更适合儿童
-            utterance.pitch = 1.1; // 稍微提高音调，更有趣
-            speechSynthesis.speak(utterance);
+            speakText(speakStr, 'zh-CN');
         }
 
         // 更新左侧学习信息栏（音标/单词）
