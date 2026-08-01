@@ -1017,7 +1017,7 @@
             speechSynthesis.onvoiceschanged = loadTTSVoices;
         }
 
-        // 优选音色：优先「在线自然(神经)」语音，其次 Google / Microsoft 女声，保证清晰悦耳
+        // 优选音色：优先「在线自然(神经)」语音，其次苹果(macOS)/Google/Microsoft 标准女声，保证清晰悦耳
         function pickVoice(lang) {
             const voices = (ttsVoices && ttsVoices.length) ? ttsVoices : (window.speechSynthesis ? speechSynthesis.getVoices() : []);
             const prefix = (lang === 'zh-CN' ? 'zh' : 'en').toLowerCase();
@@ -1027,10 +1027,13 @@
             const score = (v) => {
                 const n = v.name || '';
                 let s = 0;
-                if (/natural|online|neural/i.test(n)) s += 100;      // 神经网络自然语音
-                if (/google/i.test(n)) s += 60;                       // Google 合成女声，标准清晰
+                if (/natural|online|neural|premium|enhanced/i.test(n)) s += 100;   // 神经网络/高清自然语音
+                if (/tingting|sinji|meijia|mei-jia/i.test(n)) s += 90;             // 苹果中文女声（婷婷/欣怡/美嘉）
+                if (/google/i.test(n)) s += 60;                                     // Google 合成女声，标准清晰
+                if (/samantha|victoria|karen|serena|fiona|moira/i.test(n)) s += 70; // 苹果英文女声（macOS 系统音色）
                 if (/xiaoxiao|huihui|yaoyao|kangkang|aria|jenny|zira|anna/i.test(n)) s += 50; // 优选悦耳女声
-                if (/female/i.test(n)) s += 30;
+                if (/daniel|alex/i.test(n)) s += 30;                               // 苹果英文标准男声（英式/美式）
+                if (/female/i.test(n)) s += 20;
                 return s;
             };
             return matches.slice().sort((a, b) => score(b) - score(a))[0];
