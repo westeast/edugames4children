@@ -2,10 +2,13 @@
 import * as THREE from 'three';
 
 export const DRONES = [
-  { name: 'Air 3', maxSpeed: 21, color: 0xc0c0c0, accel: 8, batteryDrain: 0.012, gimbalMin: -90, gimbalMax: 30 },
-  { name: 'Mavic 3 Pro', maxSpeed: 19, color: 0x3a3a3a, accel: 6, batteryDrain: 0.015, gimbalMin: -90, gimbalMax: 30 },
-  { name: 'Mini 4 Pro', maxSpeed: 16, color: 0xf0f0f0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity },
-  { name: 'Avata 360', maxSpeed: 27, color: 0x9a9a9a, accel: 10, batteryDrain: 0.022, gimbalMin: -90, gimbalMax: 90, panoramic: true },
+  { name: 'Air 3',       model: 'air3',       maxSpeed: 21, color: 0xc0c0c0, accel: 8, batteryDrain: 0.012, gimbalMin: -90, gimbalMax: 30,             needsArmUnfold: true,  windResist: 1.0 },
+  { name: 'Air 3S',      model: 'air3s',      maxSpeed: 21, color: 0xc8c8c8, accel: 8, batteryDrain: 0.012, gimbalMin: -90, gimbalMax: 30,             needsArmUnfold: true,  windResist: 1.0, lidar: true },
+  { name: 'Mavic 3 Pro', model: 'mavic3pro',  maxSpeed: 19, color: 0x3a3a3a, accel: 6, batteryDrain: 0.015, gimbalMin: -90, gimbalMax: 30,             needsArmUnfold: true,  windResist: 1.0 },
+  { name: 'Mavic 4 Pro', model: 'mavic4pro',  maxSpeed: 20, color: 0x1e1e24, accel: 7, batteryDrain: 0.014, gimbalMin: -90, gimbalMax: 45,             needsArmUnfold: true,  windResist: 1.0, rollCapable: true, lidar: true },
+  { name: 'Mini 4 Pro',  model: 'mini4pro',   maxSpeed: 16, color: 0xf0f0f0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity, needsArmUnfold: true,  windResist: 0.7 },
+  { name: 'Neo 2',       model: 'neo2',       maxSpeed: 14, color: 0xfafafa, accel: 5, batteryDrain: 0.014, gimbalMin: -90, gimbalMax: 90,             needsArmUnfold: false, windResist: 0.3, followCam: true },
+  { name: 'Avata 360',   model: 'avata360',   maxSpeed: 27, color: 0x9a9a9a, accel: 10, batteryDrain: 0.022, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: false, windResist: 0.6, panoramic: true },
 ];
 
 export const GEAR_MULT = { C: 0.4, N: 1.0, S: 1.6, M: 1.8 };
@@ -90,4 +93,15 @@ export const state = {
   preflightLookAt: new THREE.Vector3(0, 30, 0),
   // Avata 360 相机模式：'single' 单镜头 | 'dual' 双镜头全景 | 'super' 超全景
   avataCamMode: 'single',
+  // 大风地图 / 风级系统
+  windLevel: 8,                 // 风级 1-8（默认 8）
+  windActive: false,            // 当前地图是否起风（大风地图 true）
+  windAngle: Math.PI / 5,       // 风向来向角（弧度）
+  windSwept: false,             // Neo 2 是否已被吹飞
+  windCrash: false,             // Neo 2 是否已风坠炸机（触发记者播报）
+  // Mavic 4 Pro 横滚旋转
+  gimbalRoll: 0,                // 相机横滚角（度），范围 -45 ~ +400
+  rollModeEnabled: false,       // 设置里横滚旋转开关
+  // Neo 2 操控方式
+  neo2Control: 'rc',            // 'rc' 遥控器 | 'phone' 手机
 };

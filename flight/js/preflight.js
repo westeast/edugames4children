@@ -203,12 +203,22 @@ function buildFoldedDrone() {
       // 前臂折叠：转向机身后方（贴着机身）
       pivot.rotation.y = d.deployY + (d.deployY > 0 ? 1 : -1) * 2.0;
       pivot.userData = { deployY: d.deployY, foldedY: pivot.rotation.y };
+      // 无需展开机翼的机型（Neo 2 / Avata 360）：初始即展开，无折叠动画
+      if (state.droneSpec && state.droneSpec.needsArmUnfold === false) {
+        pivot.rotation.y = d.deployY;
+        pivot.userData.foldedY = d.deployY;
+      }
       frontArms.push(pivot);
     } else {
       // 后臂折叠：垂在下面（绕本地X轴下垂）
       pivot.rotation.y = d.deployY;
       pivot.rotation.x = 1.35;
       pivot.userData = { deployX: 0, foldedX: 1.35 };
+      // 无需展开机翼的机型：后臂初始即水平
+      if (state.droneSpec && state.droneSpec.needsArmUnfold === false) {
+        pivot.rotation.x = 0;
+        pivot.userData.foldedX = 0;
+      }
       rearArms.push(pivot);
     }
     g.add(pivot);
@@ -415,8 +425,8 @@ const steps = [
     },
   },
   { // 6 前机臂往侧向旋转展开
-    dur: 1.0,
-    start() { showNotif('🚁 展开前机臂（侧向旋转）'); personLeanTarget = 0.28; },
+    dur: state.droneSpec.needsArmUnfold === false ? 0.05 : 1.0,
+    start() { if (state.droneSpec.needsArmUnfold !== false) { showNotif('🚁 展开前机臂（侧向旋转）'); personLeanTarget = 0.28; } },
     update(k) {
       frontArms.forEach(p => {
         p.rotation.y = p.userData.foldedY + (p.userData.deployY - p.userData.foldedY) * easeOut(k);
@@ -424,8 +434,8 @@ const steps = [
     },
   },
   { // 7 后机臂从下旋转展开
-    dur: 1.0,
-    start() { showNotif('🚁 展开后机臂（从下旋转）'); },
+    dur: state.droneSpec.needsArmUnfold === false ? 0.05 : 1.0,
+    start() { if (state.droneSpec.needsArmUnfold !== false) { showNotif('🚁 展开后机臂（从下旋转）'); } },
     update(k) {
       rearArms.forEach(p => {
         p.rotation.x = p.userData.foldedX + (p.userData.deployX - p.userData.foldedX) * easeOut(k);

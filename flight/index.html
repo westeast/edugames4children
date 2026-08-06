@@ -43,6 +43,8 @@
   </div>
   <div class="status-item"><span>🛰️</span><span class="val" id="gpsVal">23</span><span class="unit">GPS</span></div>
   <div style="font-size:11px;color:#ff9500;font-weight:600;" id="flightMode">N档</div>
+  <button class="roll-btn" id="rollBtn" style="display:none" onclick="stepRoll(45)" oncontextmenu="stepRoll(-45);return false;">横滚 0°</button>
+  <div style="font-size:11px;color:#4fc3f7;font-weight:600;display:none;" id="windHud">💨 8级</div>
   <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
   <button class="settings-btn" onclick="openSettings()">⋮</button>
 </div>
@@ -59,16 +61,31 @@
     <div class="stats"><div class="stat">极速 <span>21m/s</span></div><div class="stat">续航 <span>46min</span></div></div>
   </div>
   <div class="drone-card" onclick="selectDrone(1)" id="droneCard1">
+    <div class="name">🔴 Air 3S</div>
+    <div class="specs">前方激光雷达 · 红点扫闪避障</div>
+    <div class="stats"><div class="stat">极速 <span>21m/s</span></div><div class="stat">续航 <span>45min</span></div></div>
+  </div>
+  <div class="drone-card" onclick="selectDrone(2)" id="droneCard2">
     <div class="name">⚫ Mavic 3 Pro</div>
     <div class="specs">专业旗舰 · 三摄哈苏 · 深灰</div>
     <div class="stats"><div class="stat">极速 <span>19m/s</span></div><div class="stat">续航 <span>43min</span></div></div>
   </div>
-  <div class="drone-card" onclick="selectDrone(2)" id="droneCard2">
+  <div class="drone-card" onclick="selectDrone(3)" id="droneCard3">
+    <div class="name">🎥 Mavic 4 Pro</div>
+    <div class="specs">深灰旗舰 · 横滚旋转 · 右前雷达</div>
+    <div class="stats"><div class="stat">极速 <span>20m/s</span></div><div class="stat">续航 <span>46min</span></div></div>
+  </div>
+  <div class="drone-card" onclick="selectDrone(4)" id="droneCard4">
     <div class="name">⬜ Mini 4 Pro</div>
     <div class="specs">轻量旗舰 · 单摄变焦 · 白色</div>
     <div class="stats"><div class="stat">极速 <span>16m/s</span></div><div class="stat">续航 <span>34min</span></div></div>
   </div>
-  <div class="drone-card" onclick="selectDrone(3)" id="droneCard3">
+  <div class="drone-card" onclick="selectDrone(5)" id="droneCard5">
+    <div class="name">📱 Neo 2</div>
+    <div class="specs">跟拍机 · 前显示屏 · 手机/遥控双控</div>
+    <div class="stats"><div class="stat">极速 <span>14m/s</span></div><div class="stat">续航 <span>18min</span></div></div>
+  </div>
+  <div class="drone-card" onclick="selectDrone(6)" id="droneCard6">
     <div class="name">🌐 Avata 360</div>
     <div class="specs">全景无人机 · 360°镜头</div>
     <div class="stats"><div class="stat">极速 <span>27m/s</span></div><div class="stat">续航 <span>23min</span></div></div>
@@ -81,7 +98,7 @@
     键盘：WASD移动<br>
     Q/E转向 Space升 Shift降<br>
     V视角 H返航 P暂停<br>
-    C巡航 O避障 1/2/3机型
+    C巡航 O避障 1-7机型
   </div>
   </div>
 </div>
@@ -205,6 +222,12 @@
 
 <div id="notification"></div>
 
+<!-- 记者播报字幕气泡 -->
+<div id="subtitleBubble" style="display:none;">
+  <span class="subtitle-mic">🎙️</span>
+  <span id="subtitleText"></span>
+</div>
+
 <!-- 设置弹窗 -->
 <div id="settingsModal" style="display:none;">
   <div class="settings-overlay" onclick="closeSettings()"></div>
@@ -296,7 +319,22 @@
                 <div class="map-desc">现代都市 · 摩天大楼 · 街道网络</div>
               </div>
             </div>
+            <div class="map-card" data-map="wind" onclick="selectMap('wind')">
+              <div class="map-preview">🌬️</div>
+              <div class="map-info">
+                <div class="map-name">大风</div>
+                <div class="map-desc">狂风草原 · 大树摇曳 · 记者播报</div>
+              </div>
+            </div>
           </div>
+        </div>
+        <div class="setting-item" id="windLevelItem">
+          <div class="setting-label">风级（1-8）</div>
+          <div class="setting-row">
+            <input type="range" id="windLevel" min="1" max="8" value="8" style="flex:1;" oninput="setWindLevel()">
+            <span class="unit-label" id="windLevelVal">8级</span>
+          </div>
+          <div class="setting-desc">风级越高，Neo 2 越容易被吹飞</div>
         </div>
       </div>
 
@@ -341,6 +379,14 @@
             <button class="option-btn" id="gimbalFPV" onclick="setGimbalMode('fpv')">穿越</button>
           </div>
           <div class="setting-desc" id="gimbalModeDesc">跟随模式：云台保持水平，画面稳定</div>
+        </div>
+        <div class="setting-item" id="rollModeItem" style="display:none;">
+          <div class="setting-label">横滚旋转 <small style="color:#888;">(Mavic 4 Pro)</small></div>
+          <div class="setting-row">
+            <button class="toggle-btn" id="rollModeToggle" onclick="setRollMode(!rollModeToggle.classList.contains('active'))">关闭</button>
+            <span class="unit-label" style="color:#888;">-45° ~ +400°</span>
+          </div>
+          <div class="setting-desc">开启后右上角显示横滚度数按钮，左键 +45° / 右键 -45°</div>
         </div>
         <div class="setting-item">
           <div class="setting-label">跟随模式</div>
@@ -453,6 +499,68 @@
     <div class="modal-buttons">
       <button class="modal-btn primary" onclick="confirmAvataPrompt()">确定切换</button>
       <button class="modal-btn" onclick="closeAvataPrompt()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Neo 2 跟拍机切换确认弹窗（仅确定按钮） -->
+<div id="neo2ConfirmModal" style="display:none;">
+  <div class="modal-overlay" onclick="cancelNeo2()"></div>
+  <div class="modal-container">
+    <div class="modal-icon">📱</div>
+    <div class="modal-title">确定要切换 Neo 2 吗？</div>
+    <div class="modal-desc">
+      <strong>跟拍机</strong><br><br>
+      <small style="color:#666;">白色机身 · 前显示屏 · 手机/遥控双操控 · 大风天气易被吹飞</small>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn primary" onclick="confirmNeo2()">确定切换</button>
+    </div>
+  </div>
+</div>
+
+<!-- Neo 2 双操控选择（白屏 + 蓝框） -->
+<div id="neo2ControlChooser" style="display:none;">
+  <div class="chooser-overlay"></div>
+  <div class="chooser-container">
+    <div class="chooser-title">选择操控方式</div>
+    <div class="chooser-sub">Neo 2 · DJI Neo 2 跟拍机</div>
+    <div class="neo2-control-option active" data-mode="rc" onclick="chooseNeo2Control('rc')">
+      <div class="neo2-opt-icon">🎮</div>
+      <div class="neo2-opt-name">遥控器操控</div>
+      <div class="neo2-opt-desc">RC Pro 2 遥控器 · 精准操控</div>
+    </div>
+    <div class="neo2-control-option" data-mode="phone" onclick="chooseNeo2Control('phone')">
+      <div class="neo2-opt-icon">📱</div>
+      <div class="neo2-opt-name">手机操控</div>
+      <div class="neo2-opt-desc">DJI Fly 连接 · 手机虚拟摇杆</div>
+    </div>
+  </div>
+</div>
+
+<!-- 手机操控界面：DJI Fly 连接 + 手机虚拟摇杆 -->
+<div id="phoneControlOverlay" style="display:none;">
+  <div class="phone-frame">
+    <div class="phone-statusbar">
+      <span>DJI Fly</span>
+      <span id="phoneConnectStatus" class="connecting">正在连接 Neo 2...</span>
+    </div>
+    <div class="phone-screen">
+      <div class="phone-connect-area">
+        <div class="phone-drone-icon">📱➜🚁</div>
+        <div class="phone-spinner" id="phoneConnectSpinner"></div>
+        <div id="phoneConnected" style="display:none;color:#4dff88;font-weight:700;font-size:16px;">已连接 ✓</div>
+        <div style="font-size:12px;color:#999;">Neo 2 · 跟拍机 · Wi-Fi 连接</div>
+      </div>
+      <div id="phoneJoysticks" style="display:none;">
+        <div class="joystick-base phone-stick" id="phoneLeftBase"><div class="joystick-thumb" id="phoneLeftThumb"></div></div>
+        <div class="phone-stick-label">高度/方向</div>
+        <div class="joystick-base phone-stick" id="phoneRightBase"><div class="joystick-thumb" id="phoneRightThumb"></div></div>
+        <div class="phone-stick-label">俯仰/横滚</div>
+      </div>
+    </div>
+    <div class="phone-bottom">
+      <button class="phone-close-btn" onclick="closePhoneControl()">退出手机操控</button>
     </div>
   </div>
 </div>

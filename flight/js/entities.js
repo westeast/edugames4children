@@ -21,6 +21,7 @@ export function clearEntities() {
   cars.forEach(c => scene.remove(c));
   people.forEach(p => scene.remove(p));
   clouds.forEach(c => scene.remove(c));
+  removeReporter();
   birds.length = 0;
   cars.length = 0;
   people.length = 0;
@@ -716,4 +717,56 @@ export function updateClouds(dt) {
       c.position.z = dronePos.z + Math.sin(a) * (500 + Math.random() * 300);
     }
   });
+}
+
+// ---- REPORTER (大风地图记者) ----
+
+function createReporterMesh() {
+  const g = createPersonMesh(0x1e63d0);  // 蓝马甲
+  g.name = 'reporter';
+
+  // 右手挂麦克风：黑柄 + 球头 + 红色海绵罩
+  const mic = new THREE.Group();
+  mic.name = 'mic';
+
+  const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.22, 6);
+  const handleMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+  const handle = new THREE.Mesh(handleGeo, handleMat);
+  handle.position.y = -0.08;
+  mic.add(handle);
+
+  const headGeo = new THREE.SphereGeometry(0.04, 8, 8);
+  const headMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 0.06;
+  mic.add(head);
+
+  const foamGeo = new THREE.SphereGeometry(0.06, 10, 8);
+  foamGeo.scale(1, 1.35, 1);
+  const foamMat = new THREE.MeshLambertMaterial({ color: 0xcc2222 });
+  const foam = new THREE.Mesh(foamGeo, foamMat);
+  foam.position.y = 0.09;
+  mic.add(foam);
+
+  // 挂到右手边（人形右手位于 x=0.22）
+  mic.position.set(0.22, 0.78, 0);
+  g.add(mic);
+
+  return g;
+}
+
+export function spawnReporter() {
+  if (window.__flightReporter) return;
+  const g = createReporterMesh();
+  const hx = state.homePos.x, hz = state.homePos.z;
+  g.position.set(hx, getTerrainHeight(hx, hz), hz);
+  scene.add(g);
+  window.__flightReporter = g;
+}
+
+export function removeReporter() {
+  if (window.__flightReporter) {
+    scene.remove(window.__flightReporter);
+    window.__flightReporter = null;
+  }
 }

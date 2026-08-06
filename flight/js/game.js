@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { renderer, scene, camera } from './engine.js';
 import { state } from './config.js';
 import { updateTerrainChunks } from './terrain.js';
-import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds, birds, cars, people, clouds, clearEntities } from './entities.js';
+import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds, birds, cars, people, clouds, clearEntities, spawnReporter, removeReporter } from './entities.js';
 import { createDroneModel, droneGroup, propellers, propBlurs, updateDroneAnimations, toggleLid, toggleModuleBay, toggleZoom, startDrag4G, updateDrag4G, endDrag4G, isDragging4GModule, lidOpen, moduleBayOpen, zoomLevel } from './drone-model.js';
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick, setupGimbalControl } from './controls.js';
@@ -16,6 +16,8 @@ import * as MapBase from './maps/map-base.js';
 import { startPreflight, updatePreflight, getPreflightPhase, preflightPointerDown, preflightPointerMove, preflightPointerUp } from './preflight.js';
 import * as MountainMap from './maps/mountain-map.js';
 import * as CityMap from './maps/city-map.js';
+import * as WindMap from './maps/wind-map.js';
+import { speakWindCrash } from './tts.js';
 
 // Export emergency stop to global scope for HTML onclick
 window.emergencyStop = emergencyStop;
@@ -23,7 +25,7 @@ window.emergencyStop = emergencyStop;
 window.gameState = state;
 // Debug/test hook: expose scene & drone group for Playwright assertions
 // droneGroup 用 getter 保持实时引用（createDroneModel 后非空）
-window.__flightDebug = { scene, get droneGroup() { return droneGroup; } };
+window.__flightDebug = { scene, camera, get droneGroup() { return droneGroup; } };
 
 // Dragging state for home marker
 let isDraggingHome = false;
@@ -42,8 +44,11 @@ function updateAvataWatcher() {
     if (wasLanded && !state.isLanded && !state.isPreflight) {
       if (state.avataCamMode === 'single') window.setAvataCamMode('dual');
     }
-    // 准备阶段开始/结束 → 刷新相机栏可见性
-    if (wasPreflight !== state.isPreflight) window.updateAvataCamUI();
+    // 准备阶段开始/结束 → 刷新相机栏 + 横滚按钮可见性
+    if (wasPreflight !== state.isPreflight) {
+      window.updateAvataCamUI();
+      window.updateRollBtn && window.updateRollBtn();
+    }
   }
   wasLanded = state.isLanded;
   wasPreflight = state.isPreflight;
@@ -52,15 +57,39 @@ function updateAvataWatcher() {
 // Register maps
 MapBase.registerMap('mountain', MountainMap);
 MapBase.registerMap('city', CityMap);
+MapBase.registerMap('wind', WindMap);
+
+// 大风风坠检测：windCrash 置位后触发记者播报 + 更新风级 HUD
+function updateWindWatcher() {
+  const hud = document.getElementById('windHud');
+  if (hud) {
+    if (state.windActive) {
+      hud.style.display = '';
+      hud.textContent = '💨 ' + state.windLevel + '级';
+    } else {
+      hud.style.display = 'none';
+    }
+  }
+  if (state.windCrash && state.windActive) {
+    state.windCrash = false;
+    speakWindCrash();
+  }
+}
 
 // Set map switch callback
 MapBase.setMapSwitchCallback(async (newMapType) => {
   // Clear all entities
   clearEntities();
+  // 大风地图：清完后生成带麦克风的记者（必须在 clearEntities 之后）
+  if (newMapType === 'wind') spawnReporter();
+  else removeReporter();
   // 地图切换重置 Avata 全景状态（回单镜头）
   resetPano();
   state.avataCamMode = 'single';
   window.updateAvataCamUI && window.updateAvataCamUI();
+  // 大风状态复位
+  state.windSwept = false; state.windCrash = false; state.gimbalRoll = 0;
+  window.updateRollBtn && window.updateRollBtn();
 
   // Reset drone position
   state.dronePos.set(0, 30, 0);
@@ -137,6 +166,7 @@ function gameLoop(time) {
     updateClouds(dt);
     updateTerrainChunks();
     updateDebris(dt);
+    updateWindWatcher();
 
     // Update drone interactive animations (lid, IR blink, aux light, zoom, aperture)
     updateDroneAnimations(time / 1000);
@@ -193,12 +223,13 @@ async function init() {
 
   // Initialize map from localStorage (persisted selection)
   const savedMap = localStorage.getItem('flight-sim-map') || 'mountain';
-  const validMaps = ['mountain', 'city'];
+  const validMaps = ['mountain', 'city', 'wind'];
   const mapToUse = validMaps.includes(savedMap) ? savedMap : 'mountain';
 
   MapBase.mapState.currentMap = MapBase.getMap(mapToUse);
   MapBase.mapState.currentMapType = mapToUse;
   await MapBase.mapState.currentMap.initMap();
+  if (mapToUse === 'wind') spawnReporter();
 
   // Update map card UI to show correct selection
   document.querySelectorAll('.map-card').forEach(card => {

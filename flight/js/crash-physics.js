@@ -13,7 +13,8 @@ const CRASH_TYPES = {
   COLLISION: 'collision',  // 撞击地形/障碍物
   BIRD: 'bird',           // 撞击飞鸟
   BATTERY: 'battery',     // 电池耗尽
-  EMERGENCY: 'emergency'  // 紧急停桨
+  EMERGENCY: 'emergency',  // 紧急停桨
+  WIND: 'wind'            // 大风把 Neo 2 吹飞坠落
 };
 
 // 启动炸机序列
@@ -44,7 +45,8 @@ export function initCrashSequence(crashType = CRASH_TYPES.COLLISION) {
     [CRASH_TYPES.COLLISION]: '💥 撞击障碍物！炸机！',
     [CRASH_TYPES.BIRD]: '💥 撞到飞鸟！炸机！',
     [CRASH_TYPES.BATTERY]: '💥 电池耗尽！炸机！',
-    [CRASH_TYPES.EMERGENCY]: '💥 紧急停桨导致炸机！'
+    [CRASH_TYPES.EMERGENCY]: '💥 紧急停桨导致炸机！',
+    [CRASH_TYPES.WIND]: '💨 大风把 Neo 2 吹飞！重重摔毁！稀巴烂！',
   };
 
   showNotif(messages[crashType] || '💥 炸机！');
@@ -142,6 +144,11 @@ function resetAfterCrash() {
   state.battery = 100;
   state.totalDist = 0;
   state.propSpeed = 15;
+
+  // 重置大风系统状态
+  state.windSwept = false;
+  state.windCrash = false;
+  state.gimbalRoll = 0;
 
   // 隐藏炸机覆盖层
   const overlay = document.getElementById('crashOverlay');

@@ -1,7 +1,7 @@
 // Crash Debris System - 炸机碎片掉落效果
 import * as THREE from 'three';
 import { scene } from './engine.js';
-import { state } from './config.js';
+import { state, DRONES } from './config.js';
 import { getTerrainHeight } from './terrain.js';
 
 const DEBRIS_LIFETIME = 4;   // 秒后开始淡出
@@ -16,7 +16,7 @@ let activeDebris = [];
 
 export function spawnDebris(impactSpeed, dronePos, droneYaw, accentColor, droneIdx) {
   const severity = impactSpeed < 8 ? 'light' : impactSpeed < 15 ? 'medium' : 'heavy';
-  const isAvata = droneIdx === 3;
+  const isAvata = !!(DRONES[droneIdx] && DRONES[droneIdx].panoramic);
 
   // 无人机螺旋桨位置 (非全景 vs 全景)
   const propPositions = isAvata
@@ -150,7 +150,9 @@ export function detachDroneParts(droneGroup, propellers, propBlurs, severity, dr
           child.name === 'lens' ||
           child.name === 'djiLabel' ||
           child.name.startsWith('fisheye_') ||
-          child.name.startsWith('duct_')) {
+          child.name.startsWith('duct_') ||
+          child.name.startsWith('lidar') ||
+          child.name.startsWith('neo2')) {
         toRemove.push(child);
       }
     }

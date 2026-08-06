@@ -24,6 +24,9 @@ window.addEventListener('keydown', e => {
   if (e.key === '2') window.selectDrone(1);
   if (e.key === '3') window.selectDrone(2);
   if (e.key === '4') window.selectDrone(3);
+  if (e.key === '5') window.selectDrone(4);
+  if (e.key === '6') window.selectDrone(5);
+  if (e.key === '7') window.selectDrone(6);
   if (e.key === 'z' || e.key === 'Z') { toggleZoom(); showNotif('🔍 变焦 ' + (zoomLevel === 0 ? '1x' : zoomLevel === 1 ? '2x' : '4x')); }
   if (e.key === 'l' || e.key === 'L') { toggleLid(); }
   if (e.key === 'b' || e.key === 'B') { toggleModuleBay(); }
@@ -73,6 +76,12 @@ window.selectDrone = function(idx) {
     const modal = document.getElementById('avataPromptModal');
     if (modal) { modal.style.display = 'flex'; return; }
   }
+  // 切换到 Neo 2 跟拍机需二次确认（仅确定按钮）
+  if (DRONES[idx].followCam && idx !== state.currentDroneIdx) {
+    pendingDroneIdx = idx;
+    const modal = document.getElementById('neo2ConfirmModal');
+    if (modal) { modal.style.display = 'flex'; return; }
+  }
   applyDroneSelection(idx);
 };
 
@@ -88,11 +97,42 @@ window.closeAvataPrompt = function() {
   pendingDroneIdx = null;
 };
 
+// === Neo 2 跟拍机确认（仅确定切换按钮） ===
+window.confirmNeo2 = function() {
+  const modal = document.getElementById('neo2ConfirmModal');
+  if (modal) modal.style.display = 'none';
+  if (pendingDroneIdx !== null) {
+    applyDroneSelection(pendingDroneIdx);
+    pendingDroneIdx = null;
+    // 确认后弹白屏双操控选择
+    const chooser = document.getElementById('neo2ControlChooser');
+    if (chooser) {
+      document.querySelectorAll('.neo2-control-option').forEach((o, i) => o.classList.toggle('active', i === 0));
+      chooser.style.display = 'flex';
+    }
+  }
+};
+
+window.cancelNeo2 = function() {
+  const modal = document.getElementById('neo2ConfirmModal');
+  if (modal) modal.style.display = 'none';
+  pendingDroneIdx = null;
+};
+
 function applyDroneSelection(idx) {
   state.currentDroneIdx = idx; state.droneSpec = DRONES[idx];
   // Reset gimbal pitch to 0 and clamp to new drone limits
   state.gimbalPitch = Math.max(DRONES[idx].gimbalMin === -Infinity ? -90 : DRONES[idx].gimbalMin,
                                Math.min(DRONES[idx].gimbalMax === Infinity ? 30 : DRONES[idx].gimbalMax, 0));
+  // 横滚 / 大风 / 手机操控 状态复位
+  state.gimbalRoll = 0;
+  state.windSwept = false; state.windCrash = false;
+  state.neo2Control = 'rc';
+  closePhoneControl(true);
+  // 仅 Mavic 4 Pro 显示「横滚旋转」设置项
+  const rollItem = document.getElementById('rollModeItem');
+  if (rollItem) rollItem.style.display = DRONES[idx].rollCapable ? '' : 'none';
+  if (!DRONES[idx].rollCapable) state.rollModeEnabled = false;
   document.querySelectorAll('.drone-card').forEach((c, i) => { c.classList.toggle('active', i === idx); });
   createDroneModel(idx);
   updateGimbalUI();
@@ -107,6 +147,7 @@ function applyDroneSelection(idx) {
     const camBar = document.getElementById('avataCamBar');
     if (camBar) camBar.style.display = 'none';
   }
+  updateRollBtn();
   showNotif('切换机型: ' + state.droneSpec.name);
 };
 
@@ -131,6 +172,108 @@ window.updateAvataCamUI = function() {
     b.classList.toggle('active', b.dataset.cam === state.avataCamMode);
   });
 };
+
+// === Neo 2 跟拍机：双操控选择（白屏 + 蓝框） ===
+window.chooseNeo2Control = function(mode) {
+  const chooser = document.getElementById('neo2ControlChooser');
+  document.querySelectorAll('.neo2-control-option').forEach(o => {
+    o.classList.toggle('active', o.dataset.mode === mode);
+  });
+  state.neo2Control = mode;
+  if (chooser) chooser.style.display = 'none';
+  if (mode === 'rc') {
+    showNotif('🎮 遥控器操控 Neo 2');
+  } else {
+    openPhoneControl();
+  }
+};
+
+window.cancelNeo2Chooser = function() {
+  const chooser = document.getElementById('neo2ControlChooser');
+  if (chooser) chooser.style.display = 'none';
+  state.neo2Control = 'rc';
+};
+
+// === 大风地图风级设置（1-8） ===
+window.setWindLevel = function() {
+  const slider = document.getElementById('windLevel');
+  if (!slider) return;
+  const level = parseInt(slider.value);
+  state.windLevel = level;
+  const val = document.getElementById('windLevelVal');
+  if (val) val.textContent = level + '级';
+  const hud = document.getElementById('windHud');
+  if (hud) hud.textContent = '💨 ' + level + '级';
+  showNotif('🌬️ 风级设置为 ' + level + '级');
+};
+
+// === 手机操控：DJI Fly 连接动画 + 手机虚拟摇杆 ===
+function openPhoneControl() {
+  const overlay = document.getElementById('phoneControlOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  const status = document.getElementById('phoneConnectStatus');
+  if (status) { status.textContent = '正在连接 Neo 2...'; status.className = 'connecting'; }
+  const spinner = document.getElementById('phoneConnectSpinner');
+  if (spinner) spinner.style.display = 'block';
+  const connected = document.getElementById('phoneConnected');
+  if (connected) connected.style.display = 'none';
+  const joysticks = document.getElementById('phoneJoysticks');
+  if (joysticks) joysticks.style.display = 'none';
+  // 模拟 DJI Fly 连接过程
+  setTimeout(() => {
+    if (status) { status.textContent = '已连接'; status.className = 'connected'; }
+    if (spinner) spinner.style.display = 'none';
+    if (connected) connected.style.display = 'block';
+    if (joysticks) joysticks.style.display = 'flex';
+    showNotif('📱 手机已连接 Neo 2');
+  }, 1800);
+}
+
+window.closePhoneControl = function(noReset) {
+  const overlay = document.getElementById('phoneControlOverlay');
+  if (overlay) overlay.style.display = 'none';
+  const joysticks = document.getElementById('phoneJoysticks');
+  if (joysticks) joysticks.style.display = 'none';
+  const status = document.getElementById('phoneConnectStatus');
+  if (status) { status.textContent = '正在连接 Neo 2...'; status.className = 'connecting'; }
+  const spinner = document.getElementById('phoneConnectSpinner');
+  if (spinner) spinner.style.display = 'block';
+  if (!noReset) state.neo2Control = 'rc';
+};
+
+// === Mavic 4 Pro 横滚旋转（-45° ~ +400°） ===
+window.setRollMode = function(enabled) {
+  state.rollModeEnabled = enabled;
+  const toggle = document.getElementById('rollModeToggle');
+  if (toggle) {
+    toggle.classList.toggle('active', enabled);
+    toggle.textContent = enabled ? '开启' : '关闭';
+  }
+  if (!enabled) state.gimbalRoll = 0;
+  updateRollBtn();
+  showNotif(enabled ? '🎥 横滚旋转已开启（左键 +45° / 右键 -45°）' : '横滚旋转已关闭');
+};
+
+window.stepRoll = function(delta) {
+  if (!state.droneSpec.rollCapable || !state.rollModeEnabled) return;
+  state.gimbalRoll = Math.max(-45, Math.min(400, state.gimbalRoll + delta));
+  updateRollBtn();
+};
+
+window.updateRollBtn = function() {
+  const btn = document.getElementById('rollBtn');
+  if (!btn) return;
+  const spec = state.droneSpec;
+  const show = !!spec.rollCapable && state.rollModeEnabled && !state.isPreflight && state.gameStarted;
+  btn.style.display = show ? '' : 'none';
+  if (show) btn.textContent = '横滚 ' + Math.round(state.gimbalRoll) + '°';
+};
+
+// 手机操控虚拟摇杆（与主摇杆共用输入状态）
+document.addEventListener('DOMContentLoaded', () => {
+  setupJoystick('phoneLeftBase', 'phoneLeftThumb', state.leftStick);
+  setupJoystick('phoneRightBase', 'phoneRightThumb', state.rightStick);
+});
 
 window.setGear = function(gear) {
   // 如果切换到 M档，显示提示弹窗

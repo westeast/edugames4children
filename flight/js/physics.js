@@ -15,6 +15,44 @@ import { updateWaypointFlight } from './waypoint.js';
 // Track which map we're on for collision detection
 let currentMapType = 'mountain';
 
+// === 大风系统（大风地图 / 风级 1-8） ===
+let windTime = 0;
+
+// 风坠触地 → 重重摔毁（heavy 稀巴烂）+ 触发记者播报 flag
+function handleWindGroundImpact() {
+  state.impactSpeed = 22;
+  state.windCrash = true;
+  crash(CRASH_TYPES.WIND);
+}
+
+// 每帧施加大风：按机型抗风系数 windResist 施加持续风力；
+// 8 级大风 + 抗风弱机型（Neo 2）→ 瞬间被吹飞 + 持续下坠
+function applyWind(dt) {
+  const level = state.windLevel;
+  if (level <= 0 || !state.windActive || state.isCrashing || state.isEmergencyStop) return;
+  if (state.isPreflight || state.isLanded) return;
+
+  const resist = state.droneSpec.windResist ?? 1.0;
+  const force = (level / 8) * 18 * (1 - resist * 0.8);  // Air3/Mavic4≈3.6 轻摆 | Mini≈7.9 | Neo2≈13.7
+  windTime += dt;
+  const gust = 0.8 + 0.2 * Math.sin(windTime * 1.7);
+  const wx = Math.sin(state.windAngle) * force * gust;
+  const wz = Math.cos(state.windAngle) * force * gust;
+
+  const inSpecial = state.isFollowMode || state.isWaypointFlying;
+
+  if (level >= 8 && resist <= 0.4 && !state.windSwept && !inSpecial) {
+    state.windSwept = true;
+    state.droneVel.x += wx * 6;
+    state.droneVel.z += wz * 6;   // 瞬间横向甩出
+    showNotif('🌬️ 大风！Neo 2 被吹飞了！');
+  } else {
+    state.droneVel.x += wx * dt;
+    state.droneVel.z += wz * dt;
+  }
+  if (state.windSwept) state.droneVel.y -= 14 * dt;  // 持续下坠 → 高速触地
+}
+
 export function updateDrone(dt) {
   if (state.isCrashed || state.isPaused || !state.gameStarted || state.isPreflight) return;
 
@@ -211,10 +249,14 @@ export function updateDrone(dt) {
   targetVel.addScaledVector(right, inputR * maxSpd);
   targetVel.y = inputUp * maxSpd * 0.6;
 
-  // Velocity smoothing
-  state.droneVel.lerp(targetVel, accel * dt * 0.3);
+  // Velocity smoothing（被风刮走后不再受玩家输入控制，仅随风流）
+  if (!state.windSwept) {
+    state.droneVel.lerp(targetVel, accel * dt * 0.3);
+    const s = state.droneVel.length();
+    if (s > maxSpd) state.droneVel.multiplyScalar(maxSpd / s);
+  }
   const spd = state.droneVel.length();
-  if (spd > maxSpd) state.droneVel.multiplyScalar(maxSpd / spd);
+  applyWind(dt);
 
   // Position update
   const prevPos = state.dronePos.clone();
@@ -224,6 +266,7 @@ export function updateDrone(dt) {
   const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
+    if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }
     if (state.droneVel.y < -8) { crash(CRASH_TYPES.COLLISION); return; }
     else state.droneVel.y = 0;
   }
@@ -294,10 +337,14 @@ export function updateDrone(dt) {
 function doCollisionAndBattery(dt) {
   const maxSpd = state.droneSpec.maxSpeed * (GEAR_MULT['M'] || 1.8);
 
+  // 大风
+  applyWind(dt);
+
   // Ground collision
   const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
+    if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }
     if (state.droneVel.y < -8) { crash(CRASH_TYPES.COLLISION); return; }
     else state.droneVel.y = 0;
   }
@@ -671,10 +718,14 @@ function updateFollowMode(dt) {
   const prevPos = state.dronePos.clone();
   state.dronePos.add(state.droneVel.clone().multiplyScalar(dt));
 
+  // 大风（跟随模式不触发被吹飞，仅持续力）
+  applyWind(dt);
+
   // Ground collision
   const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
+    if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }
     state.droneVel.y = 0;
   }
 
@@ -744,10 +795,14 @@ function updateWaypointPhysics(dt) {
 
   const maxSpd = state.droneSpec.maxSpeed;
 
+  // 大风（航点飞行不触发被吹飞，仅持续力）
+  applyWind(dt);
+
   // Ground collision
   const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
+    if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }
     if (state.droneVel.y < -8) { crash(CRASH_TYPES.COLLISION); return; }
     else state.droneVel.y = 0;
   }

@@ -27,6 +27,13 @@ let lensZoomMesh = null;
 let avataGimbal = null;       // Avata 360 双镜头云台（起飞后竖直）
 let miniGimbalPivot = null;   // Mini 4 Pro 镜头云台转轴（随 gimbalPitch 物理俯仰）
 
+// 激光雷达红点格（Air 3S 前屏 / Mavic 4 Pro 右前机臂）扫闪动画
+let lidarCells = [];
+// Neo 2 左前显示屏 canvas 纹理
+let neo2DisplayTex = null;
+let neo2DisplayMode = 0;
+const NEO2_MODES = ['渐远', '冲天', '环绕', '自由'];
+
 export function createDroneModel(droneIdx) {
   if (droneGroup) {
     scene.remove(droneGroup);
@@ -46,16 +53,20 @@ export function createDroneModel(droneIdx) {
   lidMesh = null; bayMesh = null; fourGGroup = null; fourGSlotMesh = null;
   irLedMesh = null; auxLightMesh = null; auxLight = null; lensZoomMesh = null;
   avataGimbal = null; miniGimbalPivot = null;
+  lidarCells = [];
+  if (neo2DisplayTex) { neo2DisplayTex.dispose(); neo2DisplayTex = null; }
+  neo2DisplayMode = 0;
 
-  // Dispatch to per-drone builder
-  if (spec.panoramic) {
-    buildAvata360(g, spec);
-  } else if (droneIdx === 0) {
-    buildAir3(g, spec);
-  } else if (droneIdx === 1) {
-    buildMavic3Pro(g, spec);
-  } else if (droneIdx === 2) {
-    buildMini4Pro(g, spec);
+  // Dispatch to per-drone builder（按 model 键分发）
+  switch (spec.model) {
+    case 'air3': buildAir3(g, spec); break;
+    case 'air3s': buildAir3S(g, spec); break;
+    case 'mavic3pro': buildMavic3Pro(g, spec); break;
+    case 'mavic4pro': buildMavic4Pro(g, spec); break;
+    case 'mini4pro': buildMini4Pro(g, spec); break;
+    case 'neo2': buildNeo2(g, spec); break;
+    case 'avata360': buildAvata360(g, spec); break;
+    default: buildAir3(g, spec);
   }
 
   g.position.copy(state.dronePos);
@@ -262,10 +273,43 @@ function buildAir3(g, spec) {
 }
 
 // ============================================================
+// DJI Air 3S — 同 Air 3 正面 + 前方黑色激光雷达屏（红点扫闪）
+// ============================================================
+function addLidarPanel(g, opts) {
+  const { pos, panelSize, cellW, cellH, count, startX, gap, cellZ } = opts;
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(panelSize[0], panelSize[1], panelSize[2]),
+    new THREE.MeshBasicMaterial({ color: 0x000000 })
+  );
+  panel.position.set(pos[0], pos[1], pos[2]);
+  panel.name = 'lidarScreen';
+  g.add(panel);
+  for (let i = 0; i < count; i++) {
+    const cell = new THREE.Mesh(
+      new THREE.PlaneGeometry(cellW, cellH),
+      new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.15 })
+    );
+    cell.position.set(startX + i * gap, pos[1], cellZ);
+    cell.name = 'lidarCell_' + i;
+    g.add(cell);
+    lidarCells.push(cell);
+  }
+}
+
+function buildAir3S(g, spec) {
+  buildAir3(g, spec);
+  // 前方黑色激光雷达屏：8 个红色小格排成一条灯带（扫闪 → 看似连续亮带）
+  addLidarPanel(g, {
+    pos: [0, 0.03, 0.56], panelSize: [0.95, 0.12, 0.02],
+    cellW: 0.09, cellH: 0.07, count: 8, startX: -0.42, gap: 0.12, cellZ: 0.575,
+  });
+}
+
+// ============================================================
 // DJI Mavic 3 Pro — 深灰色 + 三摄+人字形哈苏 + 可动光圈 + 底部模块仓
 // ============================================================
-function buildMavic3Pro(g, spec) {
-  const darkGray = 0x3a3a3a;  // 深灰色
+function buildMavic3Pro(g, spec, bodyColor = 0x3a3a3a) {
+  const darkGray = bodyColor;  // 深灰色
   const bodyDark = 0x1a1a1a;
 
   // === 机身：深灰色长方形 ===
@@ -543,6 +587,152 @@ function buildMini4Pro(g, spec) {
 }
 
 // ============================================================
+// DJI Mavic 4 Pro — 深灰 Mavic 3 Pro 壳 + 右前机臂激光雷达 + 横滚旋转
+// ============================================================
+function buildMavic4Pro(g, spec) {
+  buildMavic3Pro(g, spec, 0x1e1e24);   // 更深的暗灰机身
+  // 右前机臂激光雷达：面板平放机臂根部，4 个红点朝上（扫闪 → 看似连续亮带）
+  const armPivot = new THREE.Group();
+  armPivot.position.set(0.5, 0.07, 0.5);
+  armPivot.rotation.y = Math.PI / 4;   // 对齐右前臂方向（+X+Z 斜前方）
+  g.add(armPivot);
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 0.02, 0.08),
+    new THREE.MeshBasicMaterial({ color: 0x000000 })
+  );
+  panel.position.set(0, 0.01, 0);
+  panel.name = 'lidarScreen';
+  armPivot.add(panel);
+  for (let i = 0; i < 4; i++) {
+    const cell = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.055, 0.035),
+      new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.15 })
+    );
+    cell.rotation.x = -Math.PI / 2;   // 朝上
+    cell.position.set(-0.12 + i * 0.08, 0.03, 0);
+    cell.name = 'lidarCell_' + i;
+    armPivot.add(cell);
+    lidarCells.push(cell);
+  }
+}
+
+// ============================================================
+// DJI Neo 2 — 小巧白色跟拍机 + 左前显示屏（跟拍模式）+ 无折叠机臂
+// ============================================================
+function buildNeo2(g, spec) {
+  const white = 0xfafafa;
+  const darkGray = 0x2a2a2a;
+
+  // === 机身 ===
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.22, 0.7),
+    new THREE.MeshPhongMaterial({ color: white, shininess: 80 })
+  );
+  body.name = 'body'; g.add(body);
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(0.74, 0.08, 0.55),
+    new THREE.MeshPhongMaterial({ color: white, shininess: 90 })
+  );
+  shell.position.y = 0.15; shell.name = 'shell'; g.add(shell);
+
+  // === 前置单镜头 ===
+  const lensMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 200, specular: 0x444444 });
+  const lensGlassMat = new THREE.MeshPhongMaterial({ color: 0x2244aa, shininess: 250, specular: 0xffffff });
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.1, 16), lensMat);
+  lens.rotation.x = Math.PI / 2; lens.position.set(0, -0.05, 0.36); lens.name = 'lens'; g.add(lens);
+  const lensGlass = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), lensGlassMat);
+  lensGlass.position.set(0, -0.05, 0.42); lensGlass.name = 'lensGlass'; g.add(lensGlass);
+
+  // === 左前显示屏（跟拍模式轮换，非激光雷达） ===
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 144;
+  const ctx = c.getContext('2d');
+  neo2DisplayTex = new THREE.CanvasTexture(c);
+  const disp = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.2),
+    new THREE.MeshBasicMaterial({ map: neo2DisplayTex })
+  );
+  disp.position.set(-0.42, 0.02, 0.32);
+  disp.name = 'neo2Display';
+  g.add(disp);
+  neo2DisplayMode = 0;
+  drawNeo2Display(ctx, 0);
+
+  // === DJI 标志（后部） ===
+  const djiCanvas = document.createElement('canvas');
+  djiCanvas.width = 256; djiCanvas.height = 128;
+  const dctx = djiCanvas.getContext('2d');
+  dctx.clearRect(0, 0, 256, 128);
+  dctx.fillStyle = '#888888';
+  dctx.font = 'bold 64px Arial, sans-serif';
+  dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
+  dctx.fillText('DJI', 128, 70);
+  const djiTex = new THREE.CanvasTexture(djiCanvas);
+  const djiLabel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.4, 0.2),
+    new THREE.MeshBasicMaterial({ map: djiTex, transparent: true })
+  );
+  djiLabel.position.set(0, 0, -0.36);
+  djiLabel.rotation.y = Math.PI; djiLabel.name = 'djiLabel'; g.add(djiLabel);
+
+  // === 机臂（紧凑，无折叠结构，4 桨 + 4 blurDisk + LED） ===
+  const armPos = [
+    { x: 1.0, z: 1.0, a: Math.PI / 4, front: true },
+    { x: -1.0, z: 1.0, a: 3 * Math.PI / 4, front: true },
+    { x: 1.0, z: -1.0, a: -Math.PI / 4, front: false },
+    { x: -1.0, z: -1.0, a: -3 * Math.PI / 4, front: false },
+  ];
+  armPos.forEach((ap, idx) => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.1), new THREE.MeshPhongMaterial({ color: darkGray }));
+    arm.position.set(ap.x * 0.5, 0, ap.z * 0.5); arm.rotation.y = ap.a; arm.name = 'arm_' + idx; g.add(arm);
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.12, 8), new THREE.MeshPhongMaterial({ color: 0x333333 }));
+    motor.position.set(ap.x, 0.07, ap.z); motor.name = 'motor_' + idx; g.add(motor);
+    const propGroup = new THREE.Group(); propGroup.position.set(ap.x, 0.16, ap.z);
+    const blade1 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.02, 0.1), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
+    propGroup.add(blade1);
+    const blade2 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.02, 0.1), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
+    blade2.rotation.y = Math.PI / 2; propGroup.add(blade2);
+    g.add(propGroup); propellers.push(propGroup);
+    const blurDisk = new THREE.Mesh(
+      new THREE.CircleGeometry(0.7, 32),
+      new THREE.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0, side: THREE.DoubleSide })
+    );
+    blurDisk.rotation.x = -Math.PI / 2; blurDisk.position.set(ap.x, 0.17, ap.z); blurDisk.name = 'blurDisk_' + idx;
+    g.add(blurDisk); propBlurs.push(blurDisk);
+    const ledColor = idx < 2 ? 0x00ff00 : 0xff0000;
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.035, 4, 4), new THREE.MeshBasicMaterial({ color: ledColor }));
+    led.position.set(ap.x, -0.06, ap.z); led.name = 'led_' + idx; g.add(led);
+  });
+
+  // === 4 根小起落架 ===
+  const legMat = new THREE.MeshPhongMaterial({ color: 0x333333 });
+  [[-0.28, 0.24], [0.28, 0.24], [-0.28, -0.24], [0.28, -0.24]].forEach(p => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.22, 4), legMat);
+    leg.position.set(p[0], -0.22, p[1]); g.add(leg);
+  });
+}
+
+// Neo 2 显示屏绘制（跟拍模式）
+function drawNeo2Display(ctx, idx) {
+  const mode = NEO2_MODES[idx % NEO2_MODES.length];
+  ctx.fillStyle = '#0a2a5a';
+  ctx.fillRect(0, 0, 256, 144);
+  ctx.fillStyle = '#2ad24a';
+  ctx.beginPath(); ctx.arc(230, 18, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '22px Arial, sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('REC', 20, 18);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 44px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(mode, 128, 78);
+  ctx.fillStyle = '#7fd0ff';
+  ctx.font = '26px Arial, sans-serif';
+  ctx.fillText('跟拍', 128, 122);
+}
+
+// ============================================================
 // DJI Avata 360 全景无人机模型（保持不变）
 // ============================================================
 function buildAvata360(g, spec) {
@@ -724,6 +914,31 @@ export function updateDroneAnimations(time) {
   if (auxLightMesh && auxLightMesh.material) {
     const pulse = 0.1 + Math.sin(time * 3) * 0.05;
     auxLightMesh.material.opacity = pulse;
+  }
+
+  // === 激光雷达扫闪（Air 3S 前屏 / Mavic 4 Pro 右前臂）：一排红点快速扫过 → 看似连续亮带 ===
+  if (lidarCells.length) {
+    const n = lidarCells.length;
+    const sweep = Math.floor(time * 24) % n;          // 每秒 24 格快速扫过
+    lidarCells.forEach((cell, i) => {
+      let d = Math.abs(i - sweep);
+      if (d > n / 2) d = n - d;
+      const on = d <= 1;                               // 3 格高亮带 → 看似连续亮带
+      const target = on ? 1 : 0.12;
+      cell.material.opacity += (target - cell.material.opacity) * 0.85;
+      cell.material.color.setHex(on ? 0xff3300 : 0xaa1100);
+    });
+  }
+
+  // === Neo 2: 显示屏轮换跟拍模式 ===
+  if (neo2DisplayTex && neo2DisplayTex.image) {
+    const idx = Math.floor(time / 1.5) % NEO2_MODES.length;
+    if (idx !== neo2DisplayMode) {
+      neo2DisplayMode = idx;
+      const ctx = neo2DisplayTex.image.getContext('2d');
+      drawNeo2Display(ctx, idx);
+      neo2DisplayTex.needsUpdate = true;
+    }
   }
 }
 
