@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { camera, skyMesh, sunLight, renderer } from './engine.js';
 import { state } from './config.js';
 import { getTerrainHeight } from './terrain.js';
+import { isPanoActive, panoLookAt } from './panorama.js';
 
 export function showNotif(text, dur = 3) {
   const el = document.getElementById('notification');
@@ -36,6 +37,28 @@ export function updateCamera(gameStarted = false) {
   sunLight.position.set(state.dronePos.x + 200, 300, state.dronePos.z + 100);
   sunLight.target.position.copy(state.dronePos);
   sunLight.target.updateMatrixWorld();
+
+  // === Avata 360 全景/超全景模式：FPV 式相机 ===
+  if (isPanoActive()) {
+    const camOffset = new THREE.Vector3(0, -0.25, 0.6);
+    camOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
+    camera.position.copy(state.dronePos).add(camOffset);
+
+    // 双镜头全景由全屏 equirect quad 铺满画面，相机朝向无关紧要；
+    // 超全景需看向前上方的星球球体。两者都恢复标准 FOV。
+    if (Math.abs(camera.fov - 75) > 0.5) {
+      camera.fov = 75;
+      camera.updateProjectionMatrix();
+    }
+    if (state.avataCamMode === 'super') {
+      camera.lookAt(panoLookAt);
+    } else {
+      const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
+      camera.lookAt(camera.position.clone().add(forward.multiplyScalar(100)));
+    }
+    camera.rotation.z = 0;
+    return;
+  }
 
   // Gimbal pitch in radians (0 = horizontal, negative = down, positive = up)
   const gimbalRad = state.gimbalPitch * Math.PI / 180;

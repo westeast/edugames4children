@@ -4,6 +4,7 @@ import { showNotif, updateGimbalUI } from './ui.js';
 import { createDroneModel, toggleZoom, toggleLid, toggleModuleBay, zoomLevel } from './drone-model.js';
 import { isManualMode, showManualModePrompt, updateGearButtonsUI } from './manual-mode.js';
 import { openWaypointPlanner, closeWaypointPlanner, stopWaypointFlight, isWaypointActive, handleMapClick, setWaypointSpeed, clearWaypoints, startWaypointFlight, confirmWaypointFlight, cancelWaypointConfirm } from './waypoint.js';
+import { setPanoMode, resetPano, isPanoActive } from './panorama.js';
 
 // Gimbal pitch control state
 let gimbalDragging = false;
@@ -95,7 +96,40 @@ function applyDroneSelection(idx) {
   document.querySelectorAll('.drone-card').forEach((c, i) => { c.classList.toggle('active', i === idx); });
   createDroneModel(idx);
   updateGimbalUI();
+  // Avata 360：显示相机模式栏（单镜头/双镜头/超全景）；其他机型：隐藏并重置全景
+  const isAvata = !!DRONES[idx].panoramic;
+  if (isAvata) {
+    state.avataCamMode = 'single';
+    setPanoMode('single');
+    updateAvataCamUI();
+  } else {
+    resetPano();
+    const camBar = document.getElementById('avataCamBar');
+    if (camBar) camBar.style.display = 'none';
+  }
   showNotif('切换机型: ' + state.droneSpec.name);
+};
+
+// === Avata 360 相机模式：单镜头 / 双镜头全景 / 超全景 ===
+window.setAvataCamMode = function(mode) {
+  state.avataCamMode = mode;
+  setPanoMode(mode);
+  updateAvataCamUI();
+  // 全景模式为 FPV 语义：隐藏准星（退出时按 fpvMode 恢复）
+  const crosshair = document.getElementById('crosshair');
+  if (crosshair) crosshair.style.display = (mode !== 'single' || state.fpvMode) ? 'none' : '';
+  showNotif(mode === 'single' ? '📷 单镜头模式' : mode === 'dual' ? '🌐 双镜头全景' : '🪐 超全景模式');
+};
+
+// 刷新 Avata 相机栏可见性与按钮高亮（游戏循环在起飞/取消起飞时也会调用）
+window.updateAvataCamUI = function() {
+  const camBar = document.getElementById('avataCamBar');
+  if (!camBar) return;
+  const isAvata = !!state.droneSpec.panoramic;
+  camBar.style.display = (isAvata && !state.isPreflight && state.gameStarted) ? '' : 'none';
+  document.querySelectorAll('.avata-cam-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.cam === state.avataCamMode);
+  });
 };
 
 window.setGear = function(gear) {
@@ -151,10 +185,10 @@ window.toggleObstacle = function() {
 window.toggleFPV = function() {
   state.fpvMode = !state.fpvMode;
   document.getElementById('btnFPV').classList.toggle('active', state.fpvMode);
-  // Show/hide crosshair in FPV mode
+  // Show/hide crosshair in FPV mode（全景模式下也隐藏）
   const crosshair = document.getElementById('crosshair');
   if (crosshair) {
-    crosshair.style.display = state.fpvMode ? '' : 'none';
+    crosshair.style.display = (state.fpvMode || isPanoActive()) ? 'none' : '';
   }
   showNotif(state.fpvMode ? '👁️ FPV 第一人称' : '第三人称视角');
 };

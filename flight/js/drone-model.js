@@ -24,6 +24,8 @@ let irLedMesh = null;
 let auxLightMesh = null;
 let auxLight = null;
 let lensZoomMesh = null;
+let avataGimbal = null;       // Avata 360 双镜头云台（起飞后竖直）
+let miniGimbalPivot = null;   // Mini 4 Pro 镜头云台转轴（随 gimbalPitch 物理俯仰）
 
 export function createDroneModel(droneIdx) {
   if (droneGroup) {
@@ -43,6 +45,7 @@ export function createDroneModel(droneIdx) {
   lidAnimating = false; bayAnimating = false; zoomLevel = 0;
   lidMesh = null; bayMesh = null; fourGGroup = null; fourGSlotMesh = null;
   irLedMesh = null; auxLightMesh = null; auxLight = null; lensZoomMesh = null;
+  avataGimbal = null; miniGimbalPivot = null;
 
   // Dispatch to per-drone builder
   if (spec.panoramic) {
@@ -224,7 +227,8 @@ function buildAir3(g, spec) {
     { x: -1.2, z: -1.2, a: -3 * Math.PI / 4 },
   ];
   armPos.forEach((ap, idx) => {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 0.12), new THREE.MeshPhongMaterial({ color: darkGray }));
+    // 长方形机臂：宽而扁的矩形截面
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.22), new THREE.MeshPhongMaterial({ color: darkGray }));
     arm.position.set(ap.x * 0.5, 0, ap.z * 0.5); arm.rotation.y = ap.a; arm.name = 'arm_' + idx; g.add(arm);
     const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.2, 8), new THREE.MeshPhongMaterial({ color: 0x333333 }));
     motor.position.set(ap.x, 0.1, ap.z); motor.name = 'motor_' + idx; g.add(motor);
@@ -427,29 +431,50 @@ function buildMini4Pro(g, spec) {
   );
   shell.position.y = 0.19; shell.name = 'shell'; g.add(shell);
 
-  // === 单摄镜头（可变焦） ===
+  // === 单摄镜头（可变焦，镜头随云台物理俯仰：向下俯仰明显下转、回中复位） ===
   const lensMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 200, specular: 0x444444 });
   const lensGlassMat = new THREE.MeshPhongMaterial({ color: 0x2244aa, shininess: 250, specular: 0xffffff });
 
+  // 云台转轴（镜头 + 玻璃 + 变焦 + 云台臂都挂在这里，随 gimbalPitch 一起转）
+  const gimbalPivot = new THREE.Group();
+  gimbalPivot.position.set(0, -0.18, 0.42); gimbalPivot.name = 'gimbalPivot';
+  g.add(gimbalPivot);
+  miniGimbalPivot = gimbalPivot;
+
   // 镜头外圈
   const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.12, 16), lensMat);
-  lens.rotation.x = Math.PI / 2; lens.position.set(0, -0.18, 0.42); lens.name = 'lens'; g.add(lens);
+  lens.rotation.x = Math.PI / 2; lens.position.set(0, 0, 0); lens.name = 'lens'; gimbalPivot.add(lens);
 
   // 镜头玻璃
   const lensGlass = new THREE.Mesh(new THREE.CircleGeometry(0.08, 16), lensGlassMat);
-  lensGlass.position.set(0, -0.18, 0.49); lensGlass.name = 'lensGlass'; g.add(lensGlass);
+  lensGlass.position.set(0, 0, 0.07); lensGlass.name = 'lensGlass'; gimbalPivot.add(lensGlass);
 
   // 变焦镜头（可伸缩部分）
   const zoomLens = new THREE.Mesh(
     new THREE.CylinderGeometry(0.07, 0.09, 0.08, 16),
     new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 150 })
   );
-  zoomLens.rotation.x = Math.PI / 2; zoomLens.position.set(0, -0.18, 0.5); zoomLens.name = 'zoomLens'; g.add(zoomLens);
+  zoomLens.rotation.x = Math.PI / 2; zoomLens.position.set(0, 0, 0.08); zoomLens.name = 'zoomLens'; gimbalPivot.add(zoomLens);
   lensZoomMesh = zoomLens;
 
-  // 云台连接
+  // 云台连接臂
   const gimbal = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.12), new THREE.MeshPhongMaterial({ color: 0x111111 }));
-  gimbal.position.set(0, -0.14, 0.38); gimbal.name = 'gimbal'; g.add(gimbal);
+  gimbal.position.set(0, 0.05, -0.04); gimbal.name = 'gimbal'; gimbalPivot.add(gimbal);
+
+  // === 鱼眼避障（前2、侧2、后1；名字 fisheye_* 供 crash-debris 兼容） ===
+  const fisheyeMat = new THREE.MeshPhongMaterial({ color: 0x050505, shininess: 80, specular: 0x222222 });
+  const fisheyePos = [
+    { x: 0.45, z: 0.42, n: 'fisheye_frontR' },   // 前右
+    { x: -0.45, z: 0.42, n: 'fisheye_frontL' },  // 前左
+    { x: -0.58, z: 0, n: 'fisheye_left' },       // 左侧
+    { x: 0.58, z: 0, n: 'fisheye_right' },       // 右侧
+    { x: 0, z: -0.42, n: 'fisheye_back' },       // 后
+  ];
+  fisheyePos.forEach(fp => {
+    const fe = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), fisheyeMat);
+    fe.scale.set(1, 0.35, 1);
+    fe.position.set(fp.x, 0.05, fp.z); fe.name = fp.n; g.add(fe);
+  });
 
   // === DJI标志（后部） ===
   const djiCanvas = document.createElement('canvas');
@@ -550,17 +575,32 @@ function buildAvata360(g, spec) {
   djiLabel.rotation.x = -Math.PI / 2;
   djiLabel.position.set(0, 0.4, 0); djiLabel.name = 'djiLabel'; g.add(djiLabel);
 
-  const lensHousing = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.22, 0.24, 0.3, 16),
-    new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 90 })
+  // === 双镜头云台：上面一个镜头、下面一个镜头 ===
+  // 起飞前云台水平（镜头正着向前）；升空后云台竖直（上镜朝上、下镜朝下 → 360° 全景双摄）
+  avataGimbal = new THREE.Group();
+  avataGimbal.name = 'gimbal'; // crash-debris 兼容
+  avataGimbal.position.set(0, 0.05, 0.7);
+  g.add(avataGimbal);
+
+  // 云台外壳（水平圆柱，内部连接上下两颗镜头）
+  const housingMat = new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 90 });
+  const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.34, 16), housingMat);
+  housing.rotation.x = Math.PI / 2; // 轴线沿 Z（水平）
+  avataGimbal.add(housing);
+
+  // 360° 双镜头玻璃：云台竖直后，+Z 镜头朝上、-Z 镜头朝下
+  const lensGlassMat2 = new THREE.MeshPhongMaterial({ color: 0x2244aa, shininess: 220, specular: 0xffffff });
+  const lensTop = new THREE.Mesh(new THREE.CircleGeometry(0.17, 20), lensGlassMat2);
+  lensTop.position.set(0, 0, 0.18); lensTop.name = 'lens_top'; avataGimbal.add(lensTop);
+  const lensBottom = new THREE.Mesh(new THREE.CircleGeometry(0.17, 20), lensGlassMat2);
+  lensBottom.position.set(0, 0, -0.18); lensBottom.name = 'lens_bottom'; avataGimbal.add(lensBottom);
+
+  // 云台连接杆
+  const gimbalRod = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.12, 0.18),
+    new THREE.MeshPhongMaterial({ color: 0x111111 })
   );
-  lensHousing.rotation.x = Math.PI / 2;
-  lensHousing.position.set(0, 0.05, 0.78); lensHousing.name = 'gimbal'; g.add(lensHousing);
-  const lensGlass = new THREE.Mesh(
-    new THREE.SphereGeometry(0.18, 16, 16),
-    new THREE.MeshPhongMaterial({ color: 0x1133bb, shininess: 220, specular: 0xffffff })
-  );
-  lensGlass.position.set(0, 0.05, 0.92); lensGlass.name = 'lens'; g.add(lensGlass);
+  gimbalRod.position.set(0, 0, -0.28); gimbalRod.name = 'gimbalRod'; avataGimbal.add(gimbalRod);
 
   const armPos = [
     { x: 1.0, z: 1.0, front: true },
@@ -660,12 +700,24 @@ export function updateDroneAnimations(time) {
 
   // === Mini 4 Pro: 变焦镜头伸缩 ===
   if (lensZoomMesh) {
-    const targetZ = 0.5 + zoomLevel * 0.06; // 伸缩距离
+    const targetZ = 0.08 + zoomLevel * 0.06; // 伸缩距离（云台局部坐标）
     const targetHeight = 0.08 + zoomLevel * 0.04; // 变长
     lensZoomMesh.position.z += (targetZ - lensZoomMesh.position.z) * 0.1;
     // 重建geometry来改变高度（简单方式：scale）
     const targetScale = 1 + zoomLevel * 0.5;
     lensZoomMesh.scale.y += (targetScale - lensZoomMesh.scale.y) * 0.1;
+  }
+
+  // === Mini 4 Pro: 镜头物理俯仰（与相机视角同步，向下俯仰时镜头明显下转、回中复位） ===
+  if (miniGimbalPivot) {
+    miniGimbalPivot.rotation.x = -state.gimbalPitch * Math.PI / 180;
+  }
+
+  // === Avata 360: 双镜头云台竖直（升空后 → 上面一个镜头、下面一个镜头的全景模式） ===
+  if (avataGimbal) {
+    const airborne = state.gameStarted && !state.isPreflight && !state.isLanded;
+    const targetRot = airborne ? -Math.PI / 2 : 0;
+    avataGimbal.rotation.x += (targetRot - avataGimbal.rotation.x) * 0.08;
   }
 
   // === Air 3: 补光灯光圈呼吸 ===

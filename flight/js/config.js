@@ -88,4 +88,6 @@ export const state = {
   isPreflight: false,
   preflightCamPos: new THREE.Vector3(0, 40, 14),
   preflightLookAt: new THREE.Vector3(0, 30, 0),
+  // Avata 360 相机模式：'single' 单镜头 | 'dual' 双镜头全景 | 'super' 超全景
+  avataCamMode: 'single',
 };

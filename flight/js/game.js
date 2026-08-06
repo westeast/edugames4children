@@ -9,6 +9,7 @@ import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
 import { setupJoystick, setupGimbalControl } from './controls.js';
 import { updateCamera, updateUI, showNotif } from './ui.js';
 import { updateDebris } from './crash-debris.js';
+import { isPanoActive, updatePanoCube, resetPano } from './panorama.js';
 import { updateRTHPath, isLanding, createHomeMarker, updateHomeMarker, getHomeMarker, removeRTHPath } from './rth-path.js';
 import { getTerrainHeight } from './terrain.js';
 import * as MapBase from './maps/map-base.js';
@@ -20,6 +21,9 @@ import * as CityMap from './maps/city-map.js';
 window.emergencyStop = emergencyStop;
 // Export state for HTML ui access and testing
 window.gameState = state;
+// Debug/test hook: expose scene & drone group for Playwright assertions
+// droneGroup 用 getter 保持实时引用（createDroneModel 后非空）
+window.__flightDebug = { scene, get droneGroup() { return droneGroup; } };
 
 // Dragging state for home marker
 let isDraggingHome = false;
@@ -27,6 +31,23 @@ let dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 let raycaster = new THREE.Raycaster();
 
 let lastTime = 0;
+
+// === Avata 360 升空检测：起飞瞬间自动进入双镜头全景 ===
+let wasLanded = true;
+let wasPreflight = false;
+function updateAvataWatcher() {
+  const isAvata = !!(state.droneSpec && state.droneSpec.panoramic);
+  if (isAvata) {
+    // 起飞瞬间（isLanded true→false，且不在准备阶段）→ 自动切双镜头全景
+    if (wasLanded && !state.isLanded && !state.isPreflight) {
+      if (state.avataCamMode === 'single') window.setAvataCamMode('dual');
+    }
+    // 准备阶段开始/结束 → 刷新相机栏可见性
+    if (wasPreflight !== state.isPreflight) window.updateAvataCamUI();
+  }
+  wasLanded = state.isLanded;
+  wasPreflight = state.isPreflight;
+}
 
 // Register maps
 MapBase.registerMap('mountain', MountainMap);
@@ -36,6 +57,10 @@ MapBase.registerMap('city', CityMap);
 MapBase.setMapSwitchCallback(async (newMapType) => {
   // Clear all entities
   clearEntities();
+  // 地图切换重置 Avata 全景状态（回单镜头）
+  resetPano();
+  state.avataCamMode = 'single';
+  window.updateAvataCamUI && window.updateAvataCamUI();
 
   // Reset drone position
   state.dronePos.set(0, 30, 0);
@@ -94,6 +119,9 @@ function gameLoop(time) {
   lastTime = time;
 
   if (state.gameStarted && !state.isPaused) {
+    // Avata 360 升空检测：起飞瞬间自动进入双镜头全景
+    updateAvataWatcher();
+
     // Preflight sequence (选点/部署/开机流程) replaces drone physics
     if (state.isPreflight) {
       updatePreflight(dt);
@@ -124,7 +152,7 @@ function gameLoop(time) {
     }
 
     if (droneGroup) {
-      droneGroup.visible = !state.fpvMode && !state.isPreflight;
+      droneGroup.visible = !state.fpvMode && !isPanoActive() && !state.isPreflight;
       droneGroup.position.copy(state.dronePos);
       droneGroup.rotation.set(state.dronePitch, state.droneYaw, state.droneRoll);
       // Propeller visual: show blur disk at high speed, blades at low speed
@@ -154,6 +182,8 @@ function gameLoop(time) {
   // Always update camera, but only lerp after game started
   updateCamera(state.gameStarted);
   updateUI();
+  // Avata 全景模式：先刷新立方体贴图（节流），再渲染
+  if (isPanoActive()) updatePanoCube();
   renderer.render(scene, camera);
 }
 

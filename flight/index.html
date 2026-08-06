@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>大疆虚拟飞行 3D - DJI Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=202607251400">
+<link rel="stylesheet" href="css/style.css?v=20260806">
 </head>
 <body>
 
@@ -161,6 +161,13 @@
 </div>
 
 <div id="crosshair" style="display:none;"></div>
+
+<!-- Avata 360 相机模式：单镜头 / 双镜头 / 超全景 -->
+<div id="avataCamBar" style="display:none;">
+  <button class="avata-cam-btn active" data-cam="single" onclick="setAvataCamMode('single')">单镜头</button>
+  <button class="avata-cam-btn" data-cam="dual" onclick="setAvataCamMode('dual')">双镜头</button>
+  <button class="avata-cam-btn" data-cam="super" onclick="setAvataCamMode('super')">超全景</button>
+</div>
 
 <!-- 起飞准备：顶部提示条 -->
 <div id="preflightHint" style="display:none;"></div>
@@ -705,7 +712,7 @@ function showNotif(msg) {
   }
 }
 </script>
-<script type="module" src="js/game.js?v=202607251400"></script></script>
+<script type="module" src="js/game.js?v=20260806"></script>
 
 </body>
 </html>
