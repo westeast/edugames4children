@@ -1099,22 +1099,39 @@ export function updateDroneAnimations(time) {
     lensZoomMesh.scale.y += (targetScale - lensZoomMesh.scale.y) * 0.1;
   }
 
-  // === Mini 4 Pro: 镜头物理俯仰（与相机视角同步，向下俯仰时镜头明显下转、回中复位） ===
-  if (miniGimbalPivot) {
-    miniGimbalPivot.rotation.x = -state.gimbalPitch * Math.PI / 180;
-  }
+  // === 云台姿态：炸机时乱甩；平时正常俯仰/竖拍正立 ===
+  const crashing = state.isCrashing || state.isCrashed;
+  if (crashing) {
+    // 炸机：机身由 crash-physics 保持正立，云台三轴乱甩模拟损坏
+    if (miniGimbalPivot) {
+      miniGimbalPivot.rotation.x = Math.sin(time * 11) * 1.1 + Math.sin(time * 23) * 0.5;
+      miniGimbalPivot.rotation.y = Math.sin(time * 7) * 0.7;
+      miniGimbalPivot.rotation.z = Math.sin(time * 13) * 0.6;
+    }
+    if (avataGimbal) {
+      avataGimbal.rotation.x = Math.sin(time * 9) * 1.2;
+      avataGimbal.rotation.y = Math.cos(time * 6) * 0.8;
+      avataGimbal.rotation.z = Math.sin(time * 12) * 0.6;
+    }
+  } else {
+    // === Mini 4 Pro / Mini 5 Pro: 镜头物理俯仰（与相机视角同步） ===
+    if (miniGimbalPivot) {
+      miniGimbalPivot.rotation.x = -state.gimbalPitch * Math.PI / 180;
+      miniGimbalPivot.rotation.y = 0;
+      miniGimbalPivot.rotation.z = 0;
+    }
 
-  // === Mini 5 Pro: 竖拍云台侧转（portraitMode → rotation.z 转 90° 竖直） ===
-  if (mini5PortraitPivot) {
-    const target = state.portraitMode ? Math.PI / 2 : 0;
-    mini5PortraitPivot.rotation.z += (target - mini5PortraitPivot.rotation.z) * 0.12;
-  }
+    // === Mini 5 Pro: 竖拍 —— 机身与云台保持正立（不倒置），画面由相机 rotate(90deg) 实现 ===
+    if (mini5PortraitPivot) {
+      mini5PortraitPivot.rotation.z = 0;
+    }
 
-  // === Avata 360: 双镜头云台竖直（升空后 → 上面一个镜头、下面一个镜头的全景模式） ===
-  if (avataGimbal) {
-    const airborne = state.gameStarted && !state.isPreflight && !state.isLanded;
-    const targetRot = airborne ? -Math.PI / 2 : 0;
-    avataGimbal.rotation.x += (targetRot - avataGimbal.rotation.x) * 0.08;
+    // === Avata 360: 双镜头云台竖直（升空后 → 上面一个镜头、下面一个镜头的全景模式） ===
+    if (avataGimbal) {
+      const airborne = state.gameStarted && !state.isPreflight && !state.isLanded;
+      const targetRot = airborne ? -Math.PI / 2 : 0;
+      avataGimbal.rotation.x += (targetRot - avataGimbal.rotation.x) * 0.08;
+    }
   }
 
   // === Air 3: 补光灯光圈呼吸 ===

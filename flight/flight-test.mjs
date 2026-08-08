@@ -58,6 +58,12 @@ async function main() {
     await page.waitForTimeout(300);
     const p1 = await ev(() => document.querySelector('#appCanvasWrap canvas').style.transform);
     check('竖拍开启 → 画布 rotate(90deg)', p1.includes('rotate(90deg)'), p1);
+    const pp = await ev(() => {
+      let p = null;
+      window.__flightDebug.droneGroup.traverse(o => { if (!p && o.name === 'portraitPivot') p = o; });
+      return p ? +p.rotation.z.toFixed(3) : null;
+    });
+    check('竖拍时云台保持正立（不倒置）', pp !== null && Math.abs(pp) < 0.1, 'rotZ=' + pp);
     await ev(() => window.togglePortrait());
     await page.waitForTimeout(300);
     const p2 = await ev(() => document.querySelector('#appCanvasWrap canvas').style.transform);
@@ -208,6 +214,46 @@ async function main() {
     await ev(() => window.setTakeoffMode('multi'));
     await page.waitForTimeout(1500);
     await page.screenshot({ path: 'C:/Users/admin/git/edugames4children/flight/test-shots/night-multidrone.png' });
+
+    // ===== 9. 炸机机身保持正立 + 云台乱甩（用户要求"一直正"） =====
+    await ev(() => {
+      window.gameState.isPreflight = false;
+      window.gameState.takeoffMode = 'single';
+      if (window.stopNightShow) window.stopNightShow();
+    });
+    await ev(() => { window.gameState.dronePos.set(0, 25, 0); window.gameState.droneVel.set(0, 0, 0); });
+    await ev(() => window.emergencyStop());
+    await page.waitForTimeout(200);
+    let rollMax = 0, pitchMax = 0, gimMax = 0, bodyUpMin = 1;
+    for (let i = 0; i < 8; i++) {
+      const s = await ev(() => {
+        const g = window.__flightDebug.droneGroup;
+        const cam = window.__flightDebug.camera;
+        const V3 = cam.position.constructor, Q = cam.quaternion.constructor;
+        let gim = null, body = null;
+        g.traverse(o => {
+          if (!gim && o.name === 'mini5GimbalPivot') gim = o;
+          if (!body && o.name === 'body') body = o;
+        });
+        let upY = 1;
+        if (body) upY = new V3(0, 1, 0).applyQuaternion(body.getWorldQuaternion(new Q())).normalize().y;
+        return {
+          roll: Math.abs(window.gameState.droneRoll),
+          pitch: Math.abs(window.gameState.dronePitch),
+          gimx: gim ? Math.abs(gim.rotation.x) : 0,
+          upY,
+        };
+      });
+      rollMax = Math.max(rollMax, s.roll);
+      pitchMax = Math.max(pitchMax, s.pitch);
+      gimMax = Math.max(gimMax, s.gimx);
+      bodyUpMin = Math.min(bodyUpMin, s.upY);
+      await page.waitForTimeout(100);
+    }
+    check('炸机机身不倒挂（|roll| < 57°）', rollMax < 1.0, 'maxRoll=' + rollMax.toFixed(2) + 'rad');
+    check('炸机机身不仰翻（|pitch| < 57°）', pitchMax < 1.0, 'maxPitch=' + pitchMax.toFixed(2) + 'rad');
+    check('炸机机身始终朝天（upY > 0.7）', bodyUpMin > 0.7, 'minUpY=' + bodyUpMin.toFixed(2));
+    check('炸机云台乱甩', gimMax > 0.3, 'maxGimbalX=' + gimMax.toFixed(2) + 'rad');
 
   } catch (err) {
     console.log('TEST-ERROR: ' + err.message);

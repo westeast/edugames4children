@@ -25,15 +25,15 @@ export function initCrashSequence(crashType = CRASH_TYPES.COLLISION) {
   state.crashType = crashType;
   state.propSpeed = 0;
   state.crashBounceCount = 0;
+  state.crashTimer = 0;
 
   // 根据撞击速度计算翻滚强度 - 速度越快旋转越快
   // impactSpeed 由 physics.js 在碰撞前设置
   const impactSpeed = state.impactSpeed || 5;
   const speedFactor = Math.max(0.3, Math.min(impactSpeed / 10, 3)); // 0.3x - 3x 倍率
 
-  // 随机翻滚方向 - 混乱的翻滚，速度越快转得越快
-  state.tumblePitch = (Math.random() - 0.5) * 15 * speedFactor;  // 快速俯仰旋转
-  state.tumbleRoll = (Math.random() - 0.5) * 18 * speedFactor;   // 快速横滚旋转
+  // 随机翻滚方向 - 速度越快转得越快
+  // 注意：机身保持正立，翻滚仅体现在偏航旋转与云台乱甩（由云台动画处理）
   state.tumbleYaw = (Math.random() - 0.5) * 10 * speedFactor;    // 快速偏航旋转
 
   // 存储初始水平速度用于翻滚移动
@@ -73,9 +73,10 @@ export function updateCrashPhysics(dt) {
   // 更新位置
   state.dronePos.add(state.droneVel.clone().multiplyScalar(dt));
 
-  // 翻滚无人机 (旋转)
-  state.dronePitch += state.tumblePitch * dt;
-  state.droneRoll += state.tumbleRoll * dt;
+  // 翻滚无人机（机身保持正立，仅轻微乱摆 ±~20°，绝不倒挂；云台乱甩由云台动画处理）
+  state.crashTimer += dt;
+  state.dronePitch = Math.sin(state.crashTimer * 21) * 0.22 + (Math.random() - 0.5) * 0.16;
+  state.droneRoll = Math.cos(state.crashTimer * 17) * 0.3 + (Math.random() - 0.5) * 0.16;
   state.droneYaw += state.tumbleYaw * dt;
 
   // 检查地面碰撞
@@ -101,6 +102,10 @@ function handleGroundImpact() {
     state.droneVel.set(0, 0, 0);
     state.propSpeed = 0;
 
+    // 机身保持正立，仅轻微侧躺（约10°），不倒挂
+    state.dronePitch = 0.08;
+    state.droneRoll = 0.18;
+
     // 显示炸机覆盖层
     const overlay = document.getElementById('crashOverlay');
     if (overlay) overlay.classList.add('show');
@@ -111,9 +116,7 @@ function handleGroundImpact() {
     // 弹跳: 反转垂直速度并减弱（更低弹起）
     state.droneVel.y = -state.droneVel.y * 0.15;
 
-    // 减弱翻滚速度（更多翻滚感）
-    state.tumblePitch *= 0.3;
-    state.tumbleRoll *= 0.3;
+    // 减弱偏航旋转速度（更多翻转感）
     state.tumbleYaw *= 0.3;
 
     // 弹跳音效提示

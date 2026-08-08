@@ -61,7 +61,8 @@ export function updateCamera(gameStarted = false) {
   }
 
   // Gimbal pitch in radians (0 = horizontal, negative = down, positive = up)
-  const gimbalRad = state.gimbalPitch * Math.PI / 180;
+  // clamp ±89°: 避免 lookAt 在 ±90° 时 camera.up 翻转导致画面倒置（用户要求"一直正"）
+  const gimbalRad = THREE.MathUtils.clamp(state.gimbalPitch, -89, 89) * Math.PI / 180;
 
   if (state.fpvMode) {
     // FPV camera position: at the drone's camera gimbal (Front-bottom)
