@@ -9,7 +9,7 @@ export const DRONES = [
   { name: 'Mini 4 Pro',  model: 'mini4pro',   maxSpeed: 16, color: 0xf0f0f0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity, needsArmUnfold: true,  windResist: 0.7 },
   { name: 'Neo 2',       model: 'neo2',       maxSpeed: 14, color: 0xfafafa, accel: 5, batteryDrain: 0.014, gimbalMin: -90, gimbalMax: 90,             needsArmUnfold: false, windResist: 0.3, followCam: true },
   { name: 'Avata 360',   model: 'avata360',   maxSpeed: 27, color: 0x9a9a9a, accel: 10, batteryDrain: 0.022, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: false, windResist: 0.6, panoramic: true },
-  { name: 'Mini 5 Pro',  model: 'mini5pro',   maxSpeed: 17, color: 0xc8c8c8, accel: 7, batteryDrain: 0.016, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: true,  windResist: 0.75, lidar: true, portraitCapable: true },
+  { name: 'Mini 5 Pro',  model: 'mini5pro',   maxSpeed: 17, color: 0x303030, accel: 7, batteryDrain: 0.016, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: true,  windResist: 0.75, lidar: true, portraitCapable: true },
 ];
 
 export const GEAR_MULT = { C: 0.4, N: 1.0, S: 1.6, M: 1.8 };

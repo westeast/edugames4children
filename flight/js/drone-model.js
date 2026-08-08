@@ -597,70 +597,70 @@ function buildMini4Pro(g, spec) {
 //   + 竖拍云台（portraitPivot 侧转90° + gimbal 俯仰）
 // ============================================================
 function buildMini5Pro(g, spec) {
-  const lightGray = 0xc8c8c8;  // 浅灰机身
-  const darkGray = 0x2a2a2a;   // 机臂
+  const bodyGray = 0x303030;   // 深灰机身
+  const armGray = 0x1c1c1c;    // 更深机臂
   const blackish = 0x1a1a1a;   // 传感器
 
-  // === 1. 机身：浅灰色 ===
+  // === 1. 机身：深灰长方形（与 Mini 4 Pro 同尺寸） ===
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.15, 0.26, 0.88),
-    new THREE.MeshPhongMaterial({ color: lightGray, shininess: 80 })
+    new THREE.BoxGeometry(1.2, 0.28, 0.9),
+    new THREE.MeshPhongMaterial({ color: bodyGray, shininess: 80 })
   );
   body.name = 'body'; g.add(body);
   const shell = new THREE.Mesh(
-    new THREE.BoxGeometry(0.95, 0.09, 0.68),
-    new THREE.MeshPhongMaterial({ color: lightGray, shininess: 90 })
+    new THREE.BoxGeometry(1.0, 0.1, 0.7),
+    new THREE.MeshPhongMaterial({ color: bodyGray, shininess: 90 })
   );
-  shell.position.y = 0.17; shell.name = 'shell'; g.add(shell);
+  shell.position.y = 0.19; shell.name = 'shell'; g.add(shell);
 
-  // === 2. 上置机臂（机臂在机身上方）+ 电机 + 螺旋桨 + 机臂灯 ===
+  // === 2. 上置机臂（同 Mini 4 Pro 展开尺寸）+ 电机 + 桨叶 + 机臂灯 ===
   const armPos = [
-    { x: 0.62, z: 0.58, a: Math.PI / 4, front: true },
-    { x: -0.62, z: 0.58, a: 3 * Math.PI / 4, front: true },
-    { x: 0.62, z: -0.58, a: -Math.PI / 4, front: false },
-    { x: -0.62, z: -0.58, a: -3 * Math.PI / 4, front: false },
+    { x: 1.0, z: 1.0, a: Math.PI / 4, front: true },
+    { x: -1.0, z: 1.0, a: 3 * Math.PI / 4, front: true },
+    { x: 1.0, z: -1.0, a: -Math.PI / 4, front: false },
+    { x: -1.0, z: -1.0, a: -3 * Math.PI / 4, front: false },
   ];
   armPos.forEach((ap, idx) => {
-    const armY = 0.13;  // 上置机臂（高于壳顶 0.17 略低，突出在上方）
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.09), new THREE.MeshPhongMaterial({ color: darkGray }));
-    arm.position.set(ap.x * 0.55, armY, ap.z * 0.55); arm.rotation.y = ap.a; arm.name = 'arm_' + idx; g.add(arm);
-    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.14, 8), new THREE.MeshPhongMaterial({ color: 0x333333 }));
-    motor.position.set(ap.x, armY + 0.09, ap.z); motor.name = 'motor_' + idx; g.add(motor);
-    const propGroup = new THREE.Group(); propGroup.position.set(ap.x, armY + 0.17, ap.z);
-    const blade1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.02, 0.1), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
+    const armY = 0.14;  // 上置机臂（高出壳顶，突出在上方）
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.06, 0.1), new THREE.MeshPhongMaterial({ color: armGray }));
+    arm.position.set(ap.x * 0.5, armY, ap.z * 0.5); arm.rotation.y = ap.a; arm.name = 'arm_' + idx; g.add(arm);
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.16, 8), new THREE.MeshPhongMaterial({ color: 0x333333 }));
+    motor.position.set(ap.x, armY + 0.1, ap.z); motor.name = 'motor_' + idx; g.add(motor);
+    const propGroup = new THREE.Group(); propGroup.position.set(ap.x, armY + 0.2, ap.z);
+    const blade1 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.02, 0.12), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
     propGroup.add(blade1);
-    const blade2 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.02, 0.1), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
+    const blade2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.02, 0.12), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
     blade2.rotation.y = Math.PI / 2; propGroup.add(blade2);
     g.add(propGroup); propellers.push(propGroup);
     const blurDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(0.78, 32),
+      new THREE.CircleGeometry(0.9, 32),
       new THREE.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0, side: THREE.DoubleSide })
     );
-    blurDisk.rotation.x = -Math.PI / 2; blurDisk.position.set(ap.x, armY + 0.18, ap.z); blurDisk.name = 'blurDisk_' + idx;
+    blurDisk.rotation.x = -Math.PI / 2; blurDisk.position.set(ap.x, armY + 0.21, ap.z); blurDisk.name = 'blurDisk_' + idx;
     g.add(blurDisk); propBlurs.push(blurDisk);
     // 机臂灯：前绿后红
     const ledColor = idx < 2 ? 0x00ff44 : 0xff2222;
-    const led = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), new THREE.MeshBasicMaterial({ color: ledColor }));
-    led.position.set(ap.x, armY - 0.04, ap.z); led.name = 'led_' + idx; g.add(led);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.045, 4, 4), new THREE.MeshBasicMaterial({ color: ledColor }));
+    led.position.set(ap.x, armY - 0.06, ap.z); led.name = 'led_' + idx; g.add(led);
   });
 
   // === 3. 前臂增高支撑架（仅前2臂，从臂下连到壳顶） ===
   const strutMat = new THREE.MeshPhongMaterial({ color: 0x333333 });
-  [[0.62, 0.58], [-0.62, 0.58]].forEach((p, si) => {
-    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 6), strutMat);
-    strut.position.set(p[0] * 0.6, 0.12, p[1] * 0.6);
+  [[1.0, 1.0], [-1.0, 1.0]].forEach((p, si) => {
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.16, 6), strutMat);
+    strut.position.set(p[0] * 0.6, 0.13, p[1] * 0.6);
     strut.rotation.x = p[1] > 0 ? -0.2 : 0.2;
     strut.name = 'frontStrut_' + si; g.add(strut);
   });
 
   // === 4. 右前臂激光雷达黑屏（朝 +X 外侧） ===
   const frontLidarPivot = new THREE.Group();
-  frontLidarPivot.position.set(0.55, 0.12, 0.5);
+  frontLidarPivot.position.set(0.85, 0.14, 0.85);
   frontLidarPivot.rotation.y = Math.PI / 4;  // 对齐右前臂
   g.add(frontLidarPivot);
   addLidarPanel(g, {
-    pos: [0, 0.01, 0], panelSize: [0.3, 0.02, 0.09],
-    cellW: 0.06, cellH: 0.04, count: 4, startX: -0.13, gap: 0.09, cellZ: 0.05,
+    pos: [0, 0.01, 0], panelSize: [0.34, 0.022, 0.1],
+    cellW: 0.06, cellH: 0.04, count: 4, startX: -0.13, gap: 0.09, cellZ: 0.055,
     parent: frontLidarPivot, rotY: Math.PI / 2,
   });
   // 给前雷达屏单独命名便于测试断言
@@ -669,21 +669,21 @@ function buildMini5Pro(g, spec) {
 
   // === 5. 右机臂近机身双屏：屏A 扫闪（5格） / 屏B 常黑（不推 cells） ===
   const sidePivot = new THREE.Group();
-  sidePivot.position.set(0.52, 0.12, 0.1);
+  sidePivot.position.set(0.8, 0.14, 0.12);
   g.add(sidePivot);
   addLidarPanel(g, {
-    pos: [0, 0.02, -0.08], panelSize: [0.3, 0.02, 0.1],
-    cellW: 0.05, cellH: 0.05, count: 5, startX: -0.13, gap: 0.055, cellZ: -0.03,
+    pos: [0, 0.02, -0.08], panelSize: [0.34, 0.022, 0.11],
+    cellW: 0.05, cellH: 0.05, count: 5, startX: -0.13, gap: 0.055, cellZ: -0.033,
     parent: sidePivot, rotY: Math.PI / 2,
   });
   const sideScreen = sidePivot.getObjectByName('lidarScreen');
   if (sideScreen) sideScreen.name = 'lidarScreen_side';
   // 静态屏：纯黑、常黑不闪、不推 cells
   const staticScreen = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 0.02, 0.1),
+    new THREE.BoxGeometry(0.34, 0.022, 0.11),
     new THREE.MeshBasicMaterial({ color: 0x000000 })
   );
-  staticScreen.position.set(0, 0.02, 0.1);
+  staticScreen.position.set(0, 0.02, 0.11);
   staticScreen.rotation.y = Math.PI / 2;
   staticScreen.name = 'lidarScreen_static';
   sidePivot.add(staticScreen);
@@ -698,8 +698,8 @@ function buildMini5Pro(g, spec) {
   // 收桨槽前中
   addFisheye(0, 0.18, 0.1, 'fisheye_frontCenter');
   // 前雷达左右侧面
-  addFisheye(0.4, 0.1, 0.42, 'fisheye_frontR');
-  addFisheye(-0.4, 0.1, 0.42, 'fisheye_frontL');
+  addFisheye(0.5, 0.1, 0.42, 'fisheye_frontR');
+  addFisheye(-0.5, 0.1, 0.42, 'fisheye_frontL');
   // 后中
   addFisheye(0, 0.06, -0.44, 'fisheye_back');
   // 下后方：红外 + 2视觉 + 1视觉
@@ -723,22 +723,22 @@ function buildMini5Pro(g, spec) {
   );
   irGimbalDiv.position.set(0, -0.2, 0.3); irGimbalDiv.name = 'ir_gimbalFrontDiv'; g.add(irGimbalDiv);
 
-  // === 7. DJI logo（右下近电池舱）+ 两侧黑色半圆 ===
+  // === 7. DJI logo（机身上方壳顶）+ 底部电池舱 + 两侧黑色半圆 ===
   const djiCanvas = document.createElement('canvas');
   djiCanvas.width = 256; djiCanvas.height = 128;
   const ctx = djiCanvas.getContext('2d');
   ctx.clearRect(0, 0, 256, 128);
-  ctx.fillStyle = '#999999';
+  ctx.fillStyle = '#dddddd';
   ctx.font = 'bold 64px Arial, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('DJI', 128, 70);
   const djiTex = new THREE.CanvasTexture(djiCanvas);
   const djiLabel = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.32, 0.16),
+    new THREE.PlaneGeometry(0.45, 0.22),
     new THREE.MeshBasicMaterial({ map: djiTex, transparent: true })
   );
-  djiLabel.position.set(0.28, -0.135, -0.32);
-  djiLabel.rotation.x = Math.PI / 2; djiLabel.name = 'djiLabel'; g.add(djiLabel);
+  djiLabel.position.set(0, 0.245, 0.02);
+  djiLabel.rotation.x = -Math.PI / 2; djiLabel.name = 'djiLabel'; g.add(djiLabel);
   // 电池舱（Home）黑色方块
   const battery = new THREE.Mesh(
     new THREE.BoxGeometry(0.14, 0.06, 0.2),
