@@ -9,6 +9,7 @@ export const DRONES = [
   { name: 'Mini 4 Pro',  model: 'mini4pro',   maxSpeed: 16, color: 0xf0f0f0, accel: 7, batteryDrain: 0.018, gimbalMin: -Infinity, gimbalMax: Infinity, needsArmUnfold: true,  windResist: 0.7 },
   { name: 'Neo 2',       model: 'neo2',       maxSpeed: 14, color: 0xfafafa, accel: 5, batteryDrain: 0.014, gimbalMin: -90, gimbalMax: 90,             needsArmUnfold: false, windResist: 0.3, followCam: true },
   { name: 'Avata 360',   model: 'avata360',   maxSpeed: 27, color: 0x9a9a9a, accel: 10, batteryDrain: 0.022, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: false, windResist: 0.6, panoramic: true },
+  { name: 'Mini 5 Pro',  model: 'mini5pro',   maxSpeed: 17, color: 0xc8c8c8, accel: 7, batteryDrain: 0.016, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: true,  windResist: 0.75, lidar: true, portraitCapable: true },
 ];
 
 export const GEAR_MULT = { C: 0.4, N: 1.0, S: 1.6, M: 1.8 };
@@ -23,8 +24,8 @@ export const TERRAIN_HEIGHT = 60;
 
 // Shared mutable state (single source of truth)
 export const state = {
-  currentDroneIdx: 0,
-  droneSpec: DRONES[0],
+  currentDroneIdx: 7,
+  droneSpec: DRONES[7],
   battery: 100,
   totalDist: 0,
   isPaused: false,
@@ -104,4 +105,12 @@ export const state = {
   rollModeEnabled: false,       // 设置里横滚旋转开关
   // Neo 2 操控方式
   neo2Control: 'rc',            // 'rc' 遥控器 | 'phone' 手机
+  // 无损竖拍（Mini 5 Pro）
+  portraitMode: false,          // 竖拍开关（画面转90° 9:16 + 云台侧转）
+  // 夜间地图
+  nightActive: false,           // 当前地图是否为夜间地图
+  // 避障绕行中心障碍偏置（避免随机转向闪烁）
+  bypassTurnBias: 1,            // +1 或 -1，遇到中心障碍时翻转
+  // 夜间地图起飞模式：'single' 单机起飞 | 'multi' 5机同时起飞测试
+  takeoffMode: 'single',
 };

@@ -26,6 +26,7 @@ let auxLight = null;
 let lensZoomMesh = null;
 let avataGimbal = null;       // Avata 360 双镜头云台（起飞后竖直）
 let miniGimbalPivot = null;   // Mini 4 Pro 镜头云台转轴（随 gimbalPitch 物理俯仰）
+let mini5PortraitPivot = null; // Mini 5 Pro 竖拍云台侧转组（rotation.z → ±90°）
 
 // 激光雷达红点格（Air 3S 前屏 / Mavic 4 Pro 右前机臂）扫闪动画
 let lidarCells = [];
@@ -52,7 +53,7 @@ export function createDroneModel(droneIdx) {
   lidAnimating = false; bayAnimating = false; zoomLevel = 0;
   lidMesh = null; bayMesh = null; fourGGroup = null; fourGSlotMesh = null;
   irLedMesh = null; auxLightMesh = null; auxLight = null; lensZoomMesh = null;
-  avataGimbal = null; miniGimbalPivot = null;
+  avataGimbal = null; miniGimbalPivot = null; mini5PortraitPivot = null;
   lidarCells = [];
   if (neo2DisplayTex) { neo2DisplayTex.dispose(); neo2DisplayTex = null; }
   neo2DisplayMode = 0;
@@ -66,6 +67,7 @@ export function createDroneModel(droneIdx) {
     case 'mini4pro': buildMini4Pro(g, spec); break;
     case 'neo2': buildNeo2(g, spec); break;
     case 'avata360': buildAvata360(g, spec); break;
+    case 'mini5pro': buildMini5Pro(g, spec); break;
     default: buildAir3(g, spec);
   }
 
@@ -276,22 +278,25 @@ function buildAir3(g, spec) {
 // DJI Air 3S — 同 Air 3 正面 + 前方黑色激光雷达屏（红点扫闪）
 // ============================================================
 function addLidarPanel(g, opts) {
-  const { pos, panelSize, cellW, cellH, count, startX, gap, cellZ } = opts;
+  const { pos, panelSize, cellW, cellH, count, startX, gap, cellZ, parent, rotY } = opts;
+  const host = parent || g;
   const panel = new THREE.Mesh(
     new THREE.BoxGeometry(panelSize[0], panelSize[1], panelSize[2]),
     new THREE.MeshBasicMaterial({ color: 0x000000 })
   );
   panel.position.set(pos[0], pos[1], pos[2]);
+  if (rotY) panel.rotation.y = rotY;
   panel.name = 'lidarScreen';
-  g.add(panel);
+  host.add(panel);
   for (let i = 0; i < count; i++) {
     const cell = new THREE.Mesh(
       new THREE.PlaneGeometry(cellW, cellH),
       new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.15 })
     );
     cell.position.set(startX + i * gap, pos[1], cellZ);
+    if (rotY) cell.rotation.y = rotY;
     cell.name = 'lidarCell_' + i;
-    g.add(cell);
+    host.add(cell);
     lidarCells.push(cell);
   }
 }
@@ -584,6 +589,202 @@ function buildMini4Pro(g, spec) {
     new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 40 })
   );
   battery.position.set(0, -0.2, -0.2); battery.name = 'battery'; g.add(battery);
+}
+
+// ============================================================
+// DJI Mini 5 Pro — 浅灰旗舰 + 上置机臂 + 前臂增高架 + 右前臂激光雷达
+//   双侧面屏(一屏扫闪一屏常黑) + 全向视觉/红外传感器 + DJI标志 + 底部补光灯
+//   + 竖拍云台（portraitPivot 侧转90° + gimbal 俯仰）
+// ============================================================
+function buildMini5Pro(g, spec) {
+  const lightGray = 0xc8c8c8;  // 浅灰机身
+  const darkGray = 0x2a2a2a;   // 机臂
+  const blackish = 0x1a1a1a;   // 传感器
+
+  // === 1. 机身：浅灰色 ===
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(1.15, 0.26, 0.88),
+    new THREE.MeshPhongMaterial({ color: lightGray, shininess: 80 })
+  );
+  body.name = 'body'; g.add(body);
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(0.95, 0.09, 0.68),
+    new THREE.MeshPhongMaterial({ color: lightGray, shininess: 90 })
+  );
+  shell.position.y = 0.17; shell.name = 'shell'; g.add(shell);
+
+  // === 2. 上置机臂（机臂在机身上方）+ 电机 + 螺旋桨 + 机臂灯 ===
+  const armPos = [
+    { x: 0.62, z: 0.58, a: Math.PI / 4, front: true },
+    { x: -0.62, z: 0.58, a: 3 * Math.PI / 4, front: true },
+    { x: 0.62, z: -0.58, a: -Math.PI / 4, front: false },
+    { x: -0.62, z: -0.58, a: -3 * Math.PI / 4, front: false },
+  ];
+  armPos.forEach((ap, idx) => {
+    const armY = 0.13;  // 上置机臂（高于壳顶 0.17 略低，突出在上方）
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.09), new THREE.MeshPhongMaterial({ color: darkGray }));
+    arm.position.set(ap.x * 0.55, armY, ap.z * 0.55); arm.rotation.y = ap.a; arm.name = 'arm_' + idx; g.add(arm);
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.14, 8), new THREE.MeshPhongMaterial({ color: 0x333333 }));
+    motor.position.set(ap.x, armY + 0.09, ap.z); motor.name = 'motor_' + idx; g.add(motor);
+    const propGroup = new THREE.Group(); propGroup.position.set(ap.x, armY + 0.17, ap.z);
+    const blade1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.02, 0.1), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
+    propGroup.add(blade1);
+    const blade2 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.02, 0.1), new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 }));
+    blade2.rotation.y = Math.PI / 2; propGroup.add(blade2);
+    g.add(propGroup); propellers.push(propGroup);
+    const blurDisk = new THREE.Mesh(
+      new THREE.CircleGeometry(0.78, 32),
+      new THREE.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0, side: THREE.DoubleSide })
+    );
+    blurDisk.rotation.x = -Math.PI / 2; blurDisk.position.set(ap.x, armY + 0.18, ap.z); blurDisk.name = 'blurDisk_' + idx;
+    g.add(blurDisk); propBlurs.push(blurDisk);
+    // 机臂灯：前绿后红
+    const ledColor = idx < 2 ? 0x00ff44 : 0xff2222;
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), new THREE.MeshBasicMaterial({ color: ledColor }));
+    led.position.set(ap.x, armY - 0.04, ap.z); led.name = 'led_' + idx; g.add(led);
+  });
+
+  // === 3. 前臂增高支撑架（仅前2臂，从臂下连到壳顶） ===
+  const strutMat = new THREE.MeshPhongMaterial({ color: 0x333333 });
+  [[0.62, 0.58], [-0.62, 0.58]].forEach((p, si) => {
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 6), strutMat);
+    strut.position.set(p[0] * 0.6, 0.12, p[1] * 0.6);
+    strut.rotation.x = p[1] > 0 ? -0.2 : 0.2;
+    strut.name = 'frontStrut_' + si; g.add(strut);
+  });
+
+  // === 4. 右前臂激光雷达黑屏（朝 +X 外侧） ===
+  const frontLidarPivot = new THREE.Group();
+  frontLidarPivot.position.set(0.55, 0.12, 0.5);
+  frontLidarPivot.rotation.y = Math.PI / 4;  // 对齐右前臂
+  g.add(frontLidarPivot);
+  addLidarPanel(g, {
+    pos: [0, 0.01, 0], panelSize: [0.3, 0.02, 0.09],
+    cellW: 0.06, cellH: 0.04, count: 4, startX: -0.13, gap: 0.09, cellZ: 0.05,
+    parent: frontLidarPivot, rotY: Math.PI / 2,
+  });
+  // 给前雷达屏单独命名便于测试断言
+  const frontPanel = frontLidarPivot.getObjectByName('lidarScreen');
+  if (frontPanel) frontPanel.name = 'lidarScreen_front';
+
+  // === 5. 右机臂近机身双屏：屏A 扫闪（5格） / 屏B 常黑（不推 cells） ===
+  const sidePivot = new THREE.Group();
+  sidePivot.position.set(0.52, 0.12, 0.1);
+  g.add(sidePivot);
+  addLidarPanel(g, {
+    pos: [0, 0.02, -0.08], panelSize: [0.3, 0.02, 0.1],
+    cellW: 0.05, cellH: 0.05, count: 5, startX: -0.13, gap: 0.055, cellZ: -0.03,
+    parent: sidePivot, rotY: Math.PI / 2,
+  });
+  const sideScreen = sidePivot.getObjectByName('lidarScreen');
+  if (sideScreen) sideScreen.name = 'lidarScreen_side';
+  // 静态屏：纯黑、常黑不闪、不推 cells
+  const staticScreen = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 0.02, 0.1),
+    new THREE.MeshBasicMaterial({ color: 0x000000 })
+  );
+  staticScreen.position.set(0, 0.02, 0.1);
+  staticScreen.rotation.y = Math.PI / 2;
+  staticScreen.name = 'lidarScreen_static';
+  sidePivot.add(staticScreen);
+
+  // === 6. 视觉/红外传感器（fisheye_*/ir_* 命名供 crash-debris 兼容） ===
+  const fisheyeMat = new THREE.MeshPhongMaterial({ color: 0x050505, shininess: 80, specular: 0x222222 });
+  function addFisheye(x, y, z, name, sy = 0.35) {
+    const fe = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), fisheyeMat);
+    fe.scale.set(1, sy, 1);
+    fe.position.set(x, y, z); fe.name = name; g.add(fe);
+  }
+  // 收桨槽前中
+  addFisheye(0, 0.18, 0.1, 'fisheye_frontCenter');
+  // 前雷达左右侧面
+  addFisheye(0.4, 0.1, 0.42, 'fisheye_frontR');
+  addFisheye(-0.4, 0.1, 0.42, 'fisheye_frontL');
+  // 后中
+  addFisheye(0, 0.06, -0.44, 'fisheye_back');
+  // 下后方：红外 + 2视觉 + 1视觉
+  const irMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 30 });
+  const irRear = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), irMat);
+  irRear.scale.set(1.2, 0.3, 1); irRear.position.set(0, -0.14, -0.3); irRear.name = 'ir_rearBottom'; g.add(irRear);
+  addFisheye(-0.14, -0.13, -0.32, 'fisheye_rearBottomL', 0.3);
+  addFisheye(0.14, -0.13, -0.32, 'fisheye_rearBottomR', 0.3);
+  addFisheye(0, -0.13, -0.34, 'fisheye_rearBottomC', 0.3);
+  // 前上红外
+  const irFront = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), irMat);
+  irFront.scale.set(1.2, 0.3, 1); irFront.position.set(0, 0.1, 0.46); irFront.name = 'ir_front'; g.add(irFront);
+  // 云台下方：视觉 + 椭圆红外带分隔
+  addFisheye(0, -0.18, 0.42, 'fisheye_gimbalFront', 0.35);
+  const irGimbal = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 6), irMat);
+  irGimbal.scale.set(1.4, 0.3, 1);
+  irGimbal.position.set(0, -0.2, 0.3); irGimbal.name = 'ir_gimbalFront'; g.add(irGimbal);
+  const irGimbalDiv = new THREE.Mesh(
+    new THREE.BoxGeometry(0.01, 0.06, 0.12),
+    new THREE.MeshPhongMaterial({ color: 0x333333 })
+  );
+  irGimbalDiv.position.set(0, -0.2, 0.3); irGimbalDiv.name = 'ir_gimbalFrontDiv'; g.add(irGimbalDiv);
+
+  // === 7. DJI logo（右下近电池舱）+ 两侧黑色半圆 ===
+  const djiCanvas = document.createElement('canvas');
+  djiCanvas.width = 256; djiCanvas.height = 128;
+  const ctx = djiCanvas.getContext('2d');
+  ctx.clearRect(0, 0, 256, 128);
+  ctx.fillStyle = '#999999';
+  ctx.font = 'bold 64px Arial, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('DJI', 128, 70);
+  const djiTex = new THREE.CanvasTexture(djiCanvas);
+  const djiLabel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.32, 0.16),
+    new THREE.MeshBasicMaterial({ map: djiTex, transparent: true })
+  );
+  djiLabel.position.set(0.28, -0.135, -0.32);
+  djiLabel.rotation.x = Math.PI / 2; djiLabel.name = 'djiLabel'; g.add(djiLabel);
+  // 电池舱（Home）黑色方块
+  const battery = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 0.06, 0.2),
+    new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 40 })
+  );
+  battery.position.set(0.28, -0.15, -0.32); battery.name = 'batteryHome'; g.add(battery);
+  // DJI 标志两侧黑色半圆（弯朝外、不凸起，平贴机身）
+  const halfMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  [-1, 1].forEach(s => {
+    const half = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16, 0, Math.PI), halfMat);
+    half.rotation.x = -Math.PI / 2;  // 平贴底部（朝下）
+    half.position.set(0.28 + s * 0.12, -0.152, -0.32);
+    half.name = s < 0 ? 'logoHalfCircle_L' : 'logoHalfCircle_R';
+    g.add(half);
+  });
+
+  // === 8. 底部中央补光灯（呼吸动画复用 auxLightMesh） ===
+  const auxLightRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.12, 0.2, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffffcc, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
+  );
+  auxLightRing.rotation.x = Math.PI / 2;
+  auxLightRing.position.set(0, -0.14, 0.05); auxLightRing.name = 'auxLightRing'; g.add(auxLightRing);
+  auxLightMesh = auxLightRing;
+  const spotL = new THREE.SpotLight(0xffffcc, 2, 8, Math.PI / 4, 0.5, 2);
+  spotL.position.set(0, -0.1, 0.05);
+  spotL.target.position.set(0, -3, 0.05);
+  g.add(spotL); g.add(spotL.target);
+  auxLight = spotL;
+
+  // === 9. 云台侧转组（竖拍）→ gimbal 俯仰 → 镜头 ===
+  const portraitPivot = new THREE.Group();
+  portraitPivot.position.set(0, -0.16, 0.4); portraitPivot.name = 'portraitPivot';
+  g.add(portraitPivot);
+  mini5PortraitPivot = portraitPivot;
+  // 云台俯仰转轴（复用 miniGimbalPivot 驱动）
+  const gimbalPivot = new THREE.Group();
+  gimbalPivot.name = 'mini5GimbalPivot';
+  portraitPivot.add(gimbalPivot);
+  miniGimbalPivot = gimbalPivot;
+  const lensMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 200, specular: 0x444444 });
+  const lensGlassMat = new THREE.MeshPhongMaterial({ color: 0x2244aa, shininess: 250, specular: 0xffffff });
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.1, 16), lensMat);
+  lens.rotation.x = Math.PI / 2; lens.name = 'lens'; gimbalPivot.add(lens);
+  const lensGlass = new THREE.Mesh(new THREE.CircleGeometry(0.065, 16), lensGlassMat);
+  lensGlass.position.set(0, 0, 0.06); lensGlass.name = 'lensGlass'; gimbalPivot.add(lensGlass);
 }
 
 // ============================================================
@@ -901,6 +1102,12 @@ export function updateDroneAnimations(time) {
   // === Mini 4 Pro: 镜头物理俯仰（与相机视角同步，向下俯仰时镜头明显下转、回中复位） ===
   if (miniGimbalPivot) {
     miniGimbalPivot.rotation.x = -state.gimbalPitch * Math.PI / 180;
+  }
+
+  // === Mini 5 Pro: 竖拍云台侧转（portraitMode → rotation.z 转 90° 竖直） ===
+  if (mini5PortraitPivot) {
+    const target = state.portraitMode ? Math.PI / 2 : 0;
+    mini5PortraitPivot.rotation.z += (target - mini5PortraitPivot.rotation.z) * 0.12;
   }
 
   // === Avata 360: 双镜头云台竖直（升空后 → 上面一个镜头、下面一个镜头的全景模式） ===

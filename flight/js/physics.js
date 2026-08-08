@@ -11,6 +11,8 @@ import { initCrashSequence, updateCrashPhysics, CRASH_TYPES } from './crash-phys
 import { buildingBounds, powerLines, bridges } from './maps/city-map.js';
 import { updateFollowPath, removeFollowPath } from './follow-path.js';
 import { updateWaypointFlight } from './waypoint.js';
+import { mapState } from './maps/map-base.js';
+import { isForwardLit } from './maps/night-map.js';
 
 // Track which map we're on for collision detection
 let currentMapType = 'mountain';
@@ -400,10 +402,28 @@ export function updateEmergencyStop(dt) {
 }
 
 function updateObstacleIndicator() {
+  // 先清空全部 8 格（防残留高亮）
+  const allCells = [
+    { id: 'ob-tl' }, { id: 'ob-tc' }, { id: 'ob-tr' },
+    { id: 'ob-ml' }, { id: 'ob-mr' },
+    { id: 'ob-bl' }, { id: 'ob-bc' }, { id: 'ob-br' },
+  ];
+  allCells.forEach(d => { const el = document.getElementById(d.id); if (el) el.className = 'ob-cell'; });
+
+  // === 避障规则改版 ===
+  // 1) 仅带激光雷达的机型有前向避障；无激光雷达机型 → 全向避障全部失效
+  // 2) 只检测前向（dz===-1 三格），不再全向 8 格
+  // 3) 光线规则：哪面光亮哪面视觉传感器生效。夜间地图前方被路灯照亮 → 前向避障生效；
+  //    前方无光暗区 → 前向避障失效
+  const hasLidar = !!(state.droneSpec && state.droneSpec.lidar);
+  if (!hasLidar) return;
+  if (!state.obstacleEnabled) return;
+  const onNight = mapState.currentMapType === 'night';
+  if (onNight && !isForwardLit(state.dronePos.x, state.dronePos.z, state.droneYaw)) return;
+
+  // 激光雷达仅前向 3 格
   const dirs = [
     { id: 'ob-tl', dx: -1, dz: -1 }, { id: 'ob-tc', dx: 0, dz: -1 }, { id: 'ob-tr', dx: 1, dz: -1 },
-    { id: 'ob-ml', dx: -1, dz: 0 }, { id: 'ob-mr', dx: 1, dz: 0 },
-    { id: 'ob-bl', dx: -1, dz: 1 }, { id: 'ob-bc', dx: 0, dz: 1 }, { id: 'ob-br', dx: 1, dz: 1 },
   ];
 
   // Check for obstacles in front
@@ -427,7 +447,7 @@ function updateObstacleIndicator() {
       else el.classList.add('active-safe');
 
       // Track front obstacle for avoidance logic
-      if (d.dz === -1 && dist < frontObstacleDist) {
+      if (dist < frontObstacleDist) {
         frontObstacleDist = dist;
         frontObstacleDir = d.dx; // -1 = left, 0 = center, 1 = right
       }
@@ -435,7 +455,7 @@ function updateObstacleIndicator() {
   });
 
   // Execute obstacle avoidance based on mode
-  if (state.obstacleEnabled && frontObstacleDist < 8) {
+  if (frontObstacleDist < 10) {
     if (state.obstacleMode === 'brake') {
       // Brake mode: stop when obstacle is close
       if (frontObstacleDist < 5) {
@@ -447,19 +467,15 @@ function updateObstacleIndicator() {
         }
       }
     } else if (state.obstacleMode === 'bypass') {
-      // Bypass mode: steer around obstacle from distance
-      const avoidStrength = 1 - (frontObstacleDist / 8); // Stronger when closer
-
-      if (frontObstacleDist < 6) {
-        // Determine which way to turn based on obstacle position
-        // If obstacle is on left (dx < 0), turn right; if on right (dx > 0), turn left
-        let turnDir = frontObstacleDir !== null ? -frontObstacleDir : 1;
-        if (turnDir === 0) turnDir = Math.random() > 0.5 ? 1 : -1; // If center, pick a side
-
-        // Apply sideward velocity to bypass
-        const right = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
-        state.droneVel.addScaledVector(right, turnDir * avoidStrength * 5);
+      // Bypass mode: 真正绕行（不是刹停）——持续施加侧向速度，让机体画弧绕过障碍
+      let turnDir = frontObstacleDir !== null ? -frontObstacleDir : state.bypassTurnBias;
+      if (frontObstacleDir === 0) {
+        state.bypassTurnBias = -state.bypassTurnBias;
+        turnDir = state.bypassTurnBias;
       }
+      const avoidStrength = Math.max(0, 1 - frontObstacleDist / 10);
+      const right = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
+      state.droneVel.addScaledVector(right, turnDir * avoidStrength * 8);
     }
   }
 

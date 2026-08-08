@@ -81,7 +81,9 @@ export function updateCamera(gameStarted = false) {
     // 禁用相机倾斜,保持画面水平
     // 修复问题:之前 camera.rotation.z 会跟随 droneRoll 持续倾斜导致画面倒置
     // 现在仅允许横滚旋转（Mavic 4 Pro）叠加，其余保持水平
-    camera.rotation.z = state.gimbalRoll * Math.PI / 180;
+    // 竖拍（Mini 5 Pro）：画布 CSS rotate(90deg) 已把画面转到 9:16，相机滚转抵消使其直立
+    const portraitRad = state.portraitMode ? Math.PI / 2 : 0;
+    camera.rotation.z = state.gimbalRoll * Math.PI / 180 + portraitRad;
 
     // === 镜头脱落晃动效果 ===
     if (state.cameraDetached && state.cameraWobbleDecay > 0.01) {
@@ -114,8 +116,9 @@ export function updateCamera(gameStarted = false) {
     const lookTarget = state.dronePos.clone().add(gimbalLookOffset);
 
     // 相机横滚旋转（Mavic 4 Pro）：绕视线方向预旋 camera.up，实现画面滚转
-    const rollRad = state.gimbalRoll * Math.PI / 180;
-    if (rollRad !== 0) {
+    // 竖拍（Mini 5 Pro）：叠加 90° 抵消画布 CSS 旋转
+    const rollRad = state.gimbalRoll * Math.PI / 180 + (state.portraitMode ? Math.PI / 2 : 0);
+    {
       const lookDir = lookTarget.clone().sub(camera.position).normalize();
       camera.up.set(0, 1, 0).applyAxisAngle(lookDir, rollRad);
     }

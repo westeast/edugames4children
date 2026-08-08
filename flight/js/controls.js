@@ -5,6 +5,7 @@ import { createDroneModel, toggleZoom, toggleLid, toggleModuleBay, zoomLevel } f
 import { isManualMode, showManualModePrompt, updateGearButtonsUI } from './manual-mode.js';
 import { openWaypointPlanner, closeWaypointPlanner, stopWaypointFlight, isWaypointActive, handleMapClick, setWaypointSpeed, clearWaypoints, startWaypointFlight, confirmWaypointFlight, cancelWaypointConfirm } from './waypoint.js';
 import { setPanoMode, resetPano, isPanoActive } from './panorama.js';
+import { applyAspect } from './engine.js';
 
 // Gimbal pitch control state
 let gimbalDragging = false;
@@ -27,6 +28,7 @@ window.addEventListener('keydown', e => {
   if (e.key === '5') window.selectDrone(4);
   if (e.key === '6') window.selectDrone(5);
   if (e.key === '7') window.selectDrone(6);
+  if (e.key === '8') window.selectDrone(7);
   if (e.key === 'z' || e.key === 'Z') { toggleZoom(); showNotif('🔍 变焦 ' + (zoomLevel === 0 ? '1x' : zoomLevel === 1 ? '2x' : '4x')); }
   if (e.key === 'l' || e.key === 'L') { toggleLid(); }
   if (e.key === 'b' || e.key === 'B') { toggleModuleBay(); }
@@ -133,9 +135,16 @@ function applyDroneSelection(idx) {
   const rollItem = document.getElementById('rollModeItem');
   if (rollItem) rollItem.style.display = DRONES[idx].rollCapable ? '' : 'none';
   if (!DRONES[idx].rollCapable) state.rollModeEnabled = false;
+  // 竖拍复位：非 Mini 5 Pro 机型退出竖拍
+  if (!DRONES[idx].portraitCapable && state.portraitMode) {
+    state.portraitMode = false;
+    applyAspect();
+  }
   document.querySelectorAll('.drone-card').forEach((c, i) => { c.classList.toggle('active', i === idx); });
   createDroneModel(idx);
   updateGimbalUI();
+  updatePortraitBtn();
+  updateObstacleUI();
   // Avata 360：显示相机模式栏（单镜头/双镜头/超全景）；其他机型：隐藏并重置全景
   const isAvata = !!DRONES[idx].panoramic;
   if (isAvata) {
@@ -267,6 +276,36 @@ window.updateRollBtn = function() {
   const show = !!spec.rollCapable && state.rollModeEnabled && !state.isPreflight && state.gameStarted;
   btn.style.display = show ? '' : 'none';
   if (show) btn.textContent = '横滚 ' + Math.round(state.gimbalRoll) + '°';
+};
+
+// === 无损竖拍（Mini 5 Pro） ===
+window.togglePortrait = function() {
+  if (!state.droneSpec.portraitCapable) {
+    showNotif('⚠️ 仅 Mini 5 Pro 支持无损竖拍');
+    return;
+  }
+  state.portraitMode = !state.portraitMode;
+  applyAspect();
+  updatePortraitBtn();
+  showNotif(state.portraitMode ? '📱 无损竖拍已开启' : '🖥️ 横屏拍摄');
+};
+
+window.updatePortraitBtn = function() {
+  const btn = document.getElementById('portraitBtn');
+  if (!btn) return;
+  const spec = state.droneSpec;
+  const show = !!spec.portraitCapable && !state.isPreflight && state.gameStarted;
+  btn.style.display = show ? '' : 'none';
+  btn.classList.toggle('active', state.portraitMode);
+};
+
+// === 避障指示器随机型雷达能力更新 ===
+window.updateObstacleUI = function() {
+  const panel = document.getElementById('obPanel');
+  const note = document.getElementById('obNoLidarNote');
+  const hasLidar = !!(state.droneSpec && state.droneSpec.lidar);
+  if (panel) panel.classList.toggle('no-lidar', !hasLidar);
+  if (note) note.style.display = hasLidar ? 'none' : '';
 };
 
 // 手机操控虚拟摇杆（与主摇杆共用输入状态）

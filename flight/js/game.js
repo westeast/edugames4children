@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { renderer, scene, camera } from './engine.js';
 import { state } from './config.js';
-import { updateTerrainChunks } from './terrain.js';
+import { updateTerrainChunks, terrainGroup } from './terrain.js';
 import { spawnBirds, spawnCars, spawnPeople, spawnClouds, updateBirds, updateCars, updatePeople, updateClouds, birds, cars, people, clouds, clearEntities, spawnReporter, removeReporter } from './entities.js';
 import { createDroneModel, droneGroup, propellers, propBlurs, updateDroneAnimations, toggleLid, toggleModuleBay, toggleZoom, startDrag4G, updateDrag4G, endDrag4G, isDragging4GModule, lidOpen, moduleBayOpen, zoomLevel } from './drone-model.js';
 import { updateDrone, emergencyStop, updateEmergencyStop } from './physics.js';
@@ -17,6 +17,8 @@ import { startPreflight, updatePreflight, getPreflightPhase, preflightPointerDow
 import * as MountainMap from './maps/mountain-map.js';
 import * as CityMap from './maps/city-map.js';
 import * as WindMap from './maps/wind-map.js';
+import * as NightMap from './maps/night-map.js';
+import { startNightShow, stopNightShow, updateNightShow, isNightShowActive } from './multi-drone.js';
 import { speakWindCrash } from './tts.js';
 
 // Export emergency stop to global scope for HTML onclick
@@ -25,7 +27,7 @@ window.emergencyStop = emergencyStop;
 window.gameState = state;
 // Debug/test hook: expose scene & drone group for Playwright assertions
 // droneGroup 用 getter 保持实时引用（createDroneModel 后非空）
-window.__flightDebug = { scene, camera, get droneGroup() { return droneGroup; } };
+window.__flightDebug = { scene, camera, get droneGroup() { return droneGroup; }, terrainGroup, cars, people, birds, clouds };
 
 // Dragging state for home marker
 let isDraggingHome = false;
@@ -58,6 +60,7 @@ function updateAvataWatcher() {
 MapBase.registerMap('mountain', MountainMap);
 MapBase.registerMap('city', CityMap);
 MapBase.registerMap('wind', WindMap);
+MapBase.registerMap('night', NightMap);
 
 // 大风风坠检测：windCrash 置位后触发记者播报 + 更新风级 HUD
 function updateWindWatcher() {
@@ -117,6 +120,15 @@ MapBase.setMapSwitchCallback(async (newMapType) => {
   spawnPeople();
   spawnClouds();
 
+  // 夜间地图多机测试：按起飞模式启动/停止 5 机同时起飞场景
+  if (newMapType === 'night') {
+    if (state.takeoffMode === 'multi') startNightShow();
+    else stopNightShow();
+  } else {
+    stopNightShow();
+  }
+  window.updateTakeoffModeUI && window.updateTakeoffModeUI();
+
   // Show notification
   const mapInfo = MapBase.mapState.currentMap.getMapInfo();
   showNotif(`✅ 已切换到 ${mapInfo.name} 地图`, 3);
@@ -167,6 +179,9 @@ function gameLoop(time) {
     updateTerrainChunks();
     updateDebris(dt);
     updateWindWatcher();
+
+    // 夜间地图多机测试：更新编队飞行与图传窗口
+    if (isNightShowActive()) updateNightShow(dt);
 
     // Update drone interactive animations (lid, IR blink, aux light, zoom, aperture)
     updateDroneAnimations(time / 1000);
@@ -223,13 +238,15 @@ async function init() {
 
   // Initialize map from localStorage (persisted selection)
   const savedMap = localStorage.getItem('flight-sim-map') || 'mountain';
-  const validMaps = ['mountain', 'city', 'wind'];
+  const validMaps = ['mountain', 'city', 'wind', 'night'];
   const mapToUse = validMaps.includes(savedMap) ? savedMap : 'mountain';
 
   MapBase.mapState.currentMap = MapBase.getMap(mapToUse);
   MapBase.mapState.currentMapType = mapToUse;
   await MapBase.mapState.currentMap.initMap();
   if (mapToUse === 'wind') spawnReporter();
+  if (mapToUse === 'night' && state.takeoffMode === 'multi') startNightShow();
+  window.updateTakeoffModeUI && window.updateTakeoffModeUI();
 
   // Update map card UI to show correct selection
   document.querySelectorAll('.map-card').forEach(card => {
