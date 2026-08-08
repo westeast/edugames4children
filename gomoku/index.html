@@ -434,55 +434,60 @@
     <h1>🎮 儿童五子棋 - 学习游戏</h1>
     
     <div style="display: flex; gap: 20px; justify-content: center; align-items: flex-start; flex-wrap: nowrap; max-width: 1000px; margin: 0 auto;">
+        <!-- 左侧学习信息面板 -->
         <div class="info-panel">
-            <div class="info-item">
-                <div class="info-label">黑棋步数</div>
-                <div class="info-value" id="blackCount">0</div>
+            <h3 style="margin-bottom:12px;color:#4CAF50;font-size:18px;">📖 英语单词库</h3>
+
+            <div class="info-item" id="word-section" style="display:none; margin-top:-8px;margin-bottom:10px;border-left:3px solid #4CAF50;padding-left:12px;background:#f0fff9;">
+                <!-- 单词基础信息 -->
+                <div style="margin-bottom:6px;"><strong>📖</strong> <span id="info-word">—</span></div>
+
+                <!-- 音标区域（朗读触发） -->
+                <div class="info-item" id="phonetic-section" style="display:none;margin-bottom:8px;">
+                    <div class="info-label"><span style="color:#e91e63;">🔊</span> IPA 音标:</div>
+                    <div class="info-value" id="info-phonetic">—</div>
+                </div>
+
+                <!-- 中文释义 -->
+                <div class="info-item" id="meaning-section">
+                    <div class="info-label"><span style="color:#2196f3;">📝</span> 含义:</div>
+                    <div class="info-value" id="info-meaning">—</div>
+                </div>
+
+                <!-- 英文例句（朗读触发） -->
+                <div class="info-item" style="display:none;margin-top:6px;padding:8px;background:#fffbe6;border-radius:4px;" id="example-en-section">
+                    <div class="info-label"><span style="color:#ff9800;">🌐</span> 例句 EN:</div>
+                    <div class="info-value" id="info-exampleEn">—</div>
+                </div>
+
+                <!-- 中文翻译（朗读触发） -->
+                <div class="info-item" style="display:none;margin-top:6px;padding:8px;background:#e3f2fd;border-radius:4px;" id="example-zh-section">
+                    <div class="info-label"><span style="color:#00bcd4;">💬</span> 例句 CN:</div>
+                    <div class="info-value" id="info-exampleZh">—</div>
+                </div>
+
+                <!-- 当前单词计数器 -->
+                <div class="info-item" id="word-counter-section" style="display:none;margin-top:12px;color:#757575;font-size:13px;">
+                    <span id="progress-text">学习进度：—</span><br/>
+                    <small>总计：<span id="total-words-count">0</span> 词 ｜ 当前：<span id="current-word-index">—</span> → 下一个：<span id="next-word-preview">—</span></small>
+                </div>
             </div>
-            <div class="info-item">
-                <div class="info-label">白棋步数</div>
-                <div class="info-value" id="whiteCount">0</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">下一步</div>
+
+            <hr class="info-divider" style="margin:8px 0;border-top-color:#eee;">
+
+            <!-- 步数统计部分 -->
+            <div class="info-item">黑棋<span id="blackCount">0</span></div>
+            <div class="info-item">白棋：<span id="whiteCount">0</span></div>
+
+            <hr style="border: none; border-top: 1px dashed #ccc; margin:8px 0;">
+
+            <!-- 下一步提示 -->
+            <div class="info-item" style="background:#f5f5f5;padding:6px;border-radius:4px;" id="next-player-section">
+                <div class="info-label"><span style="color:#9c27b0;">↺</span> 下一步:</div>
                 <div class="info-value" id="nextPlayer">黑棋</div>
             </div>
-            <hr style="border: none; border-top: 1px dashed #ccc; margin: 10px 0;">
-            <div class="info-item">
-                <div class="info-label">音标</div>
-                <div class="info-value" id="soundSymbol">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">类型</div>
-                <div class="info-value" id="soundCat">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">清浊/长短</div>
-                <div class="info-value" id="soundVoice">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">字母组合</div>
-                <div class="info-value" id="soundLetters">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">例词</div>
-                <div class="info-value" id="soundSample">—</div>
-            </div>
-            <hr style="border: none; border-top: 1px dashed #ccc; margin: 10px 0;">
-            <div class="info-item">
-                <div class="info-label">单词拼写</div>
-                <div class="info-value" id="wordSpelling">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">单词音标</div>
-                <div class="info-value" id="wordPhonetic">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">单词含义</div>
-                <div class="info-value" id="wordMeaning">—</div>
-            </div>
-        </div>
-        
+
+        <!-- 游戏主容器 -->
         <div class="game-container">
             <div class="controls">
                 <div class="control-group">
@@ -495,6 +500,7 @@
                         <option value="lowercase">5. 小写字母</option>
                         <option value="ipaVowel">6. 国际音标元音</option>
                         <option value="ipaConsonant">7. 国际音标辅音</option>
+                        <option value="schoolWords">8. 中小学常用单词</option>
                     </select>
                 </div>
                 <div class="button-group">
@@ -513,6 +519,12 @@
             </div>
         </div>
     </div>
+
+    <!-- 中小学常用单词词库（按年级从易到难：小学低→高→初中→高中） -->
+    <script src="data/words-part1.js"></script>
+    <script src="data/words-part2.js"></script>
+    <script src="data/words-part3.js"></script>
+    <script src="data/words-part4.js"></script>
 
     <script>
         // 游戏状态
@@ -646,7 +658,14 @@
             lowercase: Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i)),
             // 音标读完不循环回开头，接着读组合单词
             ipaVowel: [...IPA_VOWELS, ...WORDS],
-            ipaConsonant: [...IPA_CONSONANTS, ...WORDS]
+            ipaConsonant: [...IPA_CONSONANTS, ...WORDS],
+            // 中小学常用单词（约3000词，按年级从易到难：小学低→高→初中→高中）
+            schoolWords: [
+                ...(window.SCHOOL_WORDS_P1 || []),
+                ...(window.SCHOOL_WORDS_P2 || []),
+                ...(window.SCHOOL_WORDS_P3 || []),
+                ...(window.SCHOOL_WORDS_P4 || [])
+            ]
         };
 
         // 声音对象
@@ -1063,6 +1082,11 @@
                 } else if (content.word) {
                     // 单词阶段：音标全部读完后，读单词的实际英文发音
                     speakText(content.word, 'en-US', 0.8);
+                    // 学校单词额外补充读中文释义，帮助理解
+                    if (Array.isArray(content.example)) {
+                        const meanings = Array.isArray(content.meaning) ? content.meaning : [];
+                        if (meanings.length) speakText(meanings.join('、'), 'zh-CN', 0.85);
+                    }
                 }
                 return;
             }
@@ -1092,31 +1116,78 @@
             speakText(speakStr, 'zh-CN');
         }
 
-        // 更新左侧学习信息栏（音标/单词）
+        // 更新左侧学习信息栏（单词/音标）
         function updateSoundInfo(content) {
-            const clear = (ids) => ids.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = '—';
-            });
+            const wordSection = document.getElementById('word-section');
+            const wordEl = document.getElementById('info-word');
+            const phoneticSection = document.getElementById('phonetic-section');
+            const phoneticEl = document.getElementById('info-phonetic');
+            const meaningEl = document.getElementById('info-meaning');
+            const exampleEnSection = document.getElementById('example-en-section');
+            const exampleZhSection = document.getElementById('example-zh-section');
+            const exampleEnEl = document.getElementById('info-exampleEn');
+            const exampleZhEl = document.getElementById('info-exampleZh');
 
-            clear(['soundSymbol', 'soundCat', 'soundVoice', 'soundLetters', 'soundSample', 'wordSpelling', 'wordPhonetic', 'wordMeaning']);
+            const set = (el, val) => { if (el) el.textContent = (val === undefined || val === null || val === '') ? '—' : val; };
+            const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
 
-            if (!content || typeof content !== 'object') return;
-
-            if (content.word) {
-                // 单词：显示拼写、音标、含义
-                document.getElementById('wordSpelling').textContent = content.word;
-                document.getElementById('wordPhonetic').textContent = content.phonetic;
-                document.getElementById('wordMeaning').textContent = content.meaning;
-            } else {
-                // 音标：显示符号、类型、清浊/长短、字母组合、例词
-                document.getElementById('soundSymbol').textContent = content.symbol;
-                document.getElementById('soundCat').textContent = content.cat;
-                document.getElementById('soundVoice').textContent = content.voice || '—';
-                document.getElementById('soundLetters').textContent = content.letters || '—';
-                document.getElementById('soundSample').textContent =
-                    content.sample ? `${content.sample} ${content.samplePhonetic || ''}` : '—';
+            // 非单词/音标模式（数字、字母、拼音）：隐藏单词面板
+            if (!content || typeof content !== 'object') {
+                show(wordSection, false);
+                updateWordProgress();
+                return;
             }
+
+            show(wordSection, true);
+            set(wordEl, content.word || content.symbol);
+
+            if (content.phonetic) {
+                set(phoneticEl, content.phonetic);
+                show(phoneticSection, true);
+            } else {
+                show(phoneticSection, false);
+            }
+
+            const meaning = Array.isArray(content.meaning) ? content.meaning.join('、') : content.meaning;
+            set(meaningEl, meaning);
+
+            if (Array.isArray(content.example) && content.example.length >= 2) {
+                set(exampleEnEl, content.example[0]);
+                set(exampleZhEl, content.example[1]);
+                show(exampleEnSection, true);
+                show(exampleZhSection, true);
+            } else {
+                show(exampleEnSection, false);
+                show(exampleZhSection, false);
+            }
+
+            updateWordProgress();
+        }
+
+        // 更新单词学习进度（仅学校单词模式显示）
+        function updateWordProgress() {
+            const counterSection = document.getElementById('word-counter-section');
+            if (!counterSection) return;
+
+            const type = gameState.displayType;
+            const data = displayData[type];
+            if (type !== 'schoolWords' || !data || data.length === 0) {
+                counterSection.style.display = 'none';
+                return;
+            }
+
+            const idx = gameState.moveCount % data.length;
+            const totalEl = document.getElementById('total-words-count');
+            const indexEl = document.getElementById('current-word-index');
+            const nextEl = document.getElementById('next-word-preview');
+            const progressEl = document.getElementById('progress-text');
+
+            counterSection.style.display = '';
+            if (totalEl) totalEl.textContent = data.length;
+            if (indexEl) indexEl.textContent = idx + 1;
+            const next = data[(idx + 1) % data.length];
+            if (nextEl) nextEl.textContent = next ? next.word : '—';
+            if (progressEl) progressEl.textContent = '学习进度：' + Math.round(((idx + 1) / data.length) * 100) + '%';
         }
 
         // 重新开始游戏
@@ -1173,6 +1244,9 @@
         document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
         document.getElementById('displayType').addEventListener('change', function() {
             gameState.displayType = this.value;
+            // 切换模式时立即刷新学习信息栏
+            const content = getDisplayContent();
+            updateSoundInfo(typeof content === 'object' ? content : null);
         });
 
         // 初始化游戏
