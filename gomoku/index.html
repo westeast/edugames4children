@@ -100,19 +100,32 @@
             transform: none;
         }
 
-        .game-content {
+        .game-content,
+        .game-layout {
             display: flex;
             flex-direction: row;
             gap: 20px;
             justify-content: center;
             align-items: flex-start;
             margin: 20px 0;
+            max-width: 1000px;
+            margin: 0 auto;
+            flex-wrap: nowrap;
         }
 
-        @media (max-width: 768px) {
-            .game-content {
+        @media (max-width: 900px) {
+            .game-content,
+            .game-layout {
                 flex-direction: column;
                 align-items: center;
+                flex-wrap: wrap;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            .game-layout .info-panel {
+                max-width: 100%;
+                width: 100%;
             }
         }
 
@@ -121,7 +134,11 @@
             border-radius: 10px;
             padding: 20px;
             min-width: 200px;
+            max-width: 340px;
+            flex-shrink: 0;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: left;
+            word-break: break-word;
         }
 
         .info-item {
@@ -421,7 +438,8 @@
             }
 
             .board {
-                width: 95vw;
+                width: 100%;
+                max-width: 90vw;
             }
 
             .piece {
@@ -433,7 +451,7 @@
 <body>
     <h1>🎮 儿童五子棋 - 学习游戏</h1>
     
-    <div style="display: flex; gap: 20px; justify-content: center; align-items: flex-start; flex-wrap: nowrap; max-width: 1000px; margin: 0 auto;">
+    <div class="game-layout">
         <!-- 左侧学习信息面板 -->
         <div class="info-panel">
             <h3 style="margin-bottom:12px;color:#4CAF50;font-size:18px;">📖 英语单词库</h3>
@@ -486,6 +504,7 @@
                 <div class="info-label"><span style="color:#9c27b0;">↺</span> 下一步:</div>
                 <div class="info-value" id="nextPlayer">黑棋</div>
             </div>
+        </div><!-- /info-panel -->
 
         <!-- 游戏主容器 -->
         <div class="game-container">
@@ -1080,12 +1099,17 @@
                     // 音标阶段：先完整读完全部音标，此阶段只读音标发音（中文近似音）
                     speakText(content.zh, 'zh-CN');
                 } else if (content.word) {
-                    // 单词阶段：音标全部读完后，读单词的实际英文发音
+                    // 单词阶段：读单词的实际英文发音
                     speakText(content.word, 'en-US', 0.8);
-                    // 学校单词额外补充读中文释义，帮助理解
-                    if (Array.isArray(content.example)) {
-                        const meanings = Array.isArray(content.meaning) ? content.meaning : [];
-                        if (meanings.length) speakText(meanings.join('、'), 'zh-CN', 0.85);
+                    // 补充读中文释义，帮助理解
+                    const meanings = Array.isArray(content.meaning)
+                        ? content.meaning
+                        : (content.meaning ? [content.meaning] : []);
+                    if (meanings.length) speakText(meanings.join('、'), 'zh-CN', 0.85);
+                    // 有例句时：读英文例句 + 中文翻译
+                    if (Array.isArray(content.example) && content.example.length >= 2) {
+                        if (content.example[0]) speakText(content.example[0], 'en-US', 0.85);
+                        if (content.example[1]) speakText(content.example[1], 'zh-CN', 0.85);
                     }
                 }
                 return;
