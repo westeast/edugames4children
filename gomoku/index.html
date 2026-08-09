@@ -276,27 +276,28 @@
             color: #333;
         }
 
-        /* 声音状态指示器 */
+        /* 声音状态指示器（放在左侧 IPA 音标行右侧） */
         .sound-status {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            margin: 0 0 16px;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 14px;
+            gap: 4px;
+            margin: 0;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
             font-weight: bold;
             cursor: pointer;
-            border: 2px solid #cfd8dc;
+            border: 1.5px solid #cfd8dc;
             background: #fafafa;
             color: #555;
             user-select: none;
             transition: all 0.3s ease;
+            white-space: nowrap;
         }
         .sound-status:hover { transform: scale(1.04); }
         .sound-dot {
-            width: 12px;
-            height: 12px;
+            width: 9px;
+            height: 9px;
             border-radius: 50%;
             background: #9e9e9e;
             flex: none;
@@ -492,11 +493,20 @@
 
             <div class="info-item" id="word-section" style="display:none; margin-top:-8px;margin-bottom:10px;border-left:3px solid #4CAF50;padding-left:12px;background:#f0fff9;">
                 <!-- 单词基础信息 -->
-                <div style="margin-bottom:6px;"><strong>📖</strong> <span id="info-word">—</span></div>
+                <div class="word-top-row" style="margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <strong>📖</strong> <span id="info-word">—</span>
+                </div>
 
                 <!-- 音标区域（朗读触发） -->
                 <div class="info-item" id="phonetic-section" style="display:none;margin-bottom:8px;">
-                    <div class="info-label"><span style="color:#e91e63;">🔊</span> IPA 音标:</div>
+                    <div class="info-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span style="color:#e91e63;">🔊</span> IPA 音标:
+                        <!-- 声音状态指示器（点击申请声音权限并测试） -->
+                        <div class="sound-status checking" id="soundStatus" title="点击申请声音权限并测试朗读">
+                            <span class="sound-dot" id="soundDot"></span>
+                            <span id="soundText">检测声音…</span>
+                        </div>
+                    </div>
                     <div class="info-value" id="info-phonetic">—</div>
                 </div>
 
@@ -583,12 +593,6 @@
             </div>
 
             <div class="status" id="status">轮到黑棋</div>
-
-            <!-- 声音状态指示器（点击申请声音权限并测试） -->
-            <div class="sound-status checking" id="soundStatus" title="点击申请声音权限并测试朗读">
-                <span class="sound-dot" id="soundDot"></span>
-                <span id="soundText">检测声音…</span>
-            </div>
 
             <div class="board-container">
                 <div class="board" id="board"></div>
@@ -1363,19 +1367,19 @@
             let state = 'ok', label = '声音正常';
             if (!ttsOK) {
                 state = 'error';
-                label = '本浏览器不支持语音朗读';
+                label = '不支持语音';
             } else if (!voices.length) {
                 state = 'checking';
-                label = '正在加载语音…';
+                label = '加载中…';
             } else if (!hasZh || !hasEn) {
                 const missing = [];
-                if (!hasZh) missing.push('中文');
-                if (!hasEn) missing.push('英文');
+                if (!hasZh) missing.push('中');
+                if (!hasEn) missing.push('英');
                 state = 'warn';
-                label = '缺少' + missing.join('、') + '语音（点击重试）';
+                label = '缺' + missing.join('/') + '语音';
             } else if (!audioUnlocked) {
                 state = 'error';
-                label = '🔊 点击启用声音';
+                label = '点击启用声音';
             }
             el.className = 'sound-status ' + state;
             if (textEl) textEl.textContent = label;
@@ -1386,6 +1390,16 @@
             unlockSound(false);
             document.removeEventListener('click', autoUnlock);
         });
+
+        // 声音胶囊位置：有音标时贴在「IPA 音标:」标签右侧，无音标时移到单词行右侧，保证始终可见
+        function placeSoundCapsule(hasPhonetic) {
+            const cap = document.getElementById('soundStatus');
+            if (!cap) return;
+            const target = hasPhonetic
+                ? document.querySelector('#phonetic-section .info-label')
+                : document.querySelector('#word-section .word-top-row');
+            if (target && cap.parentNode !== target) target.appendChild(cap);
+        }
 
         // 更新左侧学习信息栏（单词/音标）
         function updateSoundInfo(content) {
@@ -1415,8 +1429,10 @@
             if (content.phonetic) {
                 set(phoneticEl, content.phonetic);
                 show(phoneticSection, true);
+                placeSoundCapsule(true);
             } else {
                 show(phoneticSection, false);
+                placeSoundCapsule(false);
             }
 
             const meaning = Array.isArray(content.meaning) ? content.meaning.join('、') : content.meaning;
