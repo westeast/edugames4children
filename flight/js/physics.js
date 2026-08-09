@@ -20,6 +20,14 @@ let currentMapType = 'mountain';
 // === 大风系统（大风地图 / 风级 1-8） ===
 let windTime = 0;
 
+// 贴地飞行高度：Inspire 3 无下视传感器 → 可贴地面很近
+function groundClear() {
+  return (state.droneSpec && state.droneSpec.lowHover) ? 0.3 : 1;
+}
+function groundY(x, z) {
+  return getTerrainHeight(x, z) + groundClear();
+}
+
 // 风坠触地 → 重重摔毁（heavy 稀巴烂）+ 触发记者播报 flag
 function handleWindGroundImpact() {
   state.impactSpeed = 22;
@@ -137,9 +145,9 @@ export function updateDrone(dt) {
     const dist = toHome.length();
 
     // Get ground height at current position for landing detection
-    const groundHere = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+    const groundHere = groundY(state.dronePos.x, state.dronePos.z);
     // Get ground height at home position for final landing
-    const groundAtHome = getTerrainHeight(state.homePos.x, state.homePos.z) + 1;
+    const groundAtHome = groundY(state.homePos.x, state.homePos.z);
 
     // Create RTH path visualization
     createRTHPath();
@@ -265,7 +273,7 @@ export function updateDrone(dt) {
   state.dronePos.add(state.droneVel.clone().multiplyScalar(dt));
 
   // Ground collision
-  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  const groundH = groundY(state.dronePos.x, state.dronePos.z);
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
     if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }
@@ -343,7 +351,7 @@ function doCollisionAndBattery(dt) {
   applyWind(dt);
 
   // Ground collision
-  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  const groundH = groundY(state.dronePos.x, state.dronePos.z);
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
     if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }
@@ -738,7 +746,7 @@ function updateFollowMode(dt) {
   applyWind(dt);
 
   // Ground collision
-  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  const groundH = groundY(state.dronePos.x, state.dronePos.z);
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
     if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }
@@ -815,7 +823,7 @@ function updateWaypointPhysics(dt) {
   applyWind(dt);
 
   // Ground collision
-  const groundH = getTerrainHeight(state.dronePos.x, state.dronePos.z) + 1;
+  const groundH = groundY(state.dronePos.x, state.dronePos.z);
   if (state.dronePos.y < groundH) {
     state.dronePos.y = groundH;
     if (state.windSwept && state.droneVel.y < -6) { handleWindGroundImpact(); return; }

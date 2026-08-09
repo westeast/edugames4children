@@ -19,6 +19,7 @@ let rcGroup = null;       // 遥控器
 let rcScreen = null;      // 遥控器屏幕
 let rcButton = null;      // 遥控器电源键
 let foldedDrone = null;   // 折叠的无人机（开机动画用）
+let foldedGimbal = null;  // 演示机云台（Inspire 3：从上方装入机身）
 let frontArms = [];       // 前机臂 pivot
 let rearArms = [];        // 后机臂 pivot
 let miniProps = [];       // 小无人机桨叶
@@ -159,11 +160,18 @@ function buildFoldedDrone() {
   // 机身
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.55), silver);
   body.position.y = 0.18; g.add(body);
-  // 云台相机
+  // 云台相机（Inspire 3：初始悬在上方待装入；其他机型直接装好）
+  foldedGimbal = new THREE.Group();
+  foldedGimbal.name = 'foldedGimbal';
   const cam2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.12), new THREE.MeshPhongMaterial({ color: 0x111111 }));
-  cam2.position.set(0, 0.12, 0.32); g.add(cam2);
+  foldedGimbal.add(cam2);
   const lens = new THREE.Mesh(new THREE.CircleGeometry(0.04, 12), new THREE.MeshPhongMaterial({ color: 0x2244aa, shininess: 200 }));
-  lens.position.set(0, 0.12, 0.385); g.add(lens);
+  lens.position.set(0, 0, 0.065); foldedGimbal.add(lens);
+  foldedGimbal.position.set(0, 0.12, 0.32);
+  if (state.droneSpec && state.droneSpec.inspire3) {
+    foldedGimbal.position.set(0, 0.62, 0.32); // 悬在机身上方，等待装入
+  }
+  g.add(foldedGimbal);
   // 电池（后部凸起）+ 电源键
   const bat = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.2), dark);
   bat.position.set(0, 0.3, -0.15); g.add(bat);
@@ -442,6 +450,18 @@ const steps = [
       });
     },
   },
+  { // 7b Inspire 3：装上云台（云台从上方装入前下方云台位）
+    dur: state.droneSpec && state.droneSpec.inspire3 ? 1.2 : 0.05,
+    start() { if (state.droneSpec && state.droneSpec.inspire3) showNotif('📷 装上云台（X9 全画幅云台）'); },
+    update(k) {
+      if (!foldedGimbal) return;
+      if (state.droneSpec && state.droneSpec.inspire3) {
+        const t = easeOut(k);
+        foldedGimbal.position.y = 0.62 + (0.12 - 0.62) * t;   // 下移到位
+        foldedGimbal.rotation.x = 0.0;                         // 保持水平
+      }
+    },
+  },
   { // 8 飞机电池：短按
     dur: 0.5,
     start() { showNotif('🔋 飞行器开机：短按一下'); clickSound(); droneButton.material.color.setHex(0xffffff); },
@@ -495,6 +515,7 @@ function finishDeploy() {
 
   // 撤掉演示用折叠飞机，把真机放到起飞点地面
   if (foldedDrone) { scene.remove(foldedDrone); foldedDrone = null; }
+  foldedGimbal = null;
   const gy = getTerrainHeight(state.homePos.x, state.homePos.z);
   state.dronePos.set(state.homePos.x, gy + 0.6, state.homePos.z);
   state.droneVel.set(0, 0, 0);

@@ -562,6 +562,81 @@ body {
   color: #ff6b6b;
 }
 .modal-btn.danger:hover { background: rgba(255,100,100,0.3); }
+.modal-btn.primary {
+  background: rgba(255,149,0,0.8);
+  color: #000;
+  font-weight: 600;
+  border: none;
+}
+.modal-btn.primary:hover { background: rgba(255,149,0,1); }
+
+/* Inspire 3 云台摇杆（2D：上下俯仰 + 左右转向） */
+#gimbalPad {
+  position: fixed;
+  right: 188px;
+  top: 340px;
+  width: 74px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  touch-action: none;
+  pointer-events: none;
+}
+.gimbal-pad-label {
+  font-size: 9px;
+  color: #ff9500;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+.gimbal-pad-base {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(20,20,30,0.75);
+  border: 1.5px solid rgba(255,149,0,0.45);
+  box-shadow: inset 0 0 12px rgba(0,0,0,0.6);
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+}
+.gimbal-pad-base::before,
+.gimbal-pad-base::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,0.08);
+}
+.gimbal-pad-base::before {
+  left: 50%; top: 6px; bottom: 6px; width: 1px; transform: translateX(-50%);
+}
+.gimbal-pad-base::after {
+  top: 50%; left: 6px; right: 6px; height: 1px; transform: translateY(-50%);
+}
+.gimbal-pad-thumb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #ff9500, #cc5500);
+  border: 1.5px solid #ff9500;
+  box-shadow: 0 0 8px rgba(255,149,0,0.5);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  pointer-events: none;
+}
+.gimbal-pad-base:active { cursor: grabbing; }
+
+@media (max-width: 768px) {
+  #gimbalPad { right: 146px; top: 230px; width: 56px; }
+  .gimbal-pad-base { width: 48px; height: 48px; }
+  .gimbal-pad-thumb { width: 18px; height: 18px; }
+}
 
 /* 响应式 */
 

@@ -70,12 +70,17 @@ export function updateCamera(gameStarted = false) {
     camOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.droneYaw);
     camera.position.copy(state.dronePos).add(camOffset);
 
-    // Look direction: forward + gimbal pitch rotation
+    // Look direction: forward + gimbal pitch rotation (+ Inspire 3 云台左右转向)
     // Base forward direction (horizontal)
     const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
     // Rotate forward by gimbal pitch around the local right axis
     const rightAxis = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
-    const lookDir = forward.clone().applyAxisAngle(rightAxis, gimbalRad).normalize();
+    // Inspire 3 云台左右转向：先绕竖直轴 pan（正=右转），再俯仰
+    const panRad = state.gimbalPan * Math.PI / 180;
+    const lookDir = forward.clone()
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), -panRad)
+      .applyAxisAngle(rightAxis, gimbalRad)
+      .normalize();
     camera.lookAt(camera.position.clone().add(lookDir.multiplyScalar(100)));
 
     // === GIMBAL FPV MODE (穿越模式) ===
@@ -113,7 +118,12 @@ export function updateCamera(gameStarted = false) {
     // In third-person, look at drone but apply gimbal pitch offset to look point
     const forward = new THREE.Vector3(-Math.sin(state.droneYaw), 0, -Math.cos(state.droneYaw));
     const rightAxis = new THREE.Vector3(Math.cos(state.droneYaw), 0, -Math.sin(state.droneYaw));
-    const gimbalLookOffset = forward.clone().applyAxisAngle(rightAxis, gimbalRad).multiplyScalar(50);
+    // Inspire 3 云台左右转向：先绕竖直轴 pan，再俯仰
+    const panRad = state.gimbalPan * Math.PI / 180;
+    const gimbalLookOffset = forward.clone()
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), -panRad)
+      .applyAxisAngle(rightAxis, gimbalRad)
+      .multiplyScalar(50);
     const lookTarget = state.dronePos.clone().add(gimbalLookOffset);
 
     // 相机横滚旋转（Mavic 4 Pro）：绕视线方向预旋 camera.up，实现画面滚转
@@ -197,6 +207,13 @@ export function updateGimbalUI() {
   // Clamp to slider bounds (0.06 to 0.94 to keep thumb visible)
   const clampedPos = Math.max(0.06, Math.min(0.94, normalizedPos));
   thumb.style.top = ((1 - clampedPos) * 100) + '%';
+
+  // Inspire 3：起飞后显示 2D 云台摇杆（preflight 隐藏）
+  const pad = document.getElementById('gimbalPad');
+  if (pad) {
+    const isInspire = !!(spec.inspire3);
+    pad.style.display = (isInspire && !state.isPreflight && state.gameStarted) ? '' : 'none';
+  }
 
   // Check if at limit
   const atLimit = !isUnlimited && (pitch <= spec.gimbalMin || pitch >= spec.gimbalMax);

@@ -29,6 +29,7 @@ window.addEventListener('keydown', e => {
   if (e.key === '6') window.selectDrone(5);
   if (e.key === '7') window.selectDrone(6);
   if (e.key === '8') window.selectDrone(7);
+  if (e.key === '9') window.selectDrone(8);
   if (e.key === 'z' || e.key === 'Z') { toggleZoom(); showNotif('🔍 变焦 ' + (zoomLevel === 0 ? '1x' : zoomLevel === 1 ? '2x' : '4x')); }
   if (e.key === 'l' || e.key === 'L') { toggleLid(); }
   if (e.key === 'b' || e.key === 'B') { toggleModuleBay(); }
@@ -84,7 +85,25 @@ window.selectDrone = function(idx) {
     const modal = document.getElementById('neo2ConfirmModal');
     if (modal) { modal.style.display = 'flex'; return; }
   }
+  // 切换到 Inspire 3 极限机型需二次确认（取消 / 确认）
+  if (DRONES[idx].inspire3 && idx !== state.currentDroneIdx) {
+    pendingDroneIdx = idx;
+    const modal = document.getElementById('inspire3Modal');
+    if (modal) { modal.style.display = 'flex'; return; }
+  }
   applyDroneSelection(idx);
+};
+
+window.confirmInspire3 = function() {
+  const modal = document.getElementById('inspire3Modal');
+  if (modal) modal.style.display = 'none';
+  if (pendingDroneIdx !== null) { applyDroneSelection(pendingDroneIdx); pendingDroneIdx = null; }
+};
+
+window.cancelInspire3 = function() {
+  const modal = document.getElementById('inspire3Modal');
+  if (modal) modal.style.display = 'none';
+  pendingDroneIdx = null;
 };
 
 window.confirmAvataPrompt = function() {
@@ -128,6 +147,7 @@ function applyDroneSelection(idx) {
                                Math.min(DRONES[idx].gimbalMax === Infinity ? 30 : DRONES[idx].gimbalMax, 0));
   // 横滚 / 大风 / 手机操控 状态复位
   state.gimbalRoll = 0;
+  state.gimbalPan = 0;
   state.windSwept = false; state.windCrash = false;
   state.neo2Control = 'rc';
   closePhoneControl(true);
@@ -312,7 +332,49 @@ window.updateObstacleUI = function() {
 document.addEventListener('DOMContentLoaded', () => {
   setupJoystick('phoneLeftBase', 'phoneLeftThumb', state.leftStick);
   setupJoystick('phoneRightBase', 'phoneRightThumb', state.rightStick);
+  setupGimbalPad();
 });
+
+// === Inspire 3 云台摇杆（2D：上下俯仰 + 左右转向） ===
+export function setupGimbalPad() {
+  const base = document.getElementById('gimbalPadBase');
+  const thumb = document.getElementById('gimbalPadThumb');
+  if (!base || !thumb) return;
+  let active = false, startX, startY, maxR;
+  const onStart = e => {
+    active = true;
+    const t = e.touches ? e.touches[0] : e;
+    const r = base.getBoundingClientRect();
+    startX = r.left + r.width / 2; startY = r.top + r.height / 2;
+    maxR = Math.max(r.width / 2 - 10, 6);
+    e.preventDefault();
+  };
+  const onMove = e => {
+    if (!active) return;
+    const t = e.touches ? e.touches[0] : e;
+    const dx = t.clientX - startX, dy = t.clientY - startY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const clampDist = Math.min(dist, maxR);
+    const angle = Math.atan2(dy, dx);
+    const px = Math.cos(angle) * clampDist;
+    const py = Math.sin(angle) * clampDist;
+    thumb.style.transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`;
+    const nx = px / maxR;    // 右正
+    const ny = -py / maxR;   // 上正
+    // 上=云台向上，下=云台向下，左=云台左转，右=云台右转
+    const spec = state.droneSpec;
+    const min = spec.gimbalMin === -Infinity ? -90 : spec.gimbalMin;
+    const max = spec.gimbalMax === Infinity ? 90 : spec.gimbalMax;
+    state.gimbalPitch = Math.max(min, Math.min(max, Math.round(ny * (max - min) / 2)));
+    state.gimbalPan = Math.max(-90, Math.min(90, Math.round(nx * 90)));
+    updateGimbalUI();
+    e.preventDefault();
+  };
+  const onEnd = () => { active = false; thumb.style.transform = 'translate(-50%, -50%)'; };
+  base.addEventListener('touchstart', onStart); base.addEventListener('mousedown', onStart);
+  window.addEventListener('touchmove', onMove); window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchend', onEnd); window.addEventListener('mouseup', onEnd);
+}
 
 window.setGear = function(gear) {
   // 如果切换到 M档，显示提示弹窗

@@ -25,7 +25,7 @@
   </div>
   <div style="font-size:12px;color:#555;text-align:center;line-height:1.8;">
     无限 3D 世界 · 程序化地形 · 沉浸式飞行<br>
-    3款大疆机型可选 · 避开飞鸟防止炸机<br>
+    9款大疆机型可选 · 避开飞鸟防止炸机<br>
     真实地貌 · 飞鸟穿行 · 车辆行人
   </div>
   <button class="start-btn" id="startBtn">▶ 开始飞行</button>
@@ -96,6 +96,11 @@
     <div class="specs">浅灰旗舰 · 前向激光雷达 · 无损竖拍</div>
     <div class="stats"><div class="stat">极速 <span>17m/s</span></div><div class="stat">续航 <span>34min</span></div></div>
   </div>
+  <div class="drone-card" onclick="selectDrone(8)" id="droneCard8">
+    <div class="name">🚁 Inspire 3</div>
+    <div class="specs">极限机型 · 前置高机身 · 下置云台 · 贴地飞行</div>
+    <div class="stats"><div class="stat">极速 <span>24m/s</span></div><div class="stat">续航 <span>28min</span></div></div>
+  </div>
   <div class="panel-title" style="margin-top:14px;">操作说明</div>
   <div style="font-size:10px;color:#666;line-height:1.8;">
     左遥杆：升降 / 转向<br>
@@ -104,7 +109,7 @@
     键盘：WASD移动<br>
     Q/E转向 Space升 Shift降<br>
     V视角 H返航 P暂停<br>
-    C巡航 O避障 1-8机型
+    C巡航 O避障 1-9机型
   </div>
   </div>
 </div>
@@ -167,6 +172,14 @@
     <div class="gimbal-thumb" id="gimbalThumb"></div>
   </div>
   <div class="gimbal-limit-notify" id="gimbalLimitNotify" style="display:none">已达到最大俯仰度</div>
+</div>
+
+<!-- Inspire 3 云台摇杆（2D：上下俯仰 + 左右转向） -->
+<div id="gimbalPad" style="display:none">
+  <div class="gimbal-pad-label">云台</div>
+  <div class="gimbal-pad-base" id="gimbalPadBase">
+    <div class="gimbal-pad-thumb" id="gimbalPadThumb"></div>
+  </div>
 </div>
 
 <div id="bottomPanel" style="display:none">
@@ -539,6 +552,24 @@
     </div>
     <div class="modal-buttons">
       <button class="modal-btn primary" onclick="confirmNeo2()">确定切换</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inspire 3 极限机型切换确认弹窗（取消 / 确认） -->
+<div id="inspire3Modal" style="display:none;">
+  <div class="modal-overlay" onclick="cancelInspire3()"></div>
+  <div class="modal-container">
+    <div class="modal-icon">🚁</div>
+    <div class="modal-title">切换 Inspire 3？</div>
+    <div class="modal-desc">
+      你确定要切换 <strong>Inspire 3</strong> 吗？<br>
+      <span style="color:#ff6b6b;font-weight:600;">它是一种极限机型</span><br><br>
+      <small style="color:#666;">前置高机身 · 下置云台 · 折叠机臂 · 无下视传感器可贴地飞行</small>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-btn cancel" onclick="cancelInspire3()">取消</button>
+      <button class="modal-btn primary" onclick="confirmInspire3()">确认切换</button>
     </div>
   </div>
 </div>

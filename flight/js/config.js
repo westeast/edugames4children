@@ -10,6 +10,7 @@ export const DRONES = [
   { name: 'Neo 2',       model: 'neo2',       maxSpeed: 14, color: 0xfafafa, accel: 5, batteryDrain: 0.014, gimbalMin: -90, gimbalMax: 90,             needsArmUnfold: false, windResist: 0.3, followCam: true },
   { name: 'Avata 360',   model: 'avata360',   maxSpeed: 27, color: 0x9a9a9a, accel: 10, batteryDrain: 0.022, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: false, windResist: 0.6, panoramic: true },
   { name: 'Mini 5 Pro',  model: 'mini5pro',   maxSpeed: 17, color: 0x303030, accel: 7, batteryDrain: 0.016, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: true,  windResist: 0.75, lidar: true, portraitCapable: true },
+  { name: 'Inspire 3',   model: 'inspire3',   maxSpeed: 24, color: 0x26262e, accel: 8, batteryDrain: 0.016, gimbalMin: -90, gimbalMax: 90,            needsArmUnfold: false, windResist: 0.7,  inspire3: true, lowHover: true },
 ];
 
 export const GEAR_MULT = { C: 0.4, N: 1.0, S: 1.6, M: 1.8 };
@@ -65,6 +66,8 @@ export const state = {
   impactSpeed: 5, // 撞击速度，用于控制旋转强度
   // Gimbal pitch (degrees): 0 = horizontal forward, -90 = straight down, +70 = up 70°
   gimbalPitch: 0,
+  // Gimbal pan (degrees): Inspire 3 云台左右旋转，正 = 右转，负 = 左转（范围 -90 ~ +90）
+  gimbalPan: 0,
   // Gimbal mode: 'follow' (cloud台 stays level) or 'fpv' (cloud台 tilts with drone)
   gimbalMode: 'follow',
   // Follow mode state

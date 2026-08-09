@@ -27,6 +27,10 @@ let lensZoomMesh = null;
 let avataGimbal = null;       // Avata 360 双镜头云台（起飞后竖直）
 let miniGimbalPivot = null;   // Mini 4 Pro 镜头云台转轴（随 gimbalPitch 物理俯仰）
 let mini5PortraitPivot = null; // Mini 5 Pro 竖拍云台侧转组（rotation.z → ±90°）
+let inspireGimbalPivot = null; // Inspire 3 下置云台（上下左右旋转：俯仰 + 转向）
+let inspireArms = [];          // Inspire 3 折叠机臂（起飞前朝下，升空后慢慢升到机身上方）
+const INSPIRE_FOLD_ANGLE = -0.4;    // 折叠（机臂朝下垂到贴地）
+const INSPIRE_RAISE_ANGLE = 0.35;   // 展开（机臂升到机身上方）
 
 // 激光雷达红点格（Air 3S 前屏 / Mavic 4 Pro 右前机臂）扫闪动画
 let lidarCells = [];
@@ -54,6 +58,7 @@ export function createDroneModel(droneIdx) {
   lidMesh = null; bayMesh = null; fourGGroup = null; fourGSlotMesh = null;
   irLedMesh = null; auxLightMesh = null; auxLight = null; lensZoomMesh = null;
   avataGimbal = null; miniGimbalPivot = null; mini5PortraitPivot = null;
+  inspireGimbalPivot = null; inspireArms = [];
   lidarCells = [];
   if (neo2DisplayTex) { neo2DisplayTex.dispose(); neo2DisplayTex = null; }
   neo2DisplayMode = 0;
@@ -68,6 +73,7 @@ export function createDroneModel(droneIdx) {
     case 'neo2': buildNeo2(g, spec); break;
     case 'avata360': buildAvata360(g, spec); break;
     case 'mini5pro': buildMini5Pro(g, spec); break;
+    case 'inspire3': buildInspire3(g, spec); break;
     default: buildAir3(g, spec);
   }
 
@@ -788,8 +794,135 @@ function buildMini5Pro(g, spec) {
 }
 
 // ============================================================
-// DJI Mavic 4 Pro — 深灰 Mavic 3 Pro 壳 + 右前机臂激光雷达 + 横滚旋转
+// DJI Inspire 3 — 极限航拍机：前置高机身（前高后低）+ 下置云台 + 折叠机臂
+//   起飞时机臂在机身下方（折叠朝下）；按空格起飞后机臂慢慢升到机身上方
+//   云台悬挂于前下方，可上下左右旋转（俯仰 + 转向）
+//   无下视传感器 → lowHover 可贴地面很近
 // ============================================================
+function buildInspire3(g, spec) {
+  const bodyColor = spec.color;   // 0x26262e 深灰
+  const dark = 0x1a1a1a;
+  const slopeColor = 0x2e2e38;
+
+  // === 1. 前置高机身（前高后低）：前高块(+Z) + 后低台(-Z) + 斜顶盖 ===
+  const front = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.34, 0.42),
+    new THREE.MeshPhongMaterial({ color: bodyColor, shininess: 70 })
+  );
+  front.position.set(0, 0, 0.3); front.name = 'body_front'; g.add(front);
+  const rear = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.16, 0.6),
+    new THREE.MeshPhongMaterial({ color: bodyColor, shininess: 70 })
+  );
+  rear.position.set(0, -0.08, -0.2); rear.name = 'body_rear'; g.add(rear);
+  // 斜顶盖：前端(+Z)抬高，后端(-Z)降低 → 前高后低
+  const slope = new THREE.Mesh(
+    new THREE.BoxGeometry(0.66, 0.02, 0.86),
+    new THREE.MeshPhongMaterial({ color: slopeColor, shininess: 90 })
+  );
+  slope.rotation.x = -0.30; // +Z 端抬高
+  slope.position.set(0, 0.10, 0.02); slope.name = 'body_slope'; g.add(slope);
+
+  // DJI 标志（斜顶盖上）
+  const djiCanvas = document.createElement('canvas');
+  djiCanvas.width = 256; djiCanvas.height = 128;
+  const ctx = djiCanvas.getContext('2d');
+  ctx.clearRect(0, 0, 256, 128);
+  ctx.fillStyle = '#dddddd';
+  ctx.font = 'bold 88px Arial, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('DJI', 128, 70);
+  const djiTex = new THREE.CanvasTexture(djiCanvas);
+  const djiLabel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.55, 0.28),
+    new THREE.MeshBasicMaterial({ map: djiTex, transparent: true })
+  );
+  djiLabel.rotation.x = -Math.PI / 2;
+  djiLabel.position.set(0, 0.12, 0.02); djiLabel.name = 'djiLabel'; g.add(djiLabel);
+
+  // 底部起落架（小滑橇）
+  const legMat = new THREE.MeshPhongMaterial({ color: 0x333333 });
+  const skid1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.06), legMat);
+  skid1.position.set(0, -0.2, 0.3); skid1.name = 'skid_front'; g.add(skid1);
+  const skid2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.06), legMat);
+  skid2.position.set(0, -0.2, -0.2); skid2.name = 'skid_rear'; g.add(skid2);
+  [[-0.2, 0.3], [0.2, 0.3], [-0.2, -0.2], [0.2, -0.2]].forEach(p => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.16, 6), legMat);
+    leg.position.set(p[0], -0.14, p[1]); g.add(leg);
+  });
+
+  // === 2. 下置云台（前下方悬挂，可上下左右旋转） ===
+  const gimbalPivot = new THREE.Group();
+  gimbalPivot.position.set(0, -0.28, 0.3); gimbalPivot.name = 'inspireGimbal';
+  g.add(gimbalPivot);
+  inspireGimbalPivot = gimbalPivot;
+  // 云台外壳
+  const housing = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 0.18, 0.24),
+    new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 100 })
+  );
+  housing.name = 'inspireGimbalHousing'; gimbalPivot.add(housing);
+  // 镜头（朝 +Z）
+  const lensMat = new THREE.MeshPhongMaterial({ color: 0x0a0a0a, shininess: 200, specular: 0x444444 });
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.12, 16), lensMat);
+  lens.rotation.x = Math.PI / 2; lens.name = 'inspireLens'; gimbalPivot.add(lens);
+  const lensGlassMat = new THREE.MeshPhongMaterial({ color: 0x2244aa, shininess: 250, specular: 0xffffff });
+  const lensGlass = new THREE.Mesh(new THREE.CircleGeometry(0.09, 20), lensGlassMat);
+  lensGlass.position.set(0, 0, 0.08); lensGlass.name = 'inspireLensGlass'; gimbalPivot.add(lensGlass);
+  // 云台连接杆（朝前上方连到机身）
+  const rod = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.1, 0.16),
+    new THREE.MeshPhongMaterial({ color: 0x222222 })
+  );
+  rod.position.set(0, 0.12, -0.08); rod.name = 'inspireGimbalRod'; gimbalPivot.add(rod);
+
+  // === 3. 折叠机臂：起飞前朝下收在机身下，起飞后慢慢升到机身上方 ===
+  const armLen = 0.9;
+  const armMat = new THREE.MeshPhongMaterial({ color: dark, shininess: 40 });
+  const motorMat = new THREE.MeshPhongMaterial({ color: 0x333333 });
+  const bladeMat = new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.7 });
+  const corners = [
+    { x: 1, z: 1 }, { x: -1, z: 1 }, { x: 1, z: -1 }, { x: -1, z: -1 },
+  ];
+  corners.forEach((c, idx) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(c.x * 0.42, -0.04, c.z * 0.42);
+    pivot.rotation.y = Math.atan2(-c.z, c.x); // 让 local +X 指向斜外方向
+    pivot.name = 'inspireArm_' + idx;
+    g.add(pivot);
+    // 机臂梁
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(armLen, 0.05, 0.13), armMat);
+    arm.position.set(armLen / 2, 0, 0); arm.name = 'armBeam_' + idx; pivot.add(arm);
+    // 电机
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.16, 8), motorMat);
+    motor.position.set(armLen, 0.02, 0); motor.name = 'motor_' + idx; pivot.add(motor);
+    // 螺旋桨
+    const prop = new THREE.Group(); prop.position.set(armLen, 0.12, 0);
+    const b1 = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.02, 0.12), bladeMat); prop.add(b1);
+    const b2 = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.02, 0.12), bladeMat);
+    b2.rotation.y = Math.PI / 2; prop.add(b2);
+    pivot.add(prop); propellers.push(prop);
+    // 桨叶模糊盘
+    const blurDisk = new THREE.Mesh(
+      new THREE.CircleGeometry(0.85, 32),
+      new THREE.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0, side: THREE.DoubleSide })
+    );
+    blurDisk.rotation.x = -Math.PI / 2;
+    blurDisk.position.set(armLen, 0.13, 0); blurDisk.name = 'blurDisk_' + idx;
+    pivot.add(blurDisk); propBlurs.push(blurDisk);
+    // 机臂灯
+    const led = new THREE.Mesh(
+      new THREE.SphereGeometry(0.04, 4, 4),
+      new THREE.MeshBasicMaterial({ color: idx < 2 ? 0x00ff44 : 0xff2222 })
+    );
+    led.position.set(armLen, -0.06, 0); led.name = 'led_' + idx; pivot.add(led);
+    // 初始折叠（机臂朝下）
+    pivot.rotation.z = INSPIRE_FOLD_ANGLE;
+    inspireArms.push(pivot);
+  });
+}
+
+
 function buildMavic4Pro(g, spec) {
   buildMavic3Pro(g, spec, 0x1e1e24);   // 更深的暗灰机身
   // 右前机臂激光雷达：面板平放机臂根部，4 个红点朝上（扫闪 → 看似连续亮带）
@@ -1131,6 +1264,21 @@ export function updateDroneAnimations(time) {
       const airborne = state.gameStarted && !state.isPreflight && !state.isLanded;
       const targetRot = airborne ? -Math.PI / 2 : 0;
       avataGimbal.rotation.x += (targetRot - avataGimbal.rotation.x) * 0.08;
+    }
+
+    // === Inspire 3: 折叠机臂 —— 起飞前朝下收在机身下方，升空后慢慢升到机身上方 ===
+    if (inspireArms.length) {
+      const airborne = state.gameStarted && !state.isPreflight && !state.isLanded && !state.isCrashing && !state.isCrashed;
+      const target = airborne ? INSPIRE_RAISE_ANGLE : INSPIRE_FOLD_ANGLE;
+      inspireArms.forEach(ag => {
+        ag.rotation.z += (target - ag.rotation.z) * 0.045; // 慢慢升起
+      });
+    }
+    // === Inspire 3: 下置云台 —— 上下左右旋转（俯仰 pitch + 转向 pan） ===
+    if (inspireGimbalPivot) {
+      inspireGimbalPivot.rotation.x = -state.gimbalPitch * Math.PI / 180;
+      inspireGimbalPivot.rotation.y = state.gimbalPan * Math.PI / 180;
+      inspireGimbalPivot.rotation.z = 0;
     }
   }
 
