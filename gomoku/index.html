@@ -504,7 +504,7 @@
                         <input id="searchWordInput" type="text" placeholder="输入英文单词" style="flex:1;min-width:80px;padding:4px;border:1px solid #4CAF50;border-radius:4px;font-size:13px;">
                         <button id="searchWordBtn" style="height:auto;padding:4px 10px;font-size:13px;">跳转</button>
                     </div>
-                    <div style="color:#888;font-size:12px;margin-top:6px;">规则：每日100词轮换 · 每词出现10次后换下一词 · 已保存在本机</div>
+                    <div style="color:#888;font-size:12px;margin-top:6px;">规则：每日100词随机学习 · 每词随机出现10次后不再出现 · 进度已保存在本机</div>
                 </div>
             </div>
 
@@ -704,12 +704,14 @@
             ]
         };
 
-        // —— 中小学单词学习规则（每日100词轮换 + 每词10次 + 可调开始位置，localStorage 持久化）——
+        // —— 中小学单词学习规则（每日100词随机学习 + 每词随机出现10次 + 可调开始位置，localStorage 持久化）——
         const SCHOOL_WORDS_KEY = 'gomoku.schoolWords.v1';
         const WORDS_PER_DAY = 100;   // 每天 100 词
-        const TIMES_PER_WORD = 10;   // 每词出现 10 次后换下一个词
+        const TIMES_PER_WORD = 10;   // 每词累计随机出现 10 次后不再出现
 
         let swState = null;
+        let lastSWIndex = 0;         // 最近一次展示的单词在今日窗口中的序号
+        let lastSWContent = null;    // 最近一次展示的单词内容
 
         // 今天日期（本地）
         function todayKey() {
@@ -724,7 +726,7 @@
             return Math.floor(new Date(dateKey + 'T00:00:00').getTime() / 86400000);
         }
 
-        // 读取/初始化学习状态（每日窗口按天序号×100 轮换）
+        // 读取/初始化学习状态（每日窗口按天序号×100 轮换；每词累计随机出现10次）
         function loadSW() {
             if (swState) return swState;
             const data = displayData.schoolWords;
@@ -735,21 +737,18 @@
             const startWord = (saved && typeof saved.startWord === 'number' && saved.startWord >= 0 && saved.startWord < WORDS_PER_DAY)
                 ? saved.startWord : 0;
             // 今日自动窗口起点：按天数×100 轮换，覆盖整库
-            const autoWindow = (((Math.abs(daysSinceEpoch(today)) * WORDS_PER_DAY) % n) + n) % n;
-            let wordIdx, count, windowStart;
-            if (saved && saved.dayKey === today && typeof saved.wordIdx === 'number') {
-                // 同一天：保留搜索/调整后的窗口与进度
-                windowStart = (saved && typeof saved.windowStart === 'number' && saved.windowStart >= 0 && saved.windowStart < n)
-                    ? saved.windowStart : autoWindow;
-                wordIdx = saved.wordIdx % WORDS_PER_DAY;
-                count = (typeof saved.count === 'number') ? saved.count : 0;
+            const base = (((Math.abs(daysSinceEpoch(today)) * WORDS_PER_DAY) % n) + n) % n;
+            if (saved && saved.dayKey === today && Array.isArray(saved.counts) && saved.counts.length === WORDS_PER_DAY) {
+                // 同一天：保留窗口、出现次数进度与待展示词
+                const windowStart = (typeof saved.windowStart === 'number' && saved.windowStart >= 0 && saved.windowStart < n)
+                    ? saved.windowStart : (base + startWord) % n;
+                const pendingIndex = (typeof saved.pendingIndex === 'number' && saved.pendingIndex >= 0 && saved.pendingIndex < WORDS_PER_DAY)
+                    ? saved.pendingIndex : null;
+                swState = { dayKey: today, startWord, windowStart, counts: saved.counts.slice(), pendingIndex };
             } else {
-                // 新的一天：使用按天轮换的自动窗口，从用户设置的开始位置学起
-                windowStart = autoWindow;
-                wordIdx = startWord;
-                count = 0;
+                // 新的一天：按天轮换的窗口，从用户设置的开始位置学起，计数清零
+                swState = { dayKey: today, startWord, windowStart: (base + startWord) % n, counts: Array(WORDS_PER_DAY).fill(0), pendingIndex: null };
             }
-            swState = { dayKey: today, windowStart, startWord, wordIdx, count };
             saveSW();
             return swState;
         }
@@ -759,22 +758,68 @@
             try { localStorage.setItem(SCHOOL_WORDS_KEY, JSON.stringify(swState)); } catch (e) {}
         }
 
-        // 当前应显示的单词
-        function currentSWContent() {
+        // 在今日窗口内随机抽取一个未完成（<10次）的单词序号；全完成则庆祝并重置
+        function pickSWIndex() {
             const s = loadSW();
-            const data = displayData.schoolWords;
-            return data[(s.windowStart + s.wordIdx) % data.length];
+            // 若有待展示词（搜词/调位置后），优先展示
+            if (s.pendingIndex != null) {
+                const p = s.pendingIndex;
+                s.pendingIndex = null;
+                saveSW();
+                return p;
+            }
+            const candidates = [];
+            for (let i = 0; i < WORDS_PER_DAY; i++) {
+                if ((s.counts[i] || 0) < TIMES_PER_WORD) candidates.push(i);
+            }
+            if (!candidates.length) {
+                // 今日100词已全部学完：提示后重置，继续游戏
+                const doneEl = document.getElementById('progress-text');
+                if (doneEl) doneEl.textContent = '🎉 今日100词已全部学完！';
+                s.counts = Array(WORDS_PER_DAY).fill(0);
+                saveSW();
+                return Math.floor(Math.random() * WORDS_PER_DAY);
+            }
+            return candidates[Math.floor(Math.random() * candidates.length)];
         }
 
-        // 落子后推进：每词累计 10 次后换下一个词
-        function advanceSW() {
+        // 当前应展示的单词（随机）
+        function currentSWContent() {
             const s = loadSW();
-            s.count++;
-            if (s.count >= TIMES_PER_WORD) {
-                s.count = 0;
-                s.wordIdx = (s.wordIdx + 1) % WORDS_PER_DAY;
+            const idx = pickSWIndex();
+            lastSWIndex = idx;
+            const data = displayData.schoolWords;
+            lastSWContent = data[(s.windowStart + idx) % data.length];
+            return lastSWContent;
+        }
+
+        // 落子后记录：该单词出现次数 +1
+        function advanceSW(idx) {
+            const s = loadSW();
+            if (typeof idx === 'number' && idx >= 0 && idx < WORDS_PER_DAY) {
+                s.counts[idx] = (s.counts[idx] || 0) + 1;
+                saveSW();
             }
-            saveSW();
+        }
+
+        // 获取中英文例句：有真实例句用真实例句，否则自动生成通用例句（保证每次都有中英文例句）
+        function getExampleFor(content) {
+            if (!content || typeof content.word !== 'string') return null;
+            if (Array.isArray(content.example) && content.example.length >= 2) {
+                return [content.example[0], content.example[1]];
+            }
+            const word = content.word;
+            const meaning = Array.isArray(content.meaning) ? content.meaning[0] : (content.meaning || '');
+            const templates = [
+                ['Let\'s say the word "' + word + '".', '让我们读单词「' + meaning + '」。'],
+                ['Can you spell "' + word + '"?', '你会拼写「' + word + '」吗？'],
+                ['I am learning the word "' + word + '".', '我正在学习单词「' + meaning + '」。'],
+                ['Say "' + word + '" after me.', '跟我读「' + word + '」。'],
+                ['The word "' + word + '" means "' + meaning + '".', '单词「' + word + '」的意思是「' + meaning + '」。']
+            ];
+            let h = 0;
+            for (let i = 0; i < word.length; i++) h = (h * 31 + word.charCodeAt(i)) >>> 0;
+            return templates[h % templates.length];
         }
 
         // 声音对象
@@ -826,9 +871,10 @@
             const intersection = document.querySelector(`.intersection[data-row="${row}"][data-col="${col}"]`);
             intersection.appendChild(piece);
 
-            // 推进单词学习进度（中小学单词模式：每词出现10次后换下一个词）
+            // 推进单词学习进度（中小学单词模式：记录该词出现次数）
             if (gameState.displayType === 'schoolWords') {
-                advanceSW();
+                advanceSW(lastSWIndex);
+                updateWordProgress();   // 落子后再刷新一次，计数准确
             }
 
             // 增加对应玩家的步数
@@ -1204,11 +1250,10 @@
                         ? content.meaning
                         : (content.meaning ? [content.meaning] : []);
                     if (meanings.length) speakText(meanings.join('、'), 'zh-CN', 0.85);
-                    // 有例句时：读英文例句 + 中文翻译
-                    if (Array.isArray(content.example) && content.example.length >= 2) {
-                        if (content.example[0]) speakText(content.example[0], 'en-US', 0.85);
-                        if (content.example[1]) speakText(content.example[1], 'zh-CN', 0.85);
-                    }
+                    // 每次落子都朗读对应中英文例句（无真实例句时自动生成）
+                    const ex = getExampleFor(content);
+                    if (ex && ex[0]) speakText(ex[0], 'en-US', 0.85);
+                    if (ex && ex[1]) speakText(ex[1], 'zh-CN', 0.85);
                 }
                 return;
             }
@@ -1273,9 +1318,10 @@
             const meaning = Array.isArray(content.meaning) ? content.meaning.join('、') : content.meaning;
             set(meaningEl, meaning);
 
-            if (Array.isArray(content.example) && content.example.length >= 2) {
-                set(exampleEnEl, content.example[0]);
-                set(exampleZhEl, content.example[1]);
+            const ex = getExampleFor(content);
+            if (ex) {
+                set(exampleEnEl, ex[0]);
+                set(exampleZhEl, ex[1]);
                 show(exampleEnSection, true);
                 show(exampleZhSection, true);
             } else {
@@ -1313,14 +1359,19 @@
             const nextEl = document.getElementById('next-word-preview');
             const progressEl = document.getElementById('progress-text');
 
-            const cur = data[(s.windowStart + s.wordIdx) % data.length];
-            const next = data[(s.windowStart + (s.wordIdx + 1) % WORDS_PER_DAY) % data.length];
+            // 已完成（出现满10次）的词数
+            const done = s.counts.filter(c => c >= TIMES_PER_WORD).length;
+            const cur = lastSWContent || data[(s.windowStart + lastSWIndex) % data.length];
+            const curCount = (lastSWIndex >= 0 && lastSWIndex < WORDS_PER_DAY) ? (s.counts[lastSWIndex] || 0) : 0;
 
-            if (totalEl) totalEl.textContent = WORDS_PER_DAY;
-            if (indexEl) indexEl.textContent = (s.wordIdx + 1) + '/' + WORDS_PER_DAY;
-            if (nextEl) nextEl.textContent = next ? next.word : '—';
-            if (progressEl) progressEl.textContent =
-                '今日进度：第 ' + (s.wordIdx + 1) + '/' + WORDS_PER_DAY + ' 词 ｜ 本词第 ' + (s.count + 1) + '/' + TIMES_PER_WORD + ' 次 ｜ 下一个：' + (next ? next.word : '—');
+            if (totalEl) totalEl.textContent = done + '/' + WORDS_PER_DAY;
+            if (indexEl) indexEl.textContent = cur ? (cur.word + '（' + Math.min(curCount + 1, TIMES_PER_WORD) + '/' + TIMES_PER_WORD + '次）') : '—';
+            if (nextEl) nextEl.textContent = (done >= WORDS_PER_DAY) ? '今日已完成' : '随机下一词';
+            if (progressEl) {
+                progressEl.textContent = (done >= WORDS_PER_DAY)
+                    ? '🎉 今日100词已全部学完！'
+                    : '今日已完成 ' + done + '/100 词 ｜ 当前「' + (cur ? cur.word : '—') + '」出现 ' + Math.min(curCount + 1, TIMES_PER_WORD) + '/' + TIMES_PER_WORD + ' 次 ｜ 每词随机出现10次后不再出现';
+            }
 
             // 今日词库设置区
             if (settings) {
@@ -1342,16 +1393,19 @@
             }
         }
 
-        // 应用开始位置（跳到今日词库的第 N 个词，从新词开始）
+        // 应用开始位置（调整今日词库窗口起点，计数清零重新学习）
         function applyStartWord() {
             const input = document.getElementById('startWordInput');
             let v = parseInt(input.value, 10);
             if (isNaN(v)) v = 1;
             v = Math.max(1, Math.min(WORDS_PER_DAY, v));
             const s = loadSW();
+            const n = displayData.schoolWords.length;
+            const base = (((Math.abs(daysSinceEpoch(s.dayKey)) * WORDS_PER_DAY) % n) + n) % n;
             s.startWord = v - 1;
-            s.wordIdx = s.startWord;   // 立即跳到该位置，重新开始计次
-            s.count = 0;
+            s.windowStart = (base + s.startWord) % n;
+            s.counts = Array(WORDS_PER_DAY).fill(0);
+            s.pendingIndex = null;
             saveSW();
             input.value = s.startWord + 1;
             const content = getDisplayContent();
@@ -1359,31 +1413,23 @@
             updateStatus();
         }
 
-        // 搜词跳转：今日词库内有则跳转，否则以该词为起点重建今日词库窗口
+        // 搜词跳转：找到单词，以其为起点重建今日词库窗口并优先展示
         function searchWordJump() {
             const input = document.getElementById('searchWordInput');
             const q = (input.value || '').trim().toLowerCase();
             if (!q) return;
             const data = displayData.schoolWords;
-            const s = loadSW();
             const n = data.length;
             let idx = -1;
             for (let k = 0; k < n; k++) {
                 if (String(data[k].word).toLowerCase() === q) { idx = k; break; }
             }
             if (idx < 0) { alert('未找到该单词'); return; }
-            const rel = ((idx - s.windowStart) % n + n) % n;
-            if (rel < WORDS_PER_DAY) {
-                // 词在今日词库内：跳到该位置
-                s.startWord = rel;
-                s.wordIdx = rel;
-            } else {
-                // 词不在今日词库：以该词为起点重建今日词库窗口
-                s.windowStart = idx;
-                s.startWord = 0;
-                s.wordIdx = 0;
-            }
-            s.count = 0;
+            const s = loadSW();
+            s.windowStart = idx;
+            s.startWord = 0;
+            s.counts = Array(WORDS_PER_DAY).fill(0);
+            s.pendingIndex = 0;   // 下一次展示即搜索到的单词
             saveSW();
             const content = getDisplayContent();
             updateSoundInfo(typeof content === 'object' ? content : null);
