@@ -802,24 +802,13 @@
             }
         }
 
-        // 获取中英文例句：有真实例句用真实例句，否则自动生成通用例句（保证每次都有中英文例句）
+        // 获取真实中英文例句（词库中每词均有；缺失时返回 null，界面显示释义即可，不生成万能模板句）
         function getExampleFor(content) {
             if (!content || typeof content.word !== 'string') return null;
             if (Array.isArray(content.example) && content.example.length >= 2) {
                 return [content.example[0], content.example[1]];
             }
-            const word = content.word;
-            const meaning = Array.isArray(content.meaning) ? content.meaning[0] : (content.meaning || '');
-            const templates = [
-                ['Let\'s say the word "' + word + '".', '让我们读单词「' + meaning + '」。'],
-                ['Can you spell "' + word + '"?', '你会拼写「' + word + '」吗？'],
-                ['I am learning the word "' + word + '".', '我正在学习单词「' + meaning + '」。'],
-                ['Say "' + word + '" after me.', '跟我读「' + word + '」。'],
-                ['The word "' + word + '" means "' + meaning + '".', '单词「' + word + '」的意思是「' + meaning + '」。']
-            ];
-            let h = 0;
-            for (let i = 0; i < word.length; i++) h = (h * 31 + word.charCodeAt(i)) >>> 0;
-            return templates[h % templates.length];
+            return null;
         }
 
         // 声音对象
