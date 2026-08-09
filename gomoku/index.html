@@ -489,6 +489,23 @@
                     <span id="progress-text">学习进度：—</span><br/>
                     <small>总计：<span id="total-words-count">0</span> 词 ｜ 当前：<span id="current-word-index">—</span> → 下一个：<span id="next-word-preview">—</span></small>
                 </div>
+
+                <!-- 每日词库设置（开始位置可调，规则存 localStorage） -->
+                <div class="info-item" id="word-settings-section" style="display:none;margin-top:12px;padding:10px;background:#eef7ff;border-radius:6px;font-size:13px;">
+                    <div style="margin-bottom:6px;"><strong>🗓️ 今日词库</strong> <span id="daily-window-label">—</span></div>
+                    <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                        <label for="startWordInput" style="font-weight:normal;margin:0;font-size:13px;">开始词（第</label>
+                        <input id="startWordInput" type="number" min="1" max="100" value="1" style="width:58px;padding:4px;border:1px solid #4CAF50;border-radius:4px;font-size:13px;text-align:center;">
+                        <label for="startWordInput" style="font-weight:normal;margin:0;font-size:13px;">个）</label>
+                        <button id="startWordApply" style="height:auto;padding:4px 10px;font-size:13px;">应用</button>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                        <label for="searchWordInput" style="font-weight:normal;margin:0;font-size:13px;">🔍 搜词:</label>
+                        <input id="searchWordInput" type="text" placeholder="输入英文单词" style="flex:1;min-width:80px;padding:4px;border:1px solid #4CAF50;border-radius:4px;font-size:13px;">
+                        <button id="searchWordBtn" style="height:auto;padding:4px 10px;font-size:13px;">跳转</button>
+                    </div>
+                    <div style="color:#888;font-size:12px;margin-top:6px;">规则：每日100词轮换 · 每词出现10次后换下一词 · 已保存在本机</div>
+                </div>
             </div>
 
             <hr class="info-divider" style="margin:8px 0;border-top-color:#eee;">
@@ -687,6 +704,79 @@
             ]
         };
 
+        // —— 中小学单词学习规则（每日100词轮换 + 每词10次 + 可调开始位置，localStorage 持久化）——
+        const SCHOOL_WORDS_KEY = 'gomoku.schoolWords.v1';
+        const WORDS_PER_DAY = 100;   // 每天 100 词
+        const TIMES_PER_WORD = 10;   // 每词出现 10 次后换下一个词
+
+        let swState = null;
+
+        // 今天日期（本地）
+        function todayKey() {
+            const d = new Date();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return d.getFullYear() + '-' + m + '-' + day;
+        }
+
+        // 日期距 1970-01-01 的天数
+        function daysSinceEpoch(dateKey) {
+            return Math.floor(new Date(dateKey + 'T00:00:00').getTime() / 86400000);
+        }
+
+        // 读取/初始化学习状态（每日窗口按天序号×100 轮换）
+        function loadSW() {
+            if (swState) return swState;
+            const data = displayData.schoolWords;
+            const n = data.length;
+            const today = todayKey();
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem(SCHOOL_WORDS_KEY) || 'null'); } catch (e) {}
+            const startWord = (saved && typeof saved.startWord === 'number' && saved.startWord >= 0 && saved.startWord < WORDS_PER_DAY)
+                ? saved.startWord : 0;
+            // 今日自动窗口起点：按天数×100 轮换，覆盖整库
+            const autoWindow = (((Math.abs(daysSinceEpoch(today)) * WORDS_PER_DAY) % n) + n) % n;
+            let wordIdx, count, windowStart;
+            if (saved && saved.dayKey === today && typeof saved.wordIdx === 'number') {
+                // 同一天：保留搜索/调整后的窗口与进度
+                windowStart = (saved && typeof saved.windowStart === 'number' && saved.windowStart >= 0 && saved.windowStart < n)
+                    ? saved.windowStart : autoWindow;
+                wordIdx = saved.wordIdx % WORDS_PER_DAY;
+                count = (typeof saved.count === 'number') ? saved.count : 0;
+            } else {
+                // 新的一天：使用按天轮换的自动窗口，从用户设置的开始位置学起
+                windowStart = autoWindow;
+                wordIdx = startWord;
+                count = 0;
+            }
+            swState = { dayKey: today, windowStart, startWord, wordIdx, count };
+            saveSW();
+            return swState;
+        }
+
+        // 保存学习状态到 localStorage
+        function saveSW() {
+            try { localStorage.setItem(SCHOOL_WORDS_KEY, JSON.stringify(swState)); } catch (e) {}
+        }
+
+        // 当前应显示的单词
+        function currentSWContent() {
+            const s = loadSW();
+            const data = displayData.schoolWords;
+            return data[(s.windowStart + s.wordIdx) % data.length];
+        }
+
+        // 落子后推进：每词累计 10 次后换下一个词
+        function advanceSW() {
+            const s = loadSW();
+            s.count++;
+            if (s.count >= TIMES_PER_WORD) {
+                s.count = 0;
+                s.wordIdx = (s.wordIdx + 1) % WORDS_PER_DAY;
+            }
+            saveSW();
+        }
+
         // 声音对象
         const sounds = {
             place: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAD'),
@@ -694,7 +784,6 @@
             danger: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAD'),
             firework: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAD')
         };
-
         // 初始化棋盘
         function initBoard() {
             const board = document.getElementById('board');
@@ -736,6 +825,11 @@
             const piece = createPiece(row, col, gameState.currentPlayer);
             const intersection = document.querySelector(`.intersection[data-row="${row}"][data-col="${col}"]`);
             intersection.appendChild(piece);
+
+            // 推进单词学习进度（中小学单词模式：每词出现10次后换下一个词）
+            if (gameState.displayType === 'schoolWords') {
+                advanceSW();
+            }
 
             // 增加对应玩家的步数
             if (gameState.currentPlayer === 'black') {
@@ -791,6 +885,10 @@
         // 获取显示内容
         function getDisplayContent() {
             const type = gameState.displayType;
+            // 中小学单词模式：使用每日轮换 + 每词10次的持久化进度
+            if (type === 'schoolWords') {
+                return currentSWContent();
+            }
             const data = displayData[type];
             const index = gameState.moveCount % data.length;
             return data[index];
@@ -1194,24 +1292,103 @@
             if (!counterSection) return;
 
             const type = gameState.displayType;
-            const data = displayData[type];
-            if (type !== 'schoolWords' || !data || data.length === 0) {
+            const settings = document.getElementById('word-settings-section');
+
+            if (type !== 'schoolWords') {
+                counterSection.style.display = 'none';
+                if (settings) settings.style.display = 'none';
+                return;
+            }
+
+            const s = loadSW();
+            const data = displayData.schoolWords;
+            if (!data || data.length === 0) {
                 counterSection.style.display = 'none';
                 return;
             }
 
-            const idx = gameState.moveCount % data.length;
+            counterSection.style.display = '';
             const totalEl = document.getElementById('total-words-count');
             const indexEl = document.getElementById('current-word-index');
             const nextEl = document.getElementById('next-word-preview');
             const progressEl = document.getElementById('progress-text');
 
-            counterSection.style.display = '';
-            if (totalEl) totalEl.textContent = data.length;
-            if (indexEl) indexEl.textContent = idx + 1;
-            const next = data[(idx + 1) % data.length];
+            const cur = data[(s.windowStart + s.wordIdx) % data.length];
+            const next = data[(s.windowStart + (s.wordIdx + 1) % WORDS_PER_DAY) % data.length];
+
+            if (totalEl) totalEl.textContent = WORDS_PER_DAY;
+            if (indexEl) indexEl.textContent = (s.wordIdx + 1) + '/' + WORDS_PER_DAY;
             if (nextEl) nextEl.textContent = next ? next.word : '—';
-            if (progressEl) progressEl.textContent = '学习进度：' + Math.round(((idx + 1) / data.length) * 100) + '%';
+            if (progressEl) progressEl.textContent =
+                '今日进度：第 ' + (s.wordIdx + 1) + '/' + WORDS_PER_DAY + ' 词 ｜ 本词第 ' + (s.count + 1) + '/' + TIMES_PER_WORD + ' 次 ｜ 下一个：' + (next ? next.word : '—');
+
+            // 今日词库设置区
+            if (settings) {
+                settings.style.display = '';
+                const winLabel = document.getElementById('daily-window-label');
+                if (winLabel) {
+                    const start = s.windowStart + 1;
+                    const endNum = s.windowStart + WORDS_PER_DAY;
+                    let range;
+                    if (endNum <= data.length) {
+                        range = '第' + start + '–' + endNum + '词';
+                    } else {
+                        range = '第' + start + '–' + data.length + '词 + 第1–' + (endNum - data.length) + '词';
+                    }
+                    winLabel.textContent = '· ' + todayKey() + ' ' + range + '（词库共' + data.length + '词）';
+                }
+                const input = document.getElementById('startWordInput');
+                if (input) input.value = s.startWord + 1;
+            }
+        }
+
+        // 应用开始位置（跳到今日词库的第 N 个词，从新词开始）
+        function applyStartWord() {
+            const input = document.getElementById('startWordInput');
+            let v = parseInt(input.value, 10);
+            if (isNaN(v)) v = 1;
+            v = Math.max(1, Math.min(WORDS_PER_DAY, v));
+            const s = loadSW();
+            s.startWord = v - 1;
+            s.wordIdx = s.startWord;   // 立即跳到该位置，重新开始计次
+            s.count = 0;
+            saveSW();
+            input.value = s.startWord + 1;
+            const content = getDisplayContent();
+            updateSoundInfo(typeof content === 'object' ? content : null);
+            updateStatus();
+        }
+
+        // 搜词跳转：今日词库内有则跳转，否则以该词为起点重建今日词库窗口
+        function searchWordJump() {
+            const input = document.getElementById('searchWordInput');
+            const q = (input.value || '').trim().toLowerCase();
+            if (!q) return;
+            const data = displayData.schoolWords;
+            const s = loadSW();
+            const n = data.length;
+            let idx = -1;
+            for (let k = 0; k < n; k++) {
+                if (String(data[k].word).toLowerCase() === q) { idx = k; break; }
+            }
+            if (idx < 0) { alert('未找到该单词'); return; }
+            const rel = ((idx - s.windowStart) % n + n) % n;
+            if (rel < WORDS_PER_DAY) {
+                // 词在今日词库内：跳到该位置
+                s.startWord = rel;
+                s.wordIdx = rel;
+            } else {
+                // 词不在今日词库：以该词为起点重建今日词库窗口
+                s.windowStart = idx;
+                s.startWord = 0;
+                s.wordIdx = 0;
+            }
+            s.count = 0;
+            saveSW();
+            const content = getDisplayContent();
+            updateSoundInfo(typeof content === 'object' ? content : null);
+            updateWordProgress();
+            input.value = '';
         }
 
         // 重新开始游戏
@@ -1226,7 +1403,9 @@
             initBoard();
             updateStatus();
             document.querySelectorAll('.danger-point').forEach(point => point.remove());
-            updateSoundInfo(null); // 重置左侧学习信息栏
+            // 刷新左侧学习信息栏（单词模式保持显示当前词）
+            const content = getDisplayContent();
+            updateSoundInfo(typeof content === 'object' ? content : null);
         }
 
         // 开始游戏
@@ -1271,6 +1450,14 @@
             // 切换模式时立即刷新学习信息栏
             const content = getDisplayContent();
             updateSoundInfo(typeof content === 'object' ? content : null);
+        });
+
+        // 中小学单词：开始位置调整 + 搜词跳转
+        document.getElementById('startWordApply').addEventListener('click', applyStartWord);
+        document.getElementById('startWordInput').addEventListener('change', applyStartWord);
+        document.getElementById('searchWordBtn').addEventListener('click', searchWordJump);
+        document.getElementById('searchWordInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); searchWordJump(); }
         });
 
         // 初始化游戏
