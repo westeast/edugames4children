@@ -7,12 +7,11 @@ import { ObjectPool, randomInt, weightedRandom } from './utils.js';
 import { loadTrackPieces, createTrackPieceInstance, getRandomPiece, TRACK_PIECES, hasPiece } from './trackLoader.js';
 import { spawnCoinsForPiece, removeCoinsBehind, checkCoinCollection } from './coins.js';
 import { spawnPowerupForPiece, removePowerupsBehind, checkPowerupCollection } from './powerups.js';
+import { TRACK_PIECE_DATA } from './trackData.js';
 
 let scene = null;
 let trackPiecePool = null;
 let trackPiecesLoaded = false;
-let trackDirection = 0;
-let trackAngle = 0;
 
 // Piece selection weights based on difficulty
 const PIECE_WEIGHTS = {
@@ -88,6 +87,9 @@ export async function initTrack(sceneRef) {
 
     // Initialize track state
     state.nextPieceZ = 0;
+    state._accumulatedDist = 0;
+    state.nextPiecePosition = new B.Vector3(0, 0, 0); // First piece starts at origin
+    state.worldRotationY = 0;
     state.distanceSinceLastTurn = 0;
     state.distanceSinceLastObstacle = 0;
     state.distanceSinceLastCoinRun = 0;
@@ -165,83 +167,123 @@ function selectPieceType() {
 }
 
 /**
- * Generate next track piece
+ * Generate next track piece using path-based placement for continuous tracks
  */
 function generateNextPiece() {
     // Select piece type
     const pieceType = selectPieceType();
-    const pieceLength = PIECE_LENGTHS[pieceType] || PIECE_LENGTHS.default;
 
-    // Create instance
-    let piece;
+    // Create instances (uses real GLB mesh) — returns { root, instances: Mesh[] }
+    let result;
     if (trackPiecesLoaded && hasPiece(pieceType)) {
-        piece = createTrackPieceInstance(pieceType, scene);
+        result = createTrackPieceInstance(pieceType, scene);
     } else {
-        piece = createProceduralFallback(scene);
+        const fallbackRoot = createProceduralFallback(scene);
+        result = { root: fallbackRoot, instances: [] };
     }
 
-    if (!piece) {
-        piece = createProceduralFallback(scene);
+    if (!result) {
+        const fallbackRoot = createProceduralFallback(scene);
+        result = { root: fallbackRoot, instances: [] };
     }
 
-    piece.setEnabled(true);
+    const piece = result.root;
+    const instances = result.instances || [];
 
-    // Get piece Z position
-    const pieceZ = state.nextPieceZ;
+    // Enable all instances
+    for (const inst of instances) {
+        inst.setEnabled(true);
+    }
 
-    // Use current track angle for positioning
-    const currentAngle = trackAngle;
-    const dirX = Math.sin(currentAngle);
-    const dirZ = Math.cos(currentAngle);
+    // Get path data for this piece type
+    const data = TRACK_PIECE_DATA[pieceType];
+    let pieceLength;
 
-    // Position piece
-    piece.position.set(dirX * pieceZ, 0, dirZ * pieceZ);
-    piece.rotation.y = currentAngle;
+    if (data) {
+        pieceLength = data.len;
 
-    piece._pieceZ = pieceZ;
+        // Position and rotate each instance directly at world coordinates
+        for (const inst of instances) {
+            inst.position.set(state.nextPiecePosition.x, 0, state.nextPiecePosition.z);
+            const pieceRotRad = data.rot * Math.PI / 180;
+            inst.rotation.y = state.worldRotationY + pieceRotRad;
+        }
+
+        // Update anchor for next piece: last point of this piece's path, rotated by cumulative rotation
+        const lastPt = data.pts[data.pts.length - 1];
+        const cosR = Math.cos(state.worldRotationY);
+        const sinR = Math.sin(state.worldRotationY);
+        state.nextPiecePosition = new B.Vector3(
+            state.nextPiecePosition.x + cosR * (-lastPt[0]) + sinR * (-lastPt[1]),
+            0,
+            state.nextPiecePosition.z - sinR * (-lastPt[0]) + cosR * (-lastPt[1])
+        );
+
+        // Update cumulative rotation (convert degrees to radians)
+        state.worldRotationY += data.rot * Math.PI / 180;
+        state.trackAngle = state.worldRotationY; // Keep alias in sync for existing code
+    } else {
+        // Fallback for pieces without path data
+        pieceLength = PIECE_LENGTHS[pieceType] || PIECE_LENGTHS.default;
+
+        if (!state.nextPiecePosition) {
+            state.nextPiecePosition = new B.Vector3(0, 0, -pieceLength);
+        } else {
+            state.nextPiecePosition.z -= pieceLength;
+        }
+
+        // Position and rotate fallback instances too
+        for (const inst of instances) {
+            inst.position.set(state.nextPiecePosition.x, 0, state.nextPiecePosition.z + pieceLength);
+            inst.rotation.y = state.worldRotationY;
+        }
+    }
+
+    // Store metadata for collision detection and recycling
     piece._pieceType = pieceType;
     piece._pieceLength = pieceLength;
-    piece._trackAngle = currentAngle; // Store angle at creation time
+    piece._trackAngle = state.worldRotationY;
 
-    // Handle turn pieces - update direction AFTER positioning
-    if (pieceType === 'turn_left_a' || pieceType === 'turn_right_a') {
-        // Turn pieces: update track direction for NEXT piece
-        if (pieceType === 'turn_left_a') {
-            trackDirection = (trackDirection + 3) % 4; // Turn left (-90°)
-        } else {
-            trackDirection = (trackDirection + 1) % 4; // Turn right (+90°)
-        }
-        trackAngle = trackDirection * Math.PI / 2;
-        state.trackAngle = trackAngle;
-        state.distanceSinceLastTurn = 0;
-        state.distanceSinceLastObstacle = 0;
+    // Track accumulated distance along path (used as "Z" for recycling/collision)
+    if (!state._accumulatedDist) state._accumulatedDist = 0;
+    piece._pieceZ = state._accumulatedDist;
+    state._accumulatedDist += pieceLength;
+
+    // Store world position from the first instance (instances have independent transforms,
+    // so we read their actual world coordinates for camera/chaser lookup).
+    if (instances.length > 0) {
+        const inst = instances[0];
+        piece._worldPos = new B.Vector3(inst.position.x, inst.position.y, inst.position.z);
+    } else {
+        piece._worldPos = new B.Vector3(state.nextPiecePosition.x, 0, state.nextPiecePosition.z);
     }
+
+    // Update distance counters along the path
+    const traveledDist = data ? data.len : pieceLength;
+    state.distanceSinceLastTurn += traveledDist;
+    state.distanceSinceLastObstacle += traveledDist;
+    state.distanceSinceLastCoinRun += traveledDist;
+    state.distanceSinceLastPowerup += traveledDist;
 
     // Spawn coins and powerups
     spawnCoinsForPiece(piece, scene);
     spawnPowerupForPiece(piece, scene);
 
     state.trackPieces.push(piece);
-    state.nextPieceZ += pieceLength;
-    state.distanceSinceLastTurn += pieceLength;
-    state.distanceSinceLastObstacle += pieceLength;
-    state.distanceSinceLastCoinRun += pieceLength;
-    state.distanceSinceLastPowerup += pieceLength;
 }
 
 /**
  * Update track - recycle old pieces, generate new ones
  */
 export function updateTrack(dt) {
-    // Remove pieces behind player
+    // Remove pieces behind player (pieceZ is accumulated distance from start)
     while (state.trackPieces.length > 0) {
         const firstPiece = state.trackPieces[0];
-        const pieceZ = firstPiece._pieceZ;
-        const pieceLength = firstPiece._pieceLength || TRACK.PIECE_LENGTH;
+        const pieceDist = firstPiece._pieceZ;
 
-        if (pieceZ < state.playerZ - pieceLength * (TRACK.VISIBLE_PIECES_BEHIND + 1)) {
-            removeCoinsBehind(pieceZ);
-            removePowerupsBehind(pieceZ);
+        if (pieceDist < state.playerZ - TRACK.PIECE_LENGTH * (TRACK.VISIBLE_PIECES_BEHIND + 1)) {
+            removeCoinsBehind(pieceDist);
+            removePowerupsBehind(pieceDist);
 
             // Dispose instances
             if (firstPiece._instances) {
@@ -257,8 +299,9 @@ export function updateTrack(dt) {
         }
     }
 
-    // Generate new pieces ahead
-    while (state.nextPieceZ < state.playerZ + TRACK.PIECE_LENGTH * TRACK.VISIBLE_PIECES_AHEAD) {
+    // Generate new pieces ahead (use accumulated distance instead of nextPieceZ)
+    const targetDist = state._accumulatedDist + TRACK.PIECE_LENGTH * TRACK.VISIBLE_PIECES_AHEAD;
+    while (state._accumulatedDist < targetDist) {
         generateNextPiece();
     }
 
@@ -386,8 +429,6 @@ function resetPiece(piece) {
  * Reset entire track
  */
 export function resetTrack() {
-    trackDirection = 0;
-    trackAngle = 0;
     state.trackAngle = 0;
 
     // Dispose all pieces
@@ -402,6 +443,9 @@ export function resetTrack() {
 
     state.trackPieces = [];
     state.nextPieceZ = 0;
+    state.nextPiecePosition = new B.Vector3(0, 0, 0);
+    state.worldRotationY = 0;
+    state._accumulatedDist = 0;
 
     removeCoinsBehind(Infinity);
     removePowerupsBehind(Infinity);
@@ -416,6 +460,50 @@ export function resetTrack() {
     }
 }
 
-export function getTrackAngle() { return trackAngle; }
-export function getTrackDirection() { return trackDirection; }
+export function getTrackAngle() { return state.worldRotationY; }
 export function areTrackPiecesLoaded() { return trackPiecesLoaded; }
+
+/**
+ * Get world position at a given accumulated distance along the track.
+ * Used by engine.js (camera) and chaser.js for coordinate conversion.
+ */
+export function getWorldPositionAt(dist) {
+    // Find the piece covering this distance
+    for (const piece of state.trackPieces) {
+        const pDist = piece._pieceZ;
+        const pLen = piece._pieceLength || TRACK.PIECE_LENGTH;
+        if (dist >= pDist && dist < pDist + pLen) {
+            // Interpolate between this piece's position and the next
+            const t = (dist - pDist) / pLen;
+            const nextPiece = state.trackPieces[state.trackPieces.indexOf(piece) + 1];
+            if (nextPiece && nextPiece._worldPos) {
+                return new B.Vector3(
+                    piece._worldPos.x + (nextPiece._worldPos.x - piece._worldPos.x) * t,
+                    0,
+                    piece._worldPos.z + (nextPiece._worldPos.z - piece._worldPos.z) * t
+                );
+            }
+            return new B.Vector3(piece._worldPos.x, 0, piece._worldPos.z);
+        }
+    }
+    // Fallback: use the last known position
+    const last = state.trackPieces[state.trackPieces.length - 1];
+    if (last && last._worldPos) {
+        return new B.Vector3(last._worldPos.x, 0, last._worldPos.z);
+    }
+    return new B.Vector3(0, 0, 0);
+}
+
+/**
+ * Get world direction (heading) at a given accumulated distance.
+ */
+export function getWorldHeadingAt(dist) {
+    for (const piece of state.trackPieces) {
+        const pDist = piece._pieceZ;
+        const pLen = piece._pieceLength || TRACK.PIECE_LENGTH;
+        if (dist >= pDist && dist < pDist + pLen) {
+            return piece._trackAngle || 0;
+        }
+    }
+    return state.worldRotationY || 0;
+}

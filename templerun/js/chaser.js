@@ -3,6 +3,7 @@
 const B = window.BABYLON;
 
 import { state, CHASER } from './config.js';
+import { getWorldPositionAt, getWorldHeadingAt } from './track.js';
 import { playAnimation } from './character.js';
 
 let scene = null;
@@ -138,19 +139,17 @@ export function updateChaser(dt) {
 function updateChaserPosition() {
     if (!chaserRoot) return;
 
-    const trackAngle = state.trackAngle || 0;
-    const dirX = Math.sin(trackAngle);
-    const dirZ = Math.cos(trackAngle);
+    // Get world position at player's location, then offset by chaser distance
+    const playerWorld = getWorldPositionAt(state.playerZ);
+    const heading = getWorldHeadingAt(state.playerZ);
 
-    // Chaser position in track-relative coordinates (behind player)
-    const behindZ = state.playerZ - state.chaserDistance;
+    // Chaser is behind the player along the track direction
+    const behindZ = state.chaserDistance;
+    const dirX = Math.sin(heading);
+    const dirZ = Math.cos(heading);
 
-    // Convert to world coordinates
-    const worldX = Math.sin(trackAngle) * behindZ + state.playerX;
-    const worldZ = Math.cos(trackAngle) * behindZ;
-
-    chaserRoot.position.set(worldX, 0, worldZ);
-    chaserRoot.rotation.y = trackAngle;
+    chaserRoot.position.set(playerWorld.x - dirX * behindZ, 0, playerWorld.z - dirZ * behindZ);
+    chaserRoot.rotation.y = heading;
 
     // Scale based on distance (closer = more menacing)
     const scaleFactor = Math.max(0.5, 1.0 - state.chaserDistance / CHASER.MAX_DISTANCE * 0.5);

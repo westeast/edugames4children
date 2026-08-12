@@ -157,15 +157,17 @@ export function spawnPowerupForPiece(piece, sceneRef) {
     const worldZ = piece._pieceZ + pieceLength / 2;
     const worldX = lane * TRACK.LANE_WIDTH;
 
-    const dirX = Math.sin(state.trackAngle || 0);
-    const dirZ = Math.cos(state.trackAngle || 0);
+    // Use the piece's own track angle (not global state.trackAngle)
+    const pieceAngle = piece._trackAngle || 0;
+    const dirX = Math.sin(pieceAngle);
+    const dirZ = Math.cos(pieceAngle);
 
     pu.position.set(
         dirX * worldZ + worldX,
         0,
         dirZ * worldZ
     );
-    pu.rotation.y = state.trackAngle || 0;
+    pu.rotation.y = pieceAngle;
 
     pu._worldZ = worldZ;
     pu._worldX = worldX;

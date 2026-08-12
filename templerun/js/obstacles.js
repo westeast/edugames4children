@@ -106,21 +106,22 @@ export function spawnObstaclesForPiece(piece, sceneRef) {
     }
 
     // Create obstacle(s)
-    createObstacleAt(type, blockLane, pieceZ);
+    const pieceAngle = piece._trackAngle || 0;
+    createObstacleAt(type, blockLane, pieceZ, pieceAngle);
     if (secondLane !== null) {
-        createObstacleAt(type, secondLane, pieceZ);
+        createObstacleAt(type, secondLane, pieceZ, pieceAngle);
     }
 
     state.consecutiveObstacles++;
     state.distanceSinceLastObstacle = 0;
 }
 
-function createObstacleAt(type, lane, worldZ) {
+function createObstacleAt(type, lane, worldZ, pieceAngle) {
     const obs = obstaclePool.acquire();
     obs.setEnabled(true);
 
-    const dirX = Math.sin(state.trackAngle || 0);
-    const dirZ = Math.cos(state.trackAngle || 0);
+    const dirX = Math.sin(pieceAngle || 0);
+    const dirZ = Math.cos(pieceAngle || 0);
 
     obs._type = type;
     obs._lane = lane;

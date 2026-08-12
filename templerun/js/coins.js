@@ -100,6 +100,9 @@ export function spawnCoinsForPiece(piece, sceneRef) {
     const count = randomInt(3, Math.min(TRACK.MAX_COINS_PER_RUN, 8 + state.difficultyLevel));
     const lane = randomInt(-1, 1);
 
+    // Use the piece's own track angle (not global state.trackAngle)
+    const pieceAngle = piece._trackAngle || 0;
+
     for (let i = 0; i < count; i++) {
         const coin = coinPool.acquire();
         coin.setEnabled(true);
@@ -121,15 +124,15 @@ export function spawnCoinsForPiece(piece, sceneRef) {
         const worldZ = pieceZ + offsetZ;
         const worldX = coinLane * TRACK.LANE_WIDTH;
 
-        const dirX = Math.sin(state.trackAngle || 0);
-        const dirZ = Math.cos(state.trackAngle || 0);
+        const dirX = Math.sin(pieceAngle);
+        const dirZ = Math.cos(pieceAngle);
 
         coin.position.set(
             dirX * worldZ + worldX,
             coinY,
             dirZ * worldZ
         );
-        coin.rotation.y = state.trackAngle || 0;
+        coin.rotation.y = pieceAngle;
 
         coin._worldZ = worldZ;
         coin._worldX = worldX;
@@ -187,15 +190,16 @@ export function checkCoinCollection(playerBounds, gameState) {
             return true; // Coin collected
         }
 
-        // Magnet: attract coins toward player
+        // Magnet: attract coins toward player (uses piece angle for world conversion)
         if (gameState.magnetActive && dist < COLLISION.MAGNET_COLLECT_RADIUS * 1.5) {
             const attractStrength = 5.0 * (1 - dist / (COLLISION.MAGNET_COLLECT_RADIUS * 1.5));
             const nx = dx / dist;
             const nz = dz / dist;
             coin._worldX += nx * attractStrength * 0.016;
             coin._worldZ += nz * attractStrength * 0.016;
-            coin.position.x = Math.sin(state.trackAngle || 0) * coin._worldZ + coin._worldX;
-            coin.position.z = Math.cos(state.trackAngle || 0) * coin._worldZ;
+            const pieceAngle = coin._pieceAngle || (state.trackAngle || 0);
+            coin.position.x = Math.sin(pieceAngle) * coin._worldZ + coin._worldX;
+            coin.position.z = Math.cos(pieceAngle) * coin._worldZ;
         }
     }
 

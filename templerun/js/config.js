@@ -174,12 +174,16 @@ export const state = {
     activeObstacles: [],
     activeCoins: [],
     activePowerups: [],
-    nextPieceZ: 0,                  // Z position of next piece to generate
+    nextPieceZ: 0,                  // Z position of next piece to generate (along-track distance)
     distanceSinceLastTurn: 0,
     distanceSinceLastObstacle: 0,
     distanceSinceLastCoinRun: 0,
     distanceSinceLastPowerup: 0,
     consecutiveObstacles: 0,
+
+    // Path-based track continuity state
+    nextPiecePosition: null,        // World position where the next piece starts (Vector3)
+    worldRotationY: 0,             // Cumulative rotation along path (radians)
 
     // Settings
     soundEnabled: true,

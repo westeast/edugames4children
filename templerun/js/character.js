@@ -136,15 +136,10 @@ export function playAnimation(name, loop = false) {
 }
 
 // === Update Character Position ===
-export function updateCharacterPosition(x, y, z, rotation, isSliding) {
+export function updateCharacterPosition(worldX, y, worldZ, rotation, isSliding) {
     if (!playerRoot) return;
 
-    // Convert track-relative coordinates to world coordinates
-    // playerZ is the distance traveled along the track
-    // trackAngle determines which direction the track is facing
-    const worldX = Math.sin(rotation) * z + x;
-    const worldZ = Math.cos(rotation) * z;
-
+    // Set world position directly (game.js passes path-aware coordinates via getWorldPositionAt)
     playerRoot.position.set(worldX, y, worldZ);
     playerRoot.rotation.y = rotation;
 

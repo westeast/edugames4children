@@ -152,7 +152,9 @@ function calculateCombinedBounding(meshes) {
 }
 
 /**
- * Create an instance of a track piece
+ * Create an instance of a track piece.
+ * Babylon.js instances don't support parenting — they're always top-level meshes with independent transforms.
+ * Returns { root: TransformNode, instances: Mesh[] } so caller can position each instance directly.
  */
 export function createTrackPieceInstance(pieceName, scene) {
     const template = trackPieceTemplates[pieceName];
@@ -164,20 +166,24 @@ export function createTrackPieceInstance(pieceName, scene) {
     const root = new B.TransformNode('piece_' + pieceName, scene);
     root._trackPieceType = pieceName;
 
-    // Create instances of all meshes in this piece
+    // Create instances of all meshes in this piece.
+    // Babylon.js instances don't support parenting — they're always top-level meshes with independent transforms.
+    // So we DON'T use a TransformNode container; instead, each instance is positioned directly at world origin (0,0,0)
+    // and will be moved to the correct world position in generateNextPiece().
     const instances = [];
     for (const mesh of template.meshes) {
         const instance = mesh.createInstance(mesh.name + '_inst');
-        instance.parent = root;
         instance.isPickable = false;
-        // Note: receiveShadows has no effect on instances - shadows come from source mesh
+
+        // Instances don't inherit parent transforms — set their world position directly
+        // to match the piece node's origin (0, 0, 0 relative to scene).
         instances.push(instance);
     }
 
     root._instances = instances;
     root._boundingInfo = template.boundingInfo;
 
-    return root;
+    return { root: root, instances: instances };
 }
 
 /**

@@ -177,19 +177,14 @@ export function updateCamera(playerX, playerY, playerZ, trackAngle, dt) {
     const behindOffset = CAMERA_FOLLOW_DISTANCE;
     const heightOffset = CAMERA_HEIGHT_OFFSET;
 
-    // Calculate world position from track-relative coordinates
-    // playerZ is distance traveled along track, playerX is lane offset
-    const worldX = Math.sin(trackAngle) * playerZ + playerX;
-    const worldZ = Math.cos(trackAngle) * playerZ;
-
-    // Track direction vectors
+    // Track direction vectors (heading from path-based system)
     const dirX = Math.sin(trackAngle);
     const dirZ = Math.cos(trackAngle);
 
     // Camera is behind and above the player (in world coordinates)
-    const targetCamX = worldX - dirX * behindOffset;
+    const targetCamX = playerX - dirX * behindOffset;
     const targetCamY = playerY + heightOffset;
-    const targetCamZ = worldZ - dirZ * behindOffset;
+    const targetCamZ = playerZ - dirZ * behindOffset;
 
     // Smooth interpolation
     const lerpFactor = Math.min(dt * 5.0, 1.0);
@@ -198,9 +193,9 @@ export function updateCamera(playerX, playerY, playerZ, trackAngle, dt) {
     cameraPosition.z += (targetCamZ - cameraPosition.z) * lerpFactor;
 
     // Look ahead of player (in world coordinates)
-    const lookX = worldX + dirX * 3;
+    const lookX = playerX + dirX * 3;
     const lookY = playerY + 1;
-    const lookZ = worldZ + dirZ * 3;
+    const lookZ = playerZ + dirZ * 3;
 
     camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
     camera.setTarget(new B.Vector3(lookX, lookY, lookZ));

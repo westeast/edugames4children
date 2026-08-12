@@ -5,7 +5,7 @@ import { initEngine, updateCamera, render, getScene, getEngine } from './engine.
 import { setupKeyboardControls, setupTouchControls, setupMobileOrientation, getNextAction, clearActions } from './controls.js';
 import { loadCharacter, updateCharacterPosition, playAnimation } from './character.js';
 import { updatePlayer, getPlayerBounds, playerHit, resetPlayer } from './player.js';
-import { initTrack, updateTrack, resetTrack, getTrackAngle } from './track.js';
+import { initTrack, updateTrack, resetTrack, getTrackAngle, getWorldPositionAt, getWorldHeadingAt } from './track.js';
 import { initObstacles } from './obstacles.js';
 import { initCoins, updateCoins } from './coins.js';
 import { initPowerups, updatePowerups, loadPowerupModels } from './powerups.js';
@@ -116,18 +116,23 @@ function gameLoop(timestamp) {
         // Update chaser
         updateChaser(dt);
 
-        // Update character position
-        const trackAngle = getTrackAngle();
+        // Get path-aware world position and heading at player's Z location
+        const worldPos = getWorldPositionAt(state.playerZ);
+        const trackHeading = getWorldHeadingAt(state.playerZ);
+
+        // Update character position (world X from piece, Y from state, world Z from piece)
         updateCharacterPosition(
-            state.playerX,
+            worldPos.x,
             state.playerY,
-            state.playerZ,
-            trackAngle,
+            worldPos.z,
+            trackHeading,
             state.isSliding
         );
 
-        // Update camera
-        updateCamera(state.playerX, state.playerY, state.playerZ, trackAngle, dt);
+        // Update camera using path-aware coordinates
+        const playerWorldX = worldPos.x;
+        const playerWorldZ = worldPos.z;
+        updateCamera(playerWorldX, state.playerY, playerWorldZ, trackHeading, dt);
 
         // Update HUD
         updateHUD();
