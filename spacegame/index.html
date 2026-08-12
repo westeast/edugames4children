@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>深空探测器旅行 - Deep Space Explorer</title>
+<link rel="stylesheet" href="css/style.css?v=20260812">
+</head>
+<body>
+
+<div id="loadingText">正在初始化太空系统...</div>
+
+<div id="startScreen">
+  <div style="font-size:48px;">🚀</div>
+  <h1>深空探测器旅行</h1>
+  <p>Deep Space Explorer · Three.js Powered</p>
+  <button class="start-btn" id="startBtn">▶ 开始探索</button>
+</div>
+
+<div id="topBar" style="display:none">
+  <div class="settings-logo" onclick="openSettings()">🚀</div>
+  <div class="status-item"><span>📶</span><span class="val" id="signalVal">5</span></div>
+  <div class="status-item"><span>🛰️</span><span class="val" id="gpsVal">OK</span></div>
+  <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
+  <button class="settings-btn" onclick="openSettings()">⋮</button>
+</div>
+
+<div id="leftPanel" style="display:none">
+  <div class="panel-title collapsible" onclick="togglePanel('leftPanel')">
+    <span>目标行星</span><span class="collapse-icon">▼</span>
+  </div>
+  <div class="panel-content" id="planetPanel"></div>
+</div>
+
+<div id="rightPanel" style="display:none">
+  <div class="panel-title collapsible" onclick="togglePanel('rightPanel')">
+    <span>发射配置</span><span class="collapse-icon">▼</span>
+  </div>
+  <div class="panel-content" id="launchConfigContent"></div>
+</div>
+
+<div id="bottomPanel" style="display:none">
+  <div class="tele-panel"><div class="label">速度 SPD</div><div class="value" id="teleSpd">0.0</div><div class="unit">m/s</div></div>
+  <div class="tele-panel"><div class="label">距离 DIS</div><div class="value" id="teleDis">0.0</div><div class="unit">km</div></div>
+  <div class="tele-panel"><div class="label">阶段 PHASE</div><div class="value" id="telePhase">就绪</div></div>
+</div>
+
+<div id="coordsDisplay" style="display:none"></div>
+<div id="engineDisplay" style="display:none"></div>
+
+<div id="notification"></div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" style="display:none">
+  <div class="settings-overlay" onclick="closeSettings()"></div>
+  <div class="settings-container">
+    <div class="settings-header">
+      <span class="settings-title">设置</span>
+      <button class="settings-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="settings-tabs">
+      <button class="settings-tab active" onclick="switchSettingsTab('rocket')">火箭</button>
+      <button class="settings-tab" onclick="switchSettingsTab('payload')">载荷</button>
+      <button class="settings-tab" onclick="switchSettingsTab('control')">操控</button>
+      <button class="settings-tab" onclick="switchSettingsTab('about')">关于</button>
+    </div>
+    <div class="settings-content">
+      <div class="tab-content" id="tabRocket">
+        <div style="font-size:12px;color:#aaa;line-height:1.8;">
+          <strong>火箭选择：</strong><br>
+          在右侧面板选择发射火箭。<br>
+          支持 SpaceX（星舰、猎鹰系列）和中国航天（长征系列）。<br><br>
+          <strong>发动机可视化：</strong><br>
+          - 星舰：33× Raptor 3 (助推器) + 24× Raptor (飞船)<br>
+          - 猎鹰9号：9× Merlin 1D (Octaweb) + 1× MVac<br>
+          - 长征五号：2× YF-77 + 8× YF-100<br>
+          - 长征二号C：4× YF-20A 簇 + 1× YF-22E
+        </div>
+      </div>
+      <div class="tab-content" id="tabPayload" style="display:none">
+        <div style="font-size:12px;color:#aaa;line-height:1.8;">
+          <strong>探测器载荷：</strong><br>
+          - 火星探测卫星<br>
+          - 月球探测器<br>
+          - 旅行者1号（3.66m大锅盖天线）<br>
+          - 深空探测器<br>
+          - 载人飞船（神舟型）
+        </div>
+      </div>
+      <div class="tab-content" id="tabControl" style="display:none">
+        <div style="font-size:12px;color:#aaa;line-height:1.8;">
+          <strong>键盘操控：</strong><br>
+          - 左摇杆：径向推力（上下）+ 垂直调整<br>
+          - 右摇杆：切向推力（左右）<br><br>
+          <strong>移动端：</strong><br>
+          - 屏幕两侧虚拟摇杆<br><br>
+          <strong>载人返回：</strong><br>
+          - 开启载人模式后点击"返回地球"<br>
+          - 或按 R 键快速启动返回序列
+        </div>
+      </div>
+      <div class="tab-content" id="tabAbout" style="display:none">
+        <div class="about-section">
+          <div class="about-logo">🚀</div>
+          <div class="about-title">深空探测器旅行</div>
+          <div class="about-version">版本 1.0.0</div>
+          <div class="about-desc">探索太阳系，环绕八大行星<br>体验真实物理的太空之旅</div>
+          <div class="about-tech">技术支持：Three.js · WebGL · N-body引力模拟</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module" src="js/game.js?v=20260812"></script>
+
+</body>
+</html>

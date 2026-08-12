@@ -1,0 +1,130 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #050510;
+  color: #fff;
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* === Loading / Start Screen === */
+#loadingText { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff9500; font-size: 18px; z-index: 400; }
+
+#startScreen {
+  position: fixed; inset: 0; background: rgba(5,5,16,0.97); z-index: 300;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+}
+#startScreen h1 { font-size: 32px; color: #ff9500; letter-spacing: 2px; text-shadow: 0 0 20px rgba(255,149,0,0.4); }
+#startScreen p { color: #888; font-size: 14px; }
+.start-btn { padding: 14px 48px; background: #ff9500; color: #000; border: none; border-radius: 30px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.start-btn:hover { background: #ffad33; transform: scale(1.05); }
+
+/* === Top Bar === */
+#topBar {
+  position: fixed; top: 0; left: 0; right: 0; height: 38px;
+  background: rgba(10,10,16,0.85); border-bottom: 1px solid rgba(255,149,0,0.3);
+  display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 100;
+}
+.status-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ccc; }
+.status-item .val { color: #fff; font-weight: 600; }
+
+/* === Panels (left + right) === */
+#leftPanel, #rightPanel {
+  position: fixed; top: 50px; width: 180px; max-height: calc(100vh - 260px);
+  overflow-y: auto; background: rgba(10,10,16,0.88); border-radius: 12px;
+  border: 1px solid rgba(255,149,0,0.25); padding: 12px; z-index: 90;
+}
+#leftPanel { left: 12px; }
+#rightPanel { right: 12px; }
+
+.panel-title.collapsible { font-size: 11px; color: #ff9500; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.panel-title.collapsible:hover { color: #ffad33; }
+.collapse-icon { font-size: 9px; transition: transform 0.2s; }
+.panel-title.collapsed .collapse-icon { transform: rotate(-90deg); }
+
+/* Rocket cards */
+.rocket-card, .payload-card { background: #12121a; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s; }
+.rocket-card:hover, .payload-card:hover { border-color: rgba(255,149,0,0.5); }
+.rocket-card.active, .payload-card.active { border-color: #ff9500; background: #1a1500; }
+.rocket-card .name, .payload-card .name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.rocket-card .specs, .payload-card .specs { font-size: 10px; color: #888; }
+.rocket-card .stats { margin-top: 6px; display: flex; gap: 8px; }
+.rocket-card .stat { font-size: 10px; color: #aaa; }
+.rocket-card .stat span { color: #ff9500; font-weight: 600; }
+
+/* Planet buttons */
+.planet-btn { display: block; width: 100%; padding: 8px 12px; margin-bottom: 4px; border-radius: 6px; border: 1.5px solid rgba(255,149,0,0.3); background: transparent; color: #ccc; font-size: 12px; cursor: pointer; transition: all 0.2s; text-align: left; }
+.planet-btn:hover { border-color: rgba(255,149,0,0.6); color: #fff; }
+.planet-btn.active { background: rgba(255,149,0,0.25); border-color: #ff9500; color: #ff9500; font-weight: 600; }
+
+/* Control buttons */
+.ctrl-btn-inline { display: flex; align-items: center; justify-content: center; gap: 3px; padding: 8px 12px; border-radius: 6px; border: 1.5px solid rgba(255,149,0,0.4); background: rgba(20,20,30,0.85); color: #ff9500; font-size: 11px; cursor: pointer; transition: all 0.2s; margin-bottom: 6px; width: 100%; font-family: inherit; }
+.ctrl-btn-inline:hover { background: rgba(255,149,0,0.2); border-color: #ff9500; }
+
+.toggle-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid rgba(255,149,0,0.4); background: #12121a; color: #888; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+.toggle-btn.active { background: rgba(255,149,0,0.25); border-color: #ff9500; color: #ff9500; font-weight: 600; }
+
+/* === Bottom Telemetry Panel === */
+#bottomPanel {
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; z-index: 90;
+}
+.tele-panel { background: rgba(10,10,16,0.92); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25); padding: 10px 14px; min-width: 100px; text-align: center; }
+.tele-panel .label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.tele-panel .value { font-size: 20px; font-weight: 700; color: #fff; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.tele-panel .unit { font-size: 10px; color: #888; margin-top: 1px; }
+
+/* === Joysticks (mobile only) === */
+#joystickLeft, #joystickRight { position: fixed; bottom: 80px; width: 130px; height: 130px; z-index: 90; display: none; }
+#joystickLeft { left: 20px; }
+#joystickRight { right: 20px; }
+
+.joystick-base { width: 130px; height: 130px; border-radius: 50%; background: rgba(20,20,30,0.85); border: 2px solid rgba(255,149,0,0.4); position: relative; touch-action: none; cursor: pointer; }
+.joystick-thumb { width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff9500, #cc5500); border: 2px solid #ff9500; box-shadow: 0 0 12px rgba(255,149,0,0.5); position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: box-shadow 0.1s; }
+.joystick-label { text-align: center; font-size: 10px; color: #888; margin-top: 4px; }
+
+/* === Notification === */
+#notification { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); background: rgba(10,10,16,0.95); border: 1px solid rgba(255,149,0,0.5); border-radius: 8px; padding: 8px 20px; font-size: 13px; color: #ff9500; z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+#notification.show { opacity: 1; }
+
+/* === Coordinate Display (top-right) === */
+#coordsDisplay { position: fixed; top: 50px; right: 200px; background: rgba(10,10,16,0.88); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25); padding: 12px; z-index: 90; min-width: 140px; }
+
+/* === Engine Display (bottom-right) === */
+#engineDisplay { position: fixed; bottom: 70px; right: 12px; background: rgba(10,10,16,0.88); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25); padding: 12px; z-index: 90; min-width: 140px; }
+
+/* === Settings Modal === */
+#settingsModal { position: fixed; inset: 0; z-index: 500; display: none; align-items: center; justify-content: center; }
+.settings-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
+.settings-container { position: relative; width: 92%; max-width: 520px; max-height: 85vh; background: rgba(26,26,37,0.92); border-radius: 16px; border: 1px solid rgba(255,149,0,0.3); overflow: hidden; display: flex; flex-direction: column; }
+.settings-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid rgba(255,149,0,0.2); }
+.settings-title { font-size: 16px; font-weight: 600; color: #ff9500; }
+.settings-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: #888; font-size: 16px; cursor: pointer; }
+.settings-tabs { display: flex; border-bottom: 1px solid rgba(255,149,0,0.2); overflow-x: auto; }
+.settings-tab { flex: 1; min-width: 60px; padding: 12px 8px; background: transparent; border: none; color: #888; font-size: 13px; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent; }
+.settings-tab:hover { color: #fff; }
+.settings-tab.active { color: #ff9500; border-bottom-color: #ff9500; }
+.settings-content { padding: 16px; overflow-y: auto; max-height: 50vh; }
+
+/* === Buttons (top bar) === */
+.settings-btn, .fullscreen-btn { width: 28px; height: 28px; border-radius: 50%; border: none; background: rgba(255,149,0,0.2); color: #ff9500; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.settings-btn:hover, .fullscreen-btn:hover { background: rgba(255,149,0,0.4); }
+
+.settings-logo { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; transition: background 0.2s; margin-right: 8px; }
+.settings-logo:hover { background: rgba(255,149,0,0.2); }
+.settings-logo .logo-icon { font-size: 20px; }
+
+/* === Scrollbar for panels === */
+#leftPanel::-webkit-scrollbar, #rightPanel::-webkit-scrollbar { width: 3px; }
+#leftPanel::-webkit-scrollbar-track, #rightPanel::-webkit-scrollbar-track { background: transparent; }
+#leftPanel::-webkit-scrollbar-thumb, #rightPanel::-webkit-scrollbar-thumb { background: rgba(255,149,0,0.3); border-radius: 2px; }
+
+/* === Responsive === */
+@media (max-width: 768px) {
+  #leftPanel { width: 150px; left: 6px; top: 44px; padding: 8px; font-size: 11px; max-height: calc(100vh - 260px); }
+  #rightPanel { width: 130px; right: 6px; top: 44px; padding: 8px; max-height: calc(100vh - 260px); }
+  #bottomPanel { gap: 4px; }
+  .tele-panel { padding: 6px 8px; min-width: 70px; }
+  .tele-panel .value { font-size: 16px; }
+  .tele-panel .label { font-size: 8px; }
+}
