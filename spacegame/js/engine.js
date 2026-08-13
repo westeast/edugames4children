@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { state } from './config.js';
 
 export const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e); // Deep space dark blue (visible)
 
 export const camera = new THREE.PerspectiveCamera(60, 1, 0.5, 5000);
 camera.position.set(0, 8, 25);
@@ -51,7 +52,7 @@ export function createStarfield(count) {
   const mat = new THREE.PointsMaterial({
     size: 2.5,
     vertexColors: true,
-    transparent: true,
+    transparent: false, // Opaque stars so they're always visible
     opacity: 0.9,
     sizeAttenuation: true,
   });
@@ -72,7 +73,7 @@ window.addEventListener('resize', () => {
   }
 });
 
-// Wait for DOM ready before inserting canvas and adding scene objects
+// === Insert canvas and add scene objects ===
 function initRenderer() {
   const w = window.innerWidth || 800;
   const h = window.innerHeight || 600;
@@ -84,13 +85,12 @@ function initRenderer() {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'appCanvasWrap';
-    wrap.style.cssText = 'position:fixed;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;overflow:hidden;';
     document.body.insertBefore(wrap, document.body.firstChild);
   }
   wrap.appendChild(renderer.domElement);
 
-  // Add scene objects AFTER canvas is in DOM (avoids WebGL context corruption)
-  scene.fog = new THREE.FogExp2(0x050510, 0.0003);
+  // Add scene objects (lighting + stars) after canvas is in DOM
   scene.add(ambientLight);
   scene.add(sunLight);
   scene.add(stars);
