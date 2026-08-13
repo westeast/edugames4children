@@ -497,7 +497,7 @@
                     <strong>📖</strong> <span id="info-word">—</span>
                 </div>
 
-                <!-- 音标区域（朗读触发） -->
+                <!-- 音标区域（中英双音标 + 朗读触发） -->
                 <div class="info-item" id="phonetic-section" style="display:none;margin-bottom:8px;">
                     <div class="info-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         <span style="color:#e91e63;">🔊</span> IPA 音标:
@@ -507,7 +507,18 @@
                             <span id="soundText">检测声音…</span>
                         </div>
                     </div>
-                    <div class="info-value" id="info-phonetic">—</div>
+                    <!-- 英式音标 -->
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                        <span style="color:#888;font-size:12px;white-space:nowrap;">🇬🇧 英:</span>
+                        <span class="info-value" id="info-phoneticUK" style="flex:1;">—</span>
+                        <button onclick="speakPhonetic('UK')" title="朗读英式发音" style="background:none;border:none;cursor:pointer;font-size:18px;padding:0 2px;" id="btn-phoneticUK">📢</button>
+                    </div>
+                    <!-- 美式音标 -->
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="color:#888;font-size:12px;white-space:nowrap;">🇺🇸 美:</span>
+                        <span class="info-value" id="info-phoneticUS" style="flex:1;">—</span>
+                        <button onclick="speakPhonetic('US')" title="朗读美式发音" style="background:none;border:none;cursor:pointer;font-size:18px;padding:0 2px;" id="btn-phoneticUS">📢</button>
+                    </div>
                 </div>
 
                 <!-- 中文释义 -->
@@ -1391,6 +1402,14 @@
             document.removeEventListener('click', autoUnlock);
         });
 
+        // 朗读音标（点击喇叭触发）
+        function speakPhonetic(accent) {
+            if (!('speechSynthesis' in window)) return;
+            const lang = accent === 'UK' ? 'en-GB' : 'en-US';
+            const wordEl = document.getElementById('info-word');
+            if (wordEl && wordEl.textContent !== '—') speakText(wordEl.textContent, lang, 0.8);
+        }
+
         // 声音胶囊位置：有音标时贴在「IPA 音标:」标签右侧，无音标时移到单词行右侧，保证始终可见
         function placeSoundCapsule(hasPhonetic) {
             const cap = document.getElementById('soundStatus');
@@ -1406,7 +1425,8 @@
             const wordSection = document.getElementById('word-section');
             const wordEl = document.getElementById('info-word');
             const phoneticSection = document.getElementById('phonetic-section');
-            const phoneticEl = document.getElementById('info-phonetic');
+            const phoneticUKEl = document.getElementById('info-phoneticUK');
+            const phoneticUSEl = document.getElementById('info-phoneticUS');
             const meaningEl = document.getElementById('info-meaning');
             const exampleEnSection = document.getElementById('example-en-section');
             const exampleZhSection = document.getElementById('example-zh-section');
@@ -1426,8 +1446,17 @@
             show(wordSection, true);
             set(wordEl, content.word || content.symbol);
 
-            if (content.phonetic) {
-                set(phoneticEl, content.phonetic);
+            // 双音标显示：支持 phoneticUK / phoneticUS，兼容旧格式 phonetic（同时填入英音）
+            const hasPhonetic = (content.phoneticUK || content.phonetic) && content.phoneticUS;
+            if (hasPhonetic) {
+                set(phoneticUKEl, content.phoneticUK || content.phonetic);
+                set(phoneticUSEl, content.phoneticUS);
+                show(phoneticSection, true);
+                placeSoundCapsule(true);
+            } else if (content.phonetic) {
+                // 旧格式：只有单一音标，同时填入英音位置
+                set(phoneticUKEl, content.phonetic);
+                set(phoneticUSEl, '—');
                 show(phoneticSection, true);
                 placeSoundCapsule(true);
             } else {
