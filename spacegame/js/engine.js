@@ -9,10 +9,18 @@ export const camera = new THREE.PerspectiveCamera(60, 1, 0.5, 5000);
 camera.position.set(0, 8, 25);
 camera.lookAt(0, 0, 0);
 
-export const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth || 800, window.innerHeight || 600);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = false; // No shadows for space game (performance)
+// === Renderer ===
+let _renderer;
+function createRenderer() {
+	_renderer = new THREE.WebGLRenderer({ antialias: true });
+	_renderer.setSize(window.innerWidth || 800, window.innerHeight || 600);
+	_renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+	_renderer.shadowMap.enabled = false; // No shadows for space game (performance)
+	_renderer.setClearColor(0x1a1a2e, 1); // Deep space dark blue clear color
+	return _renderer;
+}
+
+export const renderer = createRenderer();
 
 // === Lighting ===
 export const ambientLight = new THREE.AmbientLight(0x223344, 0.5);

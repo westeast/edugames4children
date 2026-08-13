@@ -118,10 +118,20 @@ function gameLoop(time) {
     // Suppress Three.js internal traversal errors from scene.remove parent corruption
     if (!e.message || !e.message.includes('parent')) throw e;
   }
+    // Suppress Three.js internal traversal errors from scene.remove parent corruption
+    if (!e.message || !e.message.includes('parent')) throw e;
+  }
 }
 
-// === Initialize game on user click ===
-document.addEventListener('DOMContentLoaded', () => {
+// === Initialize game on user click (ES module has implicit defer, but DOMContentLoaded may already have fired) ===
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', onReady);
+} else {
+  // Module loaded after DOM ready — fire immediately
+  onReady();
+}
+
+function onReady() {
   const btn = document.getElementById('startBtn');
   if (btn) {
     btn.addEventListener('click', () => {
@@ -133,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loadingText').style.display = 'none';
     startGame();
   }
-});
+}
 
 async function startGame() {
   document.getElementById('loadingText').style.display = 'none';
