@@ -118,9 +118,6 @@ function gameLoop(time) {
     // Suppress Three.js internal traversal errors from scene.remove parent corruption
     if (!e.message || !e.message.includes('parent')) throw e;
   }
-    // Suppress Three.js internal traversal errors from scene.remove parent corruption
-    if (!e.message || !e.message.includes('parent')) throw e;
-  }
 }
 
 // === Initialize game on user click (ES module has implicit defer, but DOMContentLoaded may already have fired) ===
