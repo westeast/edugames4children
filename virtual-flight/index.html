@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1a2a">
+  <title>飞机的虚拟飞行 · 儿童教育游戏</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+    <div id="cockpitFrame" class="cockpit-frame" aria-hidden="true"></div>
+
+    <!-- 加载页 -->
+    <div id="loading" class="loading">
+      <div class="loading-logo">✈️</div>
+      <h1>飞机的虚拟飞行</h1>
+      <p class="loading-sub">正在组装飞机与地球…</p>
+      <div class="loading-bar"><div id="loadFill"></div></div>
+      <p id="loadText" class="loading-text">准备起飞</p>
+    </div>
+
+    <!-- 主菜单 -->
+    <div id="menu" class="menu hidden">
+      <div class="menu-top">
+        <div class="brand">
+          <div class="brand-badge">✈️</div>
+          <div>
+            <h1>飞机的虚拟飞行</h1>
+            <p>螺旋桨 · 民航 · 战斗机 · 航母起降 · 任务对战</p>
+          </div>
+        </div>
+
+        <div class="aircraft-picker">
+          <div class="picker-head">
+            <span class="picker-title">选择飞机</span>
+            <span id="flowerCount" class="flower-count">🌺 0</span>
+          </div>
+          <div id="aircraftTabs" class="seg seg-aircraft">
+            <button type="button" data-cat="prop">螺旋桨</button>
+            <button type="button" data-cat="airliner">民航</button>
+            <button type="button" data-cat="fighter">战斗机</button>
+          </div>
+          <div id="fighterTabs" class="seg seg-fighters hidden">
+            <button type="button" data-aircraft="f35b">F-35B</button>
+            <button type="button" data-aircraft="j20">歼-20</button>
+            <button type="button" data-aircraft="j16">歼-16</button>
+          </div>
+          <div class="picked-row">
+            <div>
+              <div id="pickedName" class="picked-name">F-35B</div>
+              <div id="pickedSub" class="picked-sub">垂直起降 · 升力风扇</div>
+            </div>
+            <div class="picked-tag" id="pickedTag">战斗机</div>
+          </div>
+          <p id="pickedDesc" class="picked-desc"></p>
+        </div>
+      </div>
+
+      <div class="menu-panels">
+        <section class="panel main-panel">
+          <div class="row">
+            <span class="row-label">模式</span>
+            <div id="modeTabs" class="seg">
+              <button type="button" data-mode="mission">任务模式</button>
+              <button type="button" data-mode="free">自由模式</button>
+            </div>
+          </div>
+          <div id="levelRow" class="row hidden">
+            <span class="row-label">关卡</span>
+            <div id="levelTabs" class="seg seg-levels">
+              <button type="button" data-level="1">第 1 关 · 击毁敌舰</button>
+              <button type="button" data-level="2">第 2 关 · 躲避导弹</button>
+            </div>
+          </div>
+
+          <div class="section-title">选择地图</div>
+          <div id="mapCards" class="map-cards"></div>
+
+          <div class="row row-country">
+            <span class="row-label">对战</span>
+            <div class="country-pick">
+              <select id="countryA" aria-label="我方国家"></select>
+              <span class="vs">VS</span>
+              <select id="countryB" aria-label="敌方国家"></select>
+            </div>
+          </div>
+
+          <div class="row row-weather">
+            <span class="row-label">天气</span>
+            <div class="weather-controls">
+              <div class="seg seg-small" id="timeTabs">
+                <button type="button" data-time="day">☀️ 白天</button>
+                <button type="button" data-time="night">🌙 黑夜</button>
+              </div>
+              <div class="seg seg-small" id="rainTabs">
+                <button type="button" data-rain="0">晴</button>
+                <button type="button" data-rain="1">雨</button>
+              </div>
+              <label class="brightness">
+                <span>亮度</span>
+                <input id="brightness" type="range" min="30" max="100" value="60">
+              </label>
+              <button id="musicToggle" type="button" class="mini-btn">🎵 音乐</button>
+            </div>
+          </div>
+
+          <div class="start-row">
+            <button id="startBtn" type="button" class="start-btn">
+              <span>起飞！</span>
+              <small>点击开始</small>
+            </button>
+            <div class="menu-hint" id="menuHint">默认自由模式 · 山川水林 · 白天晴天</div>
+          </div>
+        </section>
+      </div>
+
+      <div class="menu-foot">
+        <button id="creditsBtn" type="button" class="link-btn">模型鸣谢 / 授权</button>
+        <span>免费非商业儿童教育项目 · 背景音乐为原创合成音乐</span>
+      </div>
+    </div>
+
+    <!-- 飞行 HUD -->
+    <div id="hud" class="hud hidden">
+      <div class="hud-card hud-alt">
+        <div class="hud-label">高度 ALT</div>
+        <div class="hud-value"><span id="altValue">0</span><small>m</small></div>
+        <div class="hud-sub"><span id="vsValue">0.0</span> m/s · 航向 <span id="headingValue">0</span>°</div>
+      </div>
+
+      <div class="hud-card hud-speed">
+        <div class="hud-label">速度 SPD</div>
+        <div class="hud-value"><span id="speedValue">0</span><small>m/s</small></div>
+        <div class="hud-throttle"><div id="throttleBar"></div></div>
+        <div class="hud-sub">油门 <span id="throttlePercent">0</span>%</div>
+      </div>
+
+      <div class="hud-objective">
+        <div id="missionObjective" class="objective-main">自由飞行</div>
+        <div id="objectiveList" class="objective-list"></div>
+      </div>
+
+      <div class="hud-top-right">
+        <button id="viewBtn" type="button" class="hud-btn view-btn">视角 <small>②</small></button>
+        <button id="hudTime" type="button" class="hud-btn" title="昼夜切换">☀️</button>
+        <button id="hudRain" type="button" class="hud-btn" title="天气切换">🌤️</button>
+        <button id="hudMusic" type="button" class="hud-btn" title="音乐">🎵</button>
+        <button id="pauseBtn" type="button" class="hud-btn" title="暂停">⏸</button>
+      </div>
+
+      <div class="hud-card hud-status">
+        <div class="fuel-row">
+          <span>燃油</span>
+          <div class="fuel-bar"><div id="fuelFill"></div></div>
+          <b id="fuelPct">100%</b>
+        </div>
+        <div class="hud-sub">剩余 <span id="fuelTime">--</span> 分钟</div>
+        <div class="ammo-row">
+          <span>导弹 <b id="ammoValue">4</b> 枚</span>
+          <span id="vtolState" class="vtol-state"></span>
+        </div>
+      </div>
+
+      <div id="lockHint" class="lock-hint hidden">🎯 已锁定</div>
+      <div id="speedWarn" class="speed-warn hidden">⚠ 失速</div>
+    </div>
+
+    <!-- 飞行控制 -->
+    <div id="controls" class="controls hidden">
+      <div id="joystick" class="joystick">
+        <div class="joy-base"></div>
+        <div class="joy-stick" id="joyStick"><div class="joy-knob"></div></div>
+        <button id="joyBtn1" type="button" class="joy-btn jb1" title="导弹">①</button>
+        <button id="joyBtn2" type="button" class="joy-btn jb2" title="切换视角">②</button>
+        <button id="joyBtn3" type="button" class="joy-btn jb3" title="左转">③</button>
+        <button id="joyBtn4" type="button" class="joy-btn jb4" title="右转">④</button>
+      </div>
+
+      <div class="throttle-cluster">
+        <div class="throttle-head"><span>油门</span><b id="throttleValue">0%</b></div>
+        <div id="throttle" class="throttle">
+          <div class="throttle-ticks" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div id="throttleFill" class="throttle-fill"></div>
+          <div id="throttleKnob" class="throttle-knob"></div>
+        </div>
+        <div class="throttle-foot"><span>0</span><span>50</span><span>100</span></div>
+      </div>
+
+      <div class="action-cluster">
+        <button id="btnTakeoff" type="button" class="action-btn takeoff hidden">起飞</button>
+        <button id="btnVtol" type="button" class="action-btn vtol hidden">VTOL<small>长按</small></button>
+        <button id="btnFire" type="button" class="action-btn fire">导弹<small>①</small></button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- 坠机 -->
+    <div id="crashOverlay" class="overlay hidden">
+      <div class="overlay-card crash-card">
+        <div class="crash-icon">💥</div>
+        <h2 id="crashTitle">飞机损毁</h2>
+        <p id="crashReason">别担心，马上重新起飞！</p>
+        <div class="restart-count"><span id="restartCount">3</span> 秒后自动重新开始</div>
+      </div>
+    </div>
+
+    <!-- 胜利 -->
+    <div id="victoryOverlay" class="overlay hidden">
+      <div class="overlay-card victory-card">
+        <div id="redFlower" class="red-flower">🌺</div>
+        <h2 id="victoryTitle">任务完成！</h2>
+        <p id="victoryText">中国队获胜，获得一朵小红花！</p>
+        <div class="flower-total">累计小红花 <b id="victoryFlowers">0</b> 朵</div>
+        <div class="overlay-actions">
+          <button id="victoryAgain" type="button" class="primary-btn">再飞一次</button>
+          <button id="victoryMenu" type="button" class="ghost-btn">返回菜单</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 暂停 -->
+    <div id="pauseOverlay" class="overlay hidden">
+      <div class="overlay-card pause-card">
+        <h2>暂停</h2>
+        <p>休息一下，飞机在等你。</p>
+        <div class="overlay-actions column">
+          <button id="resumeBtn" type="button" class="primary-btn">继续飞行</button>
+          <button id="restartBtn" type="button" class="ghost-btn">重新开始</button>
+          <button id="exitBtn" type="button" class="ghost-btn">返回菜单</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模型鸣谢 -->
+    <div id="creditsModal" class="overlay hidden">
+      <div class="overlay-card credits-card">
+        <h2>模型鸣谢</h2>
+        <div class="credits-body">
+          <p><b>Cessna 172</b> — by e737, via Sketchfab / <code>bilawalsidhu/gods-eye-view</code>, CC BY 4.0</p>
+          <p><b>Boeing 747</b> — by zairiq-123, via Sketchfab / <code>bilawalsidhu/gods-eye-view</code>, CC BY 4.0</p>
+          <p><b>Low Poly Cargo Ship</b> — via Sketchfab / <code>bilawalsidhu/gods-eye-view</code>, CC BY 4.0</p>
+          <p><b>F-35</b> — via <code>cutechicken/3D-Airforce-Simulator</code>, CC BY-NC-SA 4.0</p>
+          <p><b>Su-57</b>（歼-20 替身） — by bohmerang, CC BY-NC-SA 4.0</p>
+          <p><b>Su-35</b>（歼-16 替身） — CC BY-NC-SA 4.0</p>
+          <p class="credits-note">本站为免费非商业儿童教育项目。模型经过缩放、涂装和附加部件（鸭翼、升力风扇、挂弹）修改。音乐与所有音效均为 Web Audio 原创合成。</p>
+        </div>
+        <button id="creditsClose" type="button" class="primary-btn">知道啦</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

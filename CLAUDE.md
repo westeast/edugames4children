@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 贪吃蛇 | `snake/` | `/snake/` | Snake game with educational elements |
 | 恐龙跳跳 | `dinosaur-game/` | `/dinosaur-game/` | Dinosaur runner with Chinese characters |
 | 大疆虚拟飞行 | `flight/` | `/flight/` | DJI drone flight simulator (Three.js) |
+| 飞机的虚拟飞行 | `virtual-flight/` | `/virtual-flight/` | 3D aircraft sim: prop/airliner/F-35B/J-20/J-16, 3 maps, missions, VTOL, weather (Three.js) |
 | 围棋读诗 | `weiqi/` | `/weiqi/` | 19x19 Go game with Tang poetry recitation |
 | 神庙逃亡 | `templerun/` | `/templerun/` | 3D infinite runner (Babylon.js) |
 
