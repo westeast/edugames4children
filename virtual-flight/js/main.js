@@ -669,6 +669,12 @@ const combatCallbacks = {
   }
 };
 
+const worldHooks = {
+  onGroundRocket: (origin) => {
+    if (combat && player) combat.fireGroundRocket(origin, player);
+  }
+};
+
 // ---------- 主循环 ----------
 function animate(now) {
   const raw = (now - last) / 1000;
@@ -706,7 +712,7 @@ function animate(now) {
     updateMenuCamera(dt);
   }
 
-  if (world) world.update(dt, time);
+  if (world) world.update(dt, time, phase === 'flying' ? player : null, worldHooks);
   if (effects) effects.update(dt, camera, time);
 
   const active = player || menuPlayer;
@@ -827,6 +833,7 @@ function installDebug() {
     get scene() { return scene; },
     get camera() { return camera; },
     get player() { return player; },
+    get world() { return world; },
     get combat() { return combat; },
     get ui() { return ui; },
     get views() { return currentViews(); },
@@ -894,6 +901,12 @@ function installDebug() {
         spawnLon: world ? latLonFromDir(world.spawnDir).lon : null,
         spawnOnLand: world ? isLandAt(latLonFromDir(world.spawnDir).lat, latLonFromDir(world.spawnDir).lon) : false,
         earthVisible: !!(scene && scene.getObjectByName('earth')),
+        mountains: world ? world.mountainCount : 0,
+        waterBodies: world ? world.waterCount : 0,
+        villagers: world ? world.villagerCount : 0,
+        soldiers: world && world.outpost ? world.outpost.soldiers.length : 0,
+        soldierTargets: combat ? combat.targets.filter((t) => t.type === 'soldier').length : 0,
+        soldiersAlive: combat ? combat.targets.filter((t) => t.type === 'soldier' && t.alive).length : 0,
         planetDistance: pos ? pos.length() : 0,
         surfaceH: p && world ? world.surfaceAtPosition(pos).h : 0,
         groundR: p && world ? world.surfaceAtPosition(pos).h + p.halfHeight + 0.12 : 0,
@@ -965,6 +978,14 @@ function installDebug() {
     },
     cycleView() { cycleView(); return currentView; },
     fireMissile() { onFire(); return true; },
+    fireGroundRocket() {
+      if (!combat || !player || !world?.outpost) return false;
+      const s = world.outpost.soldiers.find((o) => o.rocket && o.group.visible) || world.outpost.soldiers[0];
+      if (!s) return false;
+      const origin = new THREE.Vector3();
+      s.muzzle.getWorldPosition(origin);
+      return combat.fireGroundRocket(origin, player);
+    },
     enterVTOL() { enterVtol(true); return true; },
     exitVTOL() { enterVtol(false); return true; },
     crashNow() {

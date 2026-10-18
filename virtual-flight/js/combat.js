@@ -62,13 +62,13 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     t.maxHealth = t.health;
     t.alive = true;
     targets.push(t);
-    if (t.object) scene.add(t.object);
+    if (t.object && !t.object.parent) scene.add(t.object);
     return t;
   }
 
   function clearTargets() {
     for (const t of targets) {
-      if (t.object) scene.remove(t.object);
+      if (t.object && t.object.parent === scene) scene.remove(t.object);
     }
     targets = [];
     for (const m of [...missiles, ...enemyMissiles]) scene.remove(m.object);
@@ -147,6 +147,22 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     }
   }
 
+  function spawnOutpost() {
+    const out = world.outpost;
+    if (!out) return;
+    for (const s of out.soldiers) {
+      s.group.visible = true;
+      const pos = new THREE.Vector3();
+      s.group.getWorldPosition(pos);
+      addTarget({
+        type: 'soldier', object: s.group, health: 1, radius: 2.6,
+        pos: pos.add(new THREE.Vector3(0, 1.2, 0)),
+        label: s.rocket ? '敌军火箭兵' : '敌军士兵',
+        static: true
+      });
+    }
+  }
+
   function spawnFor({ mapId, gameMode, missionLevel }) {
     clearTargets();
     selectedMap = mapId;
@@ -160,6 +176,7 @@ export function createCombat(scene, world, effects, callbacks = {}) {
       spawnShip();
       return;
     }
+    if (mapId === 'mountain') spawnOutpost();
     spawnShip();
     const withFire = mode === 'mission' && level === 2;
     spawnEnemyPlane(0, withFire);
@@ -183,12 +200,12 @@ export function createCombat(scene, world, effects, callbacks = {}) {
       velocity: dir.clone().normalize().multiplyScalar(opts.speed || (owner === 'player' ? 90 : 55)),
       speed: opts.speed || (owner === 'player' ? 90 : 55),
       maxSpeed: opts.maxSpeed || (owner === 'player' ? 430 : 175),
-      accel: owner === 'player' ? 160 : 42,
-      turnRate: owner === 'player' ? 2.4 : 1.05,
+      accel: opts.accel ?? (owner === 'player' ? 160 : 42),
+      turnRate: opts.turnRate ?? (owner === 'player' ? 2.4 : 1.05),
       target,
       owner,
       life: 0,
-      maxLife: owner === 'player' ? 7 : 10,
+      maxLife: opts.maxLife ?? (owner === 'player' ? 7 : 10),
       trail: 0
     };
   }
@@ -233,6 +250,24 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     enemyMissiles.push(makeMissileEntity(origin, dir, targetPlayer, 'enemy'));
     callbacks.onWarning?.('导弹来袭！');
     callbacks.onSfx?.('warning');
+  }
+
+  // 岛上的火箭兵：速度较慢、转弯较钝，给小朋友留出躲避时间
+  function fireGroundRocket(origin, targetPlayer) {
+    if (!targetPlayer || targetPlayer.crashed) return false;
+    const from = origin.clone();
+    // 从肩扛发射管升到地表以上，避免刚出膛就判定撞地
+    const surf = world.surfaceAtPosition(from);
+    if (from.length() < surf.h + 3) from.setLength(surf.h + 3);
+    const dir = targetPlayer.object.position.clone().sub(from);
+    if (dir.lengthSq() < 1) return false;
+    dir.normalize();
+    enemyMissiles.push(makeMissileEntity(from, dir, targetPlayer, 'enemy', {
+      speed: 42, maxSpeed: 105, accel: 22, turnRate: 0.42, maxLife: 12
+    }));
+    callbacks.onWarning?.('敌军火箭弹来袭！');
+    callbacks.onSfx?.('warning');
+    return true;
   }
 
   function getLock(player) {
@@ -362,7 +397,7 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     }
 
     const surf = world.surfaceAtPosition(m.object.position);
-    if (m.object.position.length() <= surf.h + 1.2) {
+    if (m.life > 0.2 && m.object.position.length() <= surf.h + 1.2) {
       effects.explode(m.object.position.clone(), { scale: 0.7 });
       return false;
     }
@@ -449,7 +484,9 @@ export function createCombat(scene, world, effects, callbacks = {}) {
 
   function getObjectives(player) {
     const p = player.object.position;
-    return targets.filter((t) => t.alive && t.pos && t.type !== 'launcher').map((t) => {
+    return targets.filter((t) =>
+      t.alive && t.pos && ['ship', 'plane', 'drone'].includes(t.type)
+    ).map((t) => {
       return {
         label: t.label,
         type: t.type,
@@ -469,6 +506,7 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     spawnFor,
     update,
     firePlayerMissile,
+    fireGroundRocket,
     getLock,
     damageTarget,
     destroyAllTargets: forceMissionWin,

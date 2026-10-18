@@ -61,6 +61,9 @@ try {
   check('菜单世界是球形地球', menuSnap.planetRadius === 20000 && menuSnap.earthVisible, `R=${menuSnap.planetRadius}, earth=${menuSnap.earthVisible}`);
   check('出生点在陆地上', menuSnap.spawnOnLand && menuSnap.spawnType === 'land', `lat=${menuSnap.spawnLat.toFixed(1)}, lon=${menuSnap.spawnLon.toFixed(1)}, type=${menuSnap.spawnType}`);
   check('出生点经纬度正确', Math.abs(menuSnap.spawnLat - 27.5) < 0.2 && Math.abs(menuSnap.spawnLon - 111.5) < 0.2, `${menuSnap.spawnLat.toFixed(1)}, ${menuSnap.spawnLon.toFixed(1)}`);
+  check('地球上有山有水有人', menuSnap.mountains >= 4 && menuSnap.waterBodies >= 2 && menuSnap.villagers >= 12,
+    `山=${menuSnap.mountains}, 水=${menuSnap.waterBodies}, 村民=${menuSnap.villagers}`);
+  check('穿军装的守军已就位', menuSnap.soldiers >= 8, `士兵=${menuSnap.soldiers}`);
 
   // 机型切换
   for (const key of ['prop', 'airliner', 'j20', 'j16', 'f35b']) {
@@ -80,6 +83,7 @@ try {
   check('HUD 高度/速度/燃油显示', await page.isVisible('#altValue') && await page.isVisible('#speedValue') && await page.isVisible('#fuelPct'));
   check('默认任务目标存在', s.targetsAlive >= 3, `targets=${s.targetsAlive}`);
   check('默认有 4 枚导弹', s.ammo === 4, `ammo=${s.ammo}`);
+  check('守军可作为攻击目标', s.soldierTargets >= 8, `soldierTargets=${s.soldierTargets}`);
   await page.screenshot({ path: SHOTS + '02-flight.png' });
 
   // 起飞
@@ -113,6 +117,14 @@ try {
   await sleep(300);
   s = await snap(page);
   check('绕地球飞行不会飞出地图', s.phase === 'flying' && s.distanceTravelled >= 24000 && s.planetDistance > 20000, `travelled=${s.distanceTravelled.toFixed(0)}, r=${s.planetDistance.toFixed(1)}`);
+
+  // 岛上穿军装的火箭兵会朝我们发射火箭弹（此时玩家在 24km 外，火箭不会命中）
+  const enemyMissilesBefore = s.enemyMissileCount;
+  const rocketFired = await page.evaluate(() => window.__flightSimDebug.fireGroundRocket());
+  await sleep(300);
+  s = await snap(page);
+  check('敌军火箭兵会朝我们开火', rocketFired && s.enemyMissileCount > enemyMissilesBefore,
+    `enemyMissiles=${s.enemyMissileCount}`);
 
   // 视角循环 + 摇杆②同步动画
   const view0 = (await snap(page)).view;
