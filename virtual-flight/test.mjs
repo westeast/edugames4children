@@ -56,6 +56,12 @@ try {
 
   await page.screenshot({ path: SHOTS + '01-menu.png' });
 
+  // 球形地球
+  const menuSnap = await snap(page);
+  check('菜单世界是球形地球', menuSnap.planetRadius === 20000 && menuSnap.earthVisible, `R=${menuSnap.planetRadius}, earth=${menuSnap.earthVisible}`);
+  check('出生点在陆地上', menuSnap.spawnOnLand && menuSnap.spawnType === 'land', `lat=${menuSnap.spawnLat.toFixed(1)}, lon=${menuSnap.spawnLon.toFixed(1)}, type=${menuSnap.spawnType}`);
+  check('出生点经纬度正确', Math.abs(menuSnap.spawnLat - 27.5) < 0.2 && Math.abs(menuSnap.spawnLon - 111.5) < 0.2, `${menuSnap.spawnLat.toFixed(1)}, ${menuSnap.spawnLon.toFixed(1)}`);
+
   // 机型切换
   for (const key of ['prop', 'airliner', 'j20', 'j16', 'f35b']) {
     await page.evaluate((k) => window.__flightSimDebug.setAircraft(k), key);
@@ -86,6 +92,27 @@ try {
   s = await snap(page);
   check('自动起飞后离地', s.altitude > 1.5, `alt=${s.altitude.toFixed(1)}, phase=${s.phase}`);
   await page.screenshot({ path: SHOTS + '03-takeoff.png' });
+
+  // 飞机滚转时镜头不滚转
+  await page.keyboard.down('ArrowLeft');
+  await sleep(1600);
+  s = await snap(page);
+  check('飞机已大幅滚转', Math.abs(s.aircraftRollDeg) > 45, `roll=${s.aircraftRollDeg.toFixed(1)}°`);
+  check('滚转时镜头保持水平', s.cameraUpDotLocalUp > 0.98, `upDot=${s.cameraUpDotLocalUp.toFixed(3)}`);
+  check('转弯时镜头跟到飞机后方', s.camBehindDot > 0.8, `behind=${s.camBehindDot.toFixed(3)}`);
+  await page.screenshot({ path: SHOTS + '03a-bank-no-roll.png' });
+  await page.keyboard.up('ArrowLeft');
+  await sleep(500);
+
+  // 地球没有边界：绕球面移动后仍在球面上
+  await page.evaluate(() => window.__flightSimDebug.warpForward(12000));
+  await sleep(300);
+  s = await snap(page);
+  check('地球地图无边界', s.phase === 'flying' && s.distanceTravelled >= 12000, `travelled=${s.distanceTravelled.toFixed(0)}, r=${s.planetDistance.toFixed(1)}`);
+  await page.evaluate(() => window.__flightSimDebug.warpForward(12000));
+  await sleep(300);
+  s = await snap(page);
+  check('绕地球飞行不会飞出地图', s.phase === 'flying' && s.distanceTravelled >= 24000 && s.planetDistance > 20000, `travelled=${s.distanceTravelled.toFixed(0)}, r=${s.planetDistance.toFixed(1)}`);
 
   // 视角循环 + 摇杆②同步动画
   const view0 = (await snap(page)).view;
@@ -168,12 +195,15 @@ try {
   await sleep(1000);
   s = await snap(page);
   check('航母地图可进入', s.map === 'carrier' && s.phase === 'flying', s.map);
+  check('航母出生在甲板上', s.spawnType === 'carrier', `type=${s.spawnType}`);
   await page.screenshot({ path: SHOTS + '08-carrier-flight.png' });
 
   await page.evaluate(() => window.__flightSimDebug.exit());
   await waitPhase(page, 'menu');
   await page.evaluate(() => window.__flightSimDebug.setMap('volcano'));
   await sleep(800);
+  s = await snap(page);
+  check('火山地图位于日本陆地', s.spawnOnLand === true, `lat=${s.spawnLat?.toFixed(1)}, lon=${s.spawnLon?.toFixed(1)}`);
   await page.screenshot({ path: SHOTS + '09-volcano-menu.png' });
 
   // 夜间 + 雨

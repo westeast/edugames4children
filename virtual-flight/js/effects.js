@@ -161,6 +161,7 @@ export function createEffects(scene) {
   scene.add(ashPoints);
 
   const hemi = new THREE.Vector3();
+  let planetRadius = 20000;
 
   function spawnFire(pos, n, scale = 1, spread = 1) {
     for (let i = 0; i < n; i++) {
@@ -381,15 +382,17 @@ export function createEffects(scene) {
     for (let i = debris.length - 1; i >= 0; i--) {
       const d = debris[i];
       d.t += dt;
-      d.vel.y -= 22 * dt;
+      const up = d.mesh.position.clone().normalize();
+      d.vel.addScaledVector(up, -22 * dt);
       d.mesh.position.addScaledVector(d.vel, dt);
       d.mesh.rotation.x += d.spin.x * dt;
       d.mesh.rotation.y += d.spin.y * dt;
       d.mesh.rotation.z += d.spin.z * dt;
-      if (d.mesh.position.y < 0.2) {
-        d.mesh.position.y = 0.2;
+      if (d.mesh.position.length() < planetRadius + 0.2) {
+        d.mesh.position.copy(up).multiplyScalar(planetRadius + 0.2);
+        const radial = d.vel.dot(up);
+        d.vel.addScaledVector(up, -radial * 1.25);
         d.vel.multiplyScalar(0.3);
-        d.vel.y = Math.abs(d.vel.y) * 0.25;
         d.spin.multiplyScalar(0.5);
       }
       if (d.t >= d.life) {
@@ -426,10 +429,10 @@ export function createEffects(scene) {
         const k = i * 6;
         arr[k + 1] -= rainSpeed[i] * dt;
         arr[k + 4] = arr[k + 1] - 1.8;
-        if (arr[k + 1] < -10) {
+        if (arr[k + 1] < cy - 60) {
           arr[k] = cx + rand(-70, 70);
           arr[k + 2] = cz + rand(-70, 70);
-          arr[k + 1] = 55 + rand(0, 20);
+          arr[k + 1] = cy + 55 + rand(0, 20);
           arr[k + 3] = arr[k];
           arr[k + 4] = arr[k + 1] - 1.8;
           arr[k + 5] = arr[k + 2];
@@ -444,9 +447,11 @@ export function createEffects(scene) {
       for (let i = 0; i < ashCount; i++) {
         arr[i * 3 + 1] -= (1.4 + (i % 5) * 0.3) * dt;
         arr[i * 3] += Math.sin(elapsed * 0.6 + i) * 0.6 * dt;
-        if (arr[i * 3 + 1] < 0.5) arr[i * 3 + 1] = 160;
+        if (arr[i * 3 + 1] < -20) arr[i * 3 + 1] = 160;
       }
       ashPoints.geometry.attributes.position.needsUpdate = true;
+      // 灰烬始终围绕镜头，球面上任何位置都能看到
+      if (camera) ashPoints.position.copy(camera.position);
     }
   }
 
@@ -456,6 +461,18 @@ export function createEffects(scene) {
 
   function setAsh(on) {
     ashPoints.visible = on;
+    // 每颗灰烬以镜头为原点，重置到镜头附近
+    const arr = ashPoints.geometry.attributes.position.array;
+    for (let i = 0; i < ashCount; i++) {
+      arr[i * 3] = rand(-90, 90);
+      arr[i * 3 + 1] = rand(-20, 160);
+      arr[i * 3 + 2] = rand(-90, 90);
+    }
+    ashPoints.geometry.attributes.position.needsUpdate = true;
+  }
+
+  function setPlanetRadius(r) {
+    if (Number.isFinite(r) && r > 0) planetRadius = r;
   }
 
   function clear() {
@@ -478,6 +495,7 @@ export function createEffects(scene) {
 
   return {
     update, explode, crash, spawnTrail, setRain, setAsh, clear, sound,
+    setPlanetRadius,
     spawnFire, spawnSmoke,
     get activeParticles() { return fire.parts.filter(Boolean).length + smoke.parts.filter(Boolean).length; },
     get debrisCount() { return debris.length; },

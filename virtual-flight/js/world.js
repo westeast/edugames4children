@@ -1,100 +1,21 @@
-// 程序化世界：地形、跑道、树/草、河流、火山、航母、海面
+// 地球世界：20,000 单位半径的球体、五大洲四大洋、跑道、树/草、火山、航母
 import * as THREE from 'three';
 import { MAPS, RUNWAY, CARRIER } from './config.js';
+import {
+  EARTH_RADIUS, SPAWNS, dirFromLatLon, latLonFromDir, isLandAt, isLandDir,
+  makeElevation, getEarthTexture
+} from './earth.js';
 
-// ---------- 噪声 ----------
-function hash2(x, y) {
-  let n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
-  return n - Math.floor(n);
-}
-function smooth(t) { return t * t * (3 - 2 * t); }
-function noise2(x, y) {
-  const xi = Math.floor(x), yi = Math.floor(y);
-  const xf = x - xi, yf = y - yi;
-  const a = hash2(xi, yi), b = hash2(xi + 1, yi);
-  const c = hash2(xi, yi + 1), d = hash2(xi + 1, yi + 1);
-  const u = smooth(xf), v = smooth(yf);
-  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
-}
-function fbm(x, y, oct = 4) {
-  let v = 0, amp = 0.5, f = 1;
-  for (let i = 0; i < oct; i++) {
-    v += amp * noise2(x * f, y * f);
-    f *= 2.03;
-    amp *= 0.5;
-  }
-  return v;
-}
+const R = EARTH_RADIUS;
+const WORLD_Y = new THREE.Vector3(0, 1, 0);
+const LOCAL_UP = new THREE.Vector3(0, 1, 0);
+
+// ---------- 工具 ----------
 function smoothstep(a, b, x) {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 }
-const riverX = (z) => 170 * Math.sin(z * 0.0016) + 70 * Math.sin(z * 0.0047 + 1.2);
 
-function baseTerrain(x, z, mapId) {
-  const scale = mapId === 'volcano' ? 0.0016 : 0.0013;
-  let h = (fbm(x * scale + 10, z * scale - 4) - 0.35) * 72;
-  h += (fbm(x * 0.006 + 2, z * 0.006 + 9) - 0.5) * 9;
-  h = Math.max(-8, h);
-
-  // 跑道周边整平
-  const dx = Math.abs(x) / 150;
-  const dz = Math.abs(z) / 330;
-  const dRun = Math.max(dx, dz);
-  const flat = smoothstep(1.0, 1.9, dRun);
-  h *= flat;
-
-  // 任务目标湖面
-  const dLake = Math.hypot(x, z + 900);
-  if (dLake < 150) {
-    const k = smoothstep(150, 70, dLake);
-    h = h * (1 - k) - 4.2 * k;
-  }
-
-  if (mapId === 'volcano') {
-    const dVol = Math.hypot(x - 320, z + 1150);
-    const cone = Math.max(0, 1 - dVol / 340);
-    h += Math.pow(cone, 1.7) * 230;
-    if (dVol < 55) h -= 45;
-    h = Math.max(-8, h);
-  }
-  return h;
-}
-
-function islandHeight(x, z) {
-  const islands = [
-    { x: 780, z: -1250, r: 310, h: 85 },
-    { x: -850, z: 420, r: 240, h: 55 },
-    { x: 1200, z: 900, r: 200, h: 40 }
-  ];
-  let best = -2;
-  for (const is of islands) {
-    const d = Math.hypot(x - is.x, z - is.z);
-    if (d < is.r) {
-      const k = 1 - d / is.r;
-      best = Math.max(best, Math.pow(k, 1.5) * is.h - 1);
-    }
-  }
-  return best;
-}
-
-function isOnCarrier(x, z) {
-  return Math.abs(x - CARRIER.x) < CARRIER.width * 0.5 && Math.abs(z - CARRIER.z) < CARRIER.length * 0.5;
-}
-
-export function surfaceInfo(mapId, x, z) {
-  if (mapId === 'carrier') {
-    if (isOnCarrier(x, z)) return { h: CARRIER.deckY, type: 'carrier', water: false };
-    const ih = islandHeight(x, z);
-    if (ih > 0.5) return { h: ih, type: 'island', water: false };
-    return { h: 0, type: 'water', water: true };
-  }
-  const h = baseTerrain(x, z, mapId);
-  const onLake = h < -1.2;
-  return { h: Math.max(h, 0), water: onLake, rawHeight: h, type: onLake ? 'water' : 'land' };
-}
-
-// ---------- 通用工具 ----------
 function makeInstanced(geo, mat, count, cast = true) {
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -103,91 +24,165 @@ function makeInstanced(geo, mat, count, cast = true) {
   return mesh;
 }
 
-function addStarField(scene) {
-  const count = 900;
+// 把切平面局部坐标 (x 东, z 南) 映射到球面上（局部原点在地表）
+function globeLocal(x, z, y = 0) {
+  const p = Math.hypot(x, z);
+  if (p < 1e-6) return new THREE.Vector3(0, y, 0);
+  const a = p / R;
+  const k = (R * Math.sin(a)) / p;
+  return new THREE.Vector3(x * k, R * (Math.cos(a) - 1) + y, z * k);
+}
+
+function localGroundY(x, z) {
+  return R * (Math.cos(Math.hypot(x, z) / R) - 1) + 0.12;
+}
+
+// 让物体的 +Y 对齐球面法线，并可绕法线旋转
+function placeTangent(obj, x, z, y = 0, yaw = 0) {
+  const local = globeLocal(x, z, y);
+  obj.position.copy(local);
+  const up = new THREE.Vector3(local.x, local.y + R, local.z).normalize();
+  obj.quaternion.setFromUnitVectors(LOCAL_UP, up);
+  if (yaw) obj.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(LOCAL_UP, yaw));
+  return obj;
+}
+
+function surfaceQuad(x1, z1, x2, z2, y, material) {
+  const pts = [
+    globeLocal(x1, z1, y), globeLocal(x2, z1, y),
+    globeLocal(x2, z2, y), globeLocal(x1, z2, y)
+  ];
   const g = new THREE.BufferGeometry();
-  const pos = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const r = 1800 + Math.random() * 900;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.random() * Math.PI * 0.48;
-    pos[i * 3] = Math.cos(theta) * Math.cos(phi) * r;
-    pos[i * 3 + 1] = Math.sin(phi) * r + 120;
-    pos[i * 3 + 2] = Math.sin(theta) * Math.cos(phi) * r;
-  }
+  const pos = new Float32Array(pts.length * 3);
+  pts.forEach((p, i) => { pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z; });
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, transparent: true, opacity: 0.85, depthWrite: false });
-  const stars = new THREE.Points(g, m);
-  stars.name = 'stars';
-  scene.add(stars);
-  return stars;
+  g.setIndex([0, 2, 1, 0, 3, 2]);
+  g.computeVertexNormals();
+  const mesh = new THREE.Mesh(g, material);
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
-function makeCloud(x, y, z, scale) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, transparent: true, opacity: 0.72, depthWrite: false });
-  for (let i = 0; i < 5; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(6 + Math.random() * 7, 8, 6), mat);
-    s.position.set((Math.random() - 0.5) * 24, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 12);
-    s.scale.y = 0.55;
-    g.add(s);
+function surfaceStrip(xa, xb, z1, z2, y, material, segments = 28) {
+  const positions = [];
+  const indices = [];
+  for (let i = 0; i <= segments; i++) {
+    const z = z1 + ((z2 - z1) * i) / segments;
+    const a = globeLocal(xa, z, y);
+    const b = globeLocal(xb, z, y);
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    if (i < segments) {
+      const n = i * 2;
+      indices.push(n, n + 2, n + 1, n + 1, n + 2, n + 3);
+    }
   }
-  g.position.set(x, y, z);
-  g.scale.setScalar(scale);
-  return g;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setIndex(indices);
+  g.computeVertexNormals();
+  const mesh = new THREE.Mesh(g, material);
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
+// ---------- 地球 ----------
+function addEarth(group) {
+  const tex = getEarthTexture();
+  const geo = new THREE.SphereGeometry(R, 160, 96);
+  const spawn = dirFromLatLon(SPAWNS.mountain.lat, SPAWNS.mountain.lon);
+  const elevationAt = makeElevation(spawn, 'mountain');
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
+    const { lat, lon } = latLonFromDir(v);
+    const e = elevationAt(lat, lon);
+    if (e > 0) pos.setXYZ(i, v.x * (R + e), v.y * (R + e), v.z * (R + e));
+  }
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: 0.94,
+    metalness: 0.02
+  });
+  const earth = new THREE.Mesh(geo, mat);
+  earth.name = 'earth';
+  earth.receiveShadow = true;
+  group.add(earth);
+
+  // 大气层薄辉
+  const atmo = new THREE.Mesh(
+    new THREE.SphereGeometry(R + 180, 96, 64),
+    new THREE.ShaderMaterial({
+      transparent: true,
+      side: THREE.BackSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        varying vec3 vNormal;
+        void main() {
+          float rim = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.4);
+          gl_FragColor = vec4(0.36, 0.64, 1.0, rim * 0.28);
+        }`
+    })
+  );
+  atmo.name = 'atmosphere';
+  group.add(atmo);
+  return earth;
+}
+
+// ---------- 跑道 ----------
 function addRunway(group, mapId) {
   const rw = new THREE.Group();
-  rw.position.y = RUNWAY.y;
-  const base = new THREE.Mesh(
-    new THREE.BoxGeometry(RUNWAY.width, 0.35, RUNWAY.length),
-    new THREE.MeshStandardMaterial({ color: '#55595e', roughness: 0.92, metalness: 0.05 })
-  );
-  base.receiveShadow = true;
-  rw.add(base);
-
+  const y = RUNWAY.y;
+  const roadMat = new THREE.MeshStandardMaterial({ color: '#55595e', roughness: 0.92, metalness: 0.05 });
   const yellow = new THREE.MeshStandardMaterial({ color: '#f4c531', roughness: 0.7, emissive: '#4c3a00', emissiveIntensity: 0.15 });
-  // 中线（虚线）
-  for (let z = -RUNWAY.length / 2 + 8; z < RUNWAY.length / 2; z += 22) {
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 11), yellow);
-    dash.position.set(0, 0.2, z);
-    rw.add(dash);
+  const white = new THREE.MeshStandardMaterial({ color: '#e8e8e8', roughness: 0.8 });
+
+  // 主跑道：沿球面弯曲
+  rw.add(surfaceStrip(-RUNWAY.width / 2, RUNWAY.width / 2, -RUNWAY.length / 2, RUNWAY.length / 2, y, roadMat, 34));
+  // 中线虚线
+  for (let z = -RUNWAY.length / 2 + 8; z < RUNWAY.length / 2 - 4; z += 22) {
+    rw.add(surfaceQuad(-0.35, z, 0.35, z + 11, y + 0.02, yellow));
   }
   // 边线
-  const white = new THREE.MeshStandardMaterial({ color: '#e8e8e8', roughness: 0.8 });
   for (const s of [-1, 1]) {
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, RUNWAY.length - 8), white);
-    edge.position.set(s * (RUNWAY.width / 2 - 2.2), 0.2, 0);
-    rw.add(edge);
+    rw.add(surfaceStrip(
+      s * (RUNWAY.width / 2 - 2.45), s * (RUNWAY.width / 2 - 1.95),
+      -RUNWAY.length / 2 + 4, RUNWAY.length / 2 - 4, y + 0.02, white, 30
+    ));
   }
   // 端头斑马线
   for (const s of [-1, 1]) {
     for (let i = -6; i <= 6; i++) {
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 7), white);
-      stripe.position.set(i * 2.1, 0.2, s * (RUNWAY.length / 2 - 7));
-      rw.add(stripe);
+      const z0 = s * (RUNWAY.length / 2 - 10.5);
+      const z1 = s * (RUNWAY.length / 2 - 3.5);
+      rw.add(surfaceQuad(i * 2.1 - 0.7, Math.min(z0, z1), i * 2.1 + 0.7, Math.max(z0, z1), y + 0.02, white));
     }
   }
   // 跑道灯
   const lightMat = new THREE.MeshBasicMaterial({ color: '#9fe8ff' });
   for (let z = -RUNWAY.length / 2 + 10; z < RUNWAY.length / 2; z += 30) {
     for (const s of [-1, 1]) {
+      const p = globeLocal(s * (RUNWAY.width / 2 + 0.7), z, y + 0.45);
       const l = new THREE.Mesh(new THREE.SphereGeometry(0.28, 6, 5), lightMat);
-      l.position.set(s * (RUNWAY.width / 2 + 0.5), 0.5, z);
+      l.position.copy(p);
       rw.add(l);
     }
   }
   group.add(rw);
 
-  // 停机坪 / 起飞站
-  const apron = new THREE.Mesh(
-    new THREE.BoxGeometry(120, 0.3, 100),
-    new THREE.MeshStandardMaterial({ color: '#61666c', roughness: 0.95 })
-  );
-  apron.position.set(0, 0.02, 235);
-  apron.receiveShadow = true;
+  // 停机坪
+  const apron = surfaceQuad(-60, 185, 60, 285, y + 0.01, new THREE.MeshStandardMaterial({ color: '#61666c', roughness: 0.95 }));
   group.add(apron);
+
+  // 塔台
   const tower = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(10, 22, 10), new THREE.MeshStandardMaterial({ color: '#c9c6bd', roughness: 0.8 }));
   body.position.y = 11;
@@ -195,13 +190,26 @@ function addRunway(group, mapId) {
   const cab = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 14), new THREE.MeshStandardMaterial({ color: '#3d6170', roughness: 0.2, metalness: 0.4 }));
   cab.position.y = 24;
   tower.add(cab);
-  tower.position.set(52, 0, 250);
+  placeTangent(tower, 52, 248, y);
   group.add(tower);
+
+  // 机库
+  const hangarMat = new THREE.MeshStandardMaterial({ color: '#8a9298', roughness: 0.8, metalness: 0.15 });
+  for (const [x, z] of [[-72, 235], [-72, 275]]) {
+    const h = new THREE.Mesh(new THREE.BoxGeometry(26, 11, 30), hangarMat);
+    h.position.y = 5.5;
+    const g = new THREE.Group();
+    g.add(h);
+    placeTangent(g, x, z, y);
+    group.add(g);
+  }
   return rw;
 }
 
+// ---------- 树/草/人物 ----------
 function addTrees(group, mapId, heightAt) {
-  const N = mapId === 'volcano' ? 55 : 95;
+  if (mapId === 'carrier') return;
+  const N = mapId === 'volcano' ? 70 : 120;
   const trunkGeo = new THREE.CylinderGeometry(0.32, 0.5, 1, 6);
   trunkGeo.translate(0, 0.5, 0);
   const branchGeo = new THREE.CylinderGeometry(0.055, 0.13, 1, 5);
@@ -222,19 +230,12 @@ function addTrees(group, mapId, heightAt) {
   for (let i = 0; i < N; i++) {
     let x, z, tries = 0;
     do {
-      x = (Math.random() - 0.5) * 1400;
-      z = (Math.random() - 0.5) * 1600;
+      x = (Math.random() - 0.5) * 900;
+      z = (Math.random() - 0.5) * 1000;
       tries++;
-    } while (tries < 30 && (Math.abs(x) < 80 && Math.abs(z) < 340 || (mapId === 'carrier')));
-    if (mapId === 'carrier') {
-      // 航母地图的树放在岛上
-      const islands = [[780, -1250], [-850, 420], [1200, 900]];
-      const is = islands[i % 3];
-      x = is[0] + (Math.random() - 0.5) * 240;
-      z = is[1] + (Math.random() - 0.5) * 240;
-    }
+    } while (tries < 30 && ((Math.abs(x) < 80 && Math.abs(z) < 340) || Math.hypot(x, z) > 600));
+    if (Math.hypot(x, z) > 620) { i--; continue; }
     const h = heightAt(x, z);
-    if (h < 0.8) { i--; continue; }
     if (placed.some(p => Math.hypot(p.x - x, p.z - z) < 8)) { i--; continue; }
     placed.push({ x, z });
     const scale = 0.7 + Math.random() * 0.8;
@@ -283,7 +284,7 @@ function addTrees(group, mapId, heightAt) {
 }
 
 function addGrass(group, heightAt, mapId) {
-  const count = mapId === 'carrier' ? 0 : 1200;
+  const count = mapId === 'carrier' ? 0 : 1500;
   if (!count) return;
   const geo = new THREE.ConeGeometry(0.13, 0.62, 4);
   geo.translate(0, 0.31, 0);
@@ -294,11 +295,12 @@ function addGrass(group, heightAt, mapId) {
     let x, z, h;
     let tries = 0;
     do {
-      x = (Math.random() - 0.5) * 520;
-      z = (Math.random() - 0.5) * 620;
+      x = (Math.random() - 0.5) * 560;
+      z = (Math.random() - 0.5) * 660;
       h = heightAt(x, z);
       tries++;
-    } while (tries < 12 && (h < 0.4 || (Math.abs(x) < 26 && Math.abs(z) < 280)));
+    } while (tries < 12 && ((Math.abs(x) < 26 && Math.abs(z) < 280) || Math.hypot(x, z) > 380));
+    if (Math.hypot(x, z) > 390) { i--; continue; }
     dummy.position.set(x, h, z);
     dummy.rotation.set(0, Math.random() * Math.PI, (Math.random() - 0.5) * 0.2);
     dummy.scale.setScalar(0.6 + Math.random() * 1.2);
@@ -310,74 +312,51 @@ function addGrass(group, heightAt, mapId) {
   group.add(mesh);
 }
 
-function addWater(group, mapId) {
-  if (mapId === 'carrier') {
-    const water = new THREE.Mesh(
-      new THREE.PlaneGeometry(6000, 6000, 1, 1),
-      new THREE.MeshStandardMaterial({ color: '#1d5f86', roughness: 0.22, metalness: 0.25, transparent: true, opacity: 0.94 })
-    );
-    water.rotation.x = -Math.PI / 2;
-    water.position.y = 0;
-    water.name = 'water';
-    group.add(water);
-    return water;
-  }
-  // 河流缎带
-  const seg = 90;
-  const verts = [];
-  const idx = [];
-  for (let i = 0; i <= seg; i++) {
-    const z = -2100 + (4200 * i) / seg;
-    const cx = riverX(z);
-    const w = 42 + 12 * Math.sin(z * 0.003);
-    verts.push(cx - w, -0.9, z, cx + w, -0.9, z);
-    if (i < seg) {
-      const a = i * 2;
-      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+function addClouds(group) {
+  const clouds = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, transparent: true, opacity: 0.72, depthWrite: false });
+  for (let i = 0; i < 16; i++) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 5; k++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(6 + Math.random() * 7, 8, 6), mat);
+      s.position.set((Math.random() - 0.5) * 24, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 12);
+      s.scale.y = 0.55;
+      g.add(s);
     }
+    const x = (Math.random() - 0.5) * 1200;
+    const z = (Math.random() - 0.5) * 1400;
+    const drop = R * (Math.cos(Math.hypot(x, z) / R) - 1);
+    g.position.set(x, drop + 150 + Math.random() * 130, z);
+    g.scale.setScalar(1.4 + Math.random() * 2.1);
+    clouds.add(g);
   }
-  const rg = new THREE.BufferGeometry();
-  rg.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-  rg.setIndex(idx);
-  rg.computeVertexNormals();
-  const river = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({
-    color: '#2a7fa7', roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.88, side: THREE.DoubleSide
-  }));
-  river.name = 'water';
-  group.add(river);
-
-  // 任务湖
-  const lake = new THREE.Mesh(
-    new THREE.CircleGeometry(142, 40),
-    new THREE.MeshStandardMaterial({ color: '#2a7fa7', roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.9 })
-  );
-  lake.rotation.x = -Math.PI / 2;
-  lake.position.set(0, -1.1, -900);
-  group.add(lake);
-  return river;
+  group.add(clouds);
+  return clouds;
 }
+
+const VOLCANO = { x: 260, z: -560, r: 210, h: 160 };
 
 function addVolcano(group) {
   const vg = new THREE.Group();
   const rock = new THREE.MeshStandardMaterial({ color: '#3b322f', roughness: 1 });
   const lava = new THREE.MeshStandardMaterial({ color: '#ff6a1a', emissive: '#ff4d00', emissiveIntensity: 1.5, roughness: 0.6 });
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(310, 220, 36, 1, true), rock);
-  cone.position.set(320, 0, -1150);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(VOLCANO.r, VOLCANO.h, 36, 1, true), rock);
+  cone.position.y = VOLCANO.h / 2;
   vg.add(cone);
-  const crater = new THREE.Mesh(new THREE.CylinderGeometry(48, 60, 8, 24), lava);
-  crater.position.set(320, 206, -1150);
+  const crater = new THREE.Mesh(new THREE.CylinderGeometry(34, 44, 7, 24), lava);
+  crater.position.y = VOLCANO.h - 4;
   vg.add(crater);
   const glow = new THREE.PointLight('#ff5a10', 5, 900, 2);
-  glow.position.set(320, 220, -1150);
+  glow.position.y = VOLCANO.h + 14;
   vg.add(glow);
   // 岩浆流
-  for (const [sx, sz, len, rot] of [[300, 900, 480, 0.25], [355, 880, 400, -0.45]]) {
-    const flow = new THREE.Mesh(new THREE.BoxGeometry(12, 0.8, len), lava);
-    flow.position.set(sx, 3, -1150 + sz * 0.55);
+  for (const [ox, oz, len, rot] of [[-10, 90, 240, 0.25], [26, 70, 200, -0.45]]) {
+    const flow = new THREE.Mesh(new THREE.BoxGeometry(10, 0.8, len), lava);
+    flow.position.set(ox, 3, oz);
     flow.rotation.y = rot;
-    flow.rotation.x = -0.12;
     vg.add(flow);
   }
+  placeTangent(vg, VOLCANO.x, VOLCANO.z, 0.1);
   vg.userData.lava = lava;
   vg.userData.glow = glow;
   group.add(vg);
@@ -396,7 +375,6 @@ function addCarrier(group, makeParkedAircraft) {
   hull.position.y = 6;
   cg.add(hull);
 
-  // 舰艏
   const bow = new THREE.Mesh(new THREE.CylinderGeometry(CARRIER.width * 0.36, CARRIER.width * 0.12, 12, 4, 1, false, 0, Math.PI), hullMat);
   bow.rotation.x = Math.PI / 2;
   bow.rotation.y = Math.PI / 4;
@@ -408,7 +386,6 @@ function addCarrier(group, makeParkedAircraft) {
   deck.receiveShadow = true;
   cg.add(deck);
 
-  // 甲板黄线
   for (let z = -CARRIER.length / 2 + 12; z < CARRIER.length / 2; z += 24) {
     const dash = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 13), lineMat);
     dash.position.set(0, CARRIER.deckY + 0.04, z);
@@ -419,7 +396,6 @@ function addCarrier(group, makeParkedAircraft) {
     edge.position.set(s * (CARRIER.width / 2 - 2), CARRIER.deckY + 0.04, 0);
     cg.add(edge);
   }
-  // 舰岛
   const island = new THREE.Group();
   const isl1 = new THREE.Mesh(new THREE.BoxGeometry(13, 22, 36), hullMat);
   isl1.position.y = 11;
@@ -433,7 +409,6 @@ function addCarrier(group, makeParkedAircraft) {
   island.position.set(CARRIER.width * 0.36, CARRIER.deckY, -30);
   cg.add(island);
 
-  // 停放战机
   if (makeParkedAircraft) {
     const spots = [
       [-18, -110, 0.12], [-18, -70, 0.12], [18, -105, -0.1], [18, 85, 0.08], [-18, 78, 0.08]
@@ -449,7 +424,6 @@ function addCarrier(group, makeParkedAircraft) {
       } catch (e) { /* ignore */ }
     }
   }
-  // 拦阻网/升降机
   for (const z of [-CARRIER.length * 0.32, CARRIER.length * 0.3]) {
     const lift = new THREE.Mesh(new THREE.BoxGeometry(18, 0.5, 22), new THREE.MeshStandardMaterial({ color: '#555d64', roughness: 0.9 }));
     lift.position.set(CARRIER.width * 0.34, CARRIER.deckY + 0.1, z);
@@ -459,11 +433,11 @@ function addCarrier(group, makeParkedAircraft) {
   return cg;
 }
 
-function addLaunchers(group) {
+function addLaunchers(group, heightAt) {
   const launchers = new THREE.Group();
   for (let i = 0; i < 5; i++) {
     const x = -120 + i * 55;
-    const z = -620 - (i % 2) * 70;
+    const z = -420 - (i % 2) * 60;
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 11), new THREE.MeshStandardMaterial({ color: '#4b5442', roughness: 0.9 }));
     body.position.y = 1.8;
@@ -484,8 +458,7 @@ function addLaunchers(group) {
       tube.position.set(-1.4 + k * 1.4, 5.2, -1);
       g.add(tube);
     }
-    g.position.set(x, 0, z);
-    g.rotation.y = Math.random() * Math.PI;
+    placeTangent(g, x, z, heightAt(x, z) + 0.1, Math.random() * Math.PI);
     launchers.add(g);
   }
   group.add(launchers);
@@ -507,8 +480,7 @@ function addPeopleAndRobots(group, heightAt) {
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), new THREE.MeshStandardMaterial({ color: '#e0b48b', roughness: 0.9 }));
     head.position.y = 1.7;
     g.add(head);
-    g.position.set(x, y, z);
-    g.rotation.y = Math.random() * Math.PI * 2;
+    placeTangent(g, x, z, y + 0.12, Math.random() * Math.PI * 2);
     people.add(g);
   }
   for (let i = 0; i < 8; i++) {
@@ -533,117 +505,201 @@ function addPeopleAndRobots(group, heightAt) {
       arm.rotation.z = s * 0.15;
       g.add(arm);
     }
-    g.position.set(x, y, z);
-    g.rotation.y = Math.PI;
+    placeTangent(g, x, z, y + 0.12, Math.PI);
     people.add(g);
   }
   group.add(people);
   return people;
 }
 
-function addClouds(group) {
-  const clouds = new THREE.Group();
-  for (let i = 0; i < 14; i++) {
-    const c = makeCloud((Math.random() - 0.5) * 2600, 140 + Math.random() * 160, (Math.random() - 0.5) * 2600, 1.5 + Math.random() * 2.4);
-    clouds.add(c);
-  }
-  group.add(clouds);
-  return clouds;
-}
-
 // ---------- 主入口 ----------
 export function buildWorld(mapId, options = {}) {
   const group = new THREE.Group();
   group.name = 'world-' + mapId;
-  const heightAt = (x, z) => (mapId === 'carrier' ? Math.max(0, islandHeight(x, z)) : baseTerrain(x, z, mapId));
 
-  if (mapId !== 'carrier') {
-    const size = 4600;
-    const seg = 150;
-    const geo = new THREE.PlaneGeometry(size, size, seg, seg);
-    geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position;
-    const colors = [];
-    const cLow = new THREE.Color(mapId === 'volcano' ? '#4a3b32' : '#4b8a36');
-    const cMid = new THREE.Color(mapId === 'volcano' ? '#5b4a3c' : '#36702b');
-    const cHigh = new THREE.Color(mapId === 'volcano' ? '#7a6a5a' : '#8a8f72');
-    const cRock = new THREE.Color('#6f6c63');
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i);
-      const h = heightAt(x, z);
-      pos.setY(i, h);
-      const t = Math.min(1, Math.max(0, (h + 4) / 75));
-      const c = cLow.clone().lerp(cMid, Math.min(1, t * 1.6)).lerp(cHigh, Math.max(0, (t - 0.55) * 1.8));
-      if (h > 75) c.lerp(cRock, Math.min(0.7, (h - 75) / 100));
-      if (h < -1) c.set('#5a6b72');
-      colors.push(c.r, c.g, c.b);
-    }
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geo.computeVertexNormals();
-    const terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0.02 }));
-    terrain.receiveShadow = true;
-    terrain.name = 'terrain';
-    group.add(terrain);
+  const spawnLL = SPAWNS[mapId] || SPAWNS.mountain;
+  const spawnDir = dirFromLatLon(spawnLL.lat, spawnLL.lon);
+  const origin = spawnDir.clone().multiplyScalar(R);
+  const up = spawnDir.clone();
+  let north = WORLD_Y.clone().addScaledVector(up, -WORLD_Y.dot(up));
+  if (north.lengthSq() < 1e-6) north = new THREE.Vector3(1, 0, 0).addScaledVector(up, -up.x);
+  north.normalize();
+  const east = new THREE.Vector3().crossVectors(north, up).normalize();
+  const south = north.clone().negate();
+  const frameQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(east, up, south));
 
-    addRunway(group, mapId);
-    addWater(group, mapId);
-    addTrees(group, mapId, heightAt);
-    addGrass(group, heightAt, mapId);
-    if (mapId === 'volcano') {
-      const v = addVolcano(group);
-      addLaunchers(group);
-      group.userData.volcano = v;
-    }
-    addPeopleAndRobots(group, heightAt);
-    addClouds(group);
-  } else {
-    addWater(group, mapId);
-    // 岛屿
-    for (const is of [
-      { x: 780, z: -1250, r: 310, h: 85 },
-      { x: -850, z: 420, r: 240, h: 55 },
-      { x: 1200, z: 900, r: 200, h: 40 }
-    ]) {
-      const island = new THREE.Mesh(
-        new THREE.ConeGeometry(is.r, is.h, 24, 3),
-        new THREE.MeshStandardMaterial({ color: '#4b7a3a', roughness: 1 })
-      );
-      island.position.set(is.x, is.h / 2 - 3, is.z);
-      island.scale.y = 0.9;
-      group.add(island);
-    }
-    addCarrier(group, options.makeParkedAircraft);
-    addClouds(group);
-    addPeopleAndRobots(group, () => isOnCarrier(0, 0) ? CARRIER.deckY : 0);
+  const elevationAt = makeElevation(spawnDir, mapId);
+
+  const toWorld = (x, y, z) => origin.clone()
+    .addScaledVector(east, x)
+    .addScaledVector(up, y)
+    .addScaledVector(south, z);
+  const localToWorld = (v) => toWorld(v.x, v.y, v.z);
+  const worldToLocal = (p) => {
+    const d = p.clone().sub(origin);
+    return new THREE.Vector3(d.dot(east), d.dot(up), d.dot(south));
+  };
+
+  function basisAt(pos) {
+    const u = pos.clone().normalize();
+    let n = WORLD_Y.clone().addScaledVector(u, -WORLD_Y.dot(u));
+    if (n.lengthSq() < 1e-6) n = east.clone().addScaledVector(u, -east.dot(u));
+    n.normalize();
+    const e = new THREE.Vector3().crossVectors(n, u).normalize();
+    return { up: u, north: n, east: e };
   }
 
-  const spawn = new THREE.Vector3(0, 0, mapId === 'carrier' ? CARRIER.length * 0.35 : RUNWAY.startZ);
-  const surface = surfaceInfo(mapId, spawn.x, spawn.z);
-  spawn.y = surface.h;
+  function orientAt(pos, yaw = 0) {
+    const b = basisAt(pos);
+    const q = new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(b.east, b.up, b.north.clone().negate())
+    );
+    if (yaw) q.multiply(new THREE.Quaternion().setFromAxisAngle(LOCAL_UP, yaw));
+    return q;
+  }
+
+  function orientToward(pos, dir) {
+    const b = basisAt(pos);
+    let f = dir.clone().addScaledVector(b.up, -dir.dot(b.up));
+    if (f.lengthSq() < 1e-6) f = b.north.clone();
+    f.normalize();
+    const right = new THREE.Vector3().crossVectors(f, b.up).normalize();
+    return new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(right, b.up, f.clone().negate())
+    );
+  }
+
+  function offsetAt(pos, x, y, z) {
+    const b = basisAt(pos);
+    return pos.clone().addScaledVector(b.east, x).addScaledVector(b.up, y).addScaledVector(b.north, z);
+  }
+
+  function surfaceAtPosition(p) {
+    const local = worldToLocal(p);
+    const dist = Math.hypot(local.x, local.z);
+    if (mapId === 'carrier') {
+      if (Math.abs(local.x) <= CARRIER.width / 2 && Math.abs(local.z) <= CARRIER.length / 2) {
+        return { h: R + CARRIER.deckY, type: 'carrier', water: false, rawHeight: CARRIER.deckY };
+      }
+      return { h: R, type: 'water', water: true, rawHeight: 0 };
+    }
+    if (dist < 520) {
+      return { h: R + RUNWAY.y, type: 'land', water: false, rawHeight: RUNWAY.y };
+    }
+    const dir = p.clone().normalize();
+    const { lat, lon } = latLonFromDir(dir);
+    if (!isLandAt(lat, lon)) return { h: R, type: 'water', water: true, rawHeight: 0 };
+    let elev = elevationAt(lat, lon);
+    if (mapId === 'volcano') {
+      const d = Math.hypot(local.x - VOLCANO.x, local.z - VOLCANO.z);
+      if (d < VOLCANO.r) elev = Math.max(elev, VOLCANO.h * (1 - d / VOLCANO.r));
+    }
+    return { h: R + elev, type: 'land', water: false, rawHeight: elev };
+  }
+
+  const heightAtLocal = (x, z) => localGroundY(x, z);
+
+  // 地球本体
+  addEarth(group);
+
+  // 本地场景（出生点切平面，挂在球面上）
+  const localRoot = new THREE.Group();
+  localRoot.name = 'airfield';
+  localRoot.position.copy(origin);
+  localRoot.quaternion.copy(frameQ);
+  group.add(localRoot);
+
+  if (mapId === 'carrier') {
+    addCarrier(localRoot, options.makeParkedAircraft);
+    addPeopleAndRobots(localRoot, () => CARRIER.deckY);
+    addClouds(localRoot);
+  } else {
+    addRunway(localRoot, mapId);
+    addTrees(localRoot, mapId, heightAtLocal);
+    addGrass(localRoot, heightAtLocal, mapId);
+    if (mapId === 'volcano') {
+      const v = addVolcano(localRoot);
+      addLaunchers(localRoot, heightAtLocal);
+      group.userData.volcano = v;
+    }
+    addPeopleAndRobots(localRoot, heightAtLocal);
+    addClouds(localRoot);
+  }
+
+  // 在海面附近寻找敌舰位置
+  let shipWorld = null;
+  for (let dist = 900; dist <= 4200 && !shipWorld; dist += 150) {
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const lx = Math.sin(a) * dist;
+      const lz = -Math.cos(a) * dist;
+      const wp = toWorld(lx, 0, lz);
+      const { lat, lon } = latLonFromDir(wp);
+      if (!isLandAt(lat, lon)) { shipWorld = wp.setLength(R); break; }
+    }
+  }
+  if (!shipWorld) shipWorld = toWorld(0, 0, -1500).setLength(R);
+  const shipLocal = worldToLocal(shipWorld);
+
+  const startZ = mapId === 'carrier' ? CARRIER.length * 0.35 : RUNWAY.startZ;
+  const startY = mapId === 'carrier' ? CARRIER.deckY : RUNWAY.y;
+  const spawn = toWorld(0, startY, startZ);
 
   const world = {
     mapId,
+    radius: R,
     group,
-    heightAt: (x, z) => surfaceInfo(mapId, x, z).h,
-    surfaceAt: (x, z) => surfaceInfo(mapId, x, z),
     spawn,
+    spawnQuat: frameQ,
+    spawnDir,
+    frame: { origin, up, east, north, south },
     runway: mapId === 'carrier'
       ? { x: 0, z: 0, width: CARRIER.width, length: CARRIER.length, y: CARRIER.deckY, carrier: true }
       : { x: 0, z: 0, width: RUNWAY.width, length: RUNWAY.length, y: RUNWAY.y, carrier: false },
-    shipSpawn: new THREE.Vector3(mapId === 'carrier' ? 320 : 0, 0, mapId === 'carrier' ? -850 : -900),
+    shipSpawn: shipWorld,
+    shipLocal,
+    localToWorld,
+    worldToLocal,
+    toWorld,
+    basisAt,
+    orientAt,
+    orientToward,
+    offsetAt,
+    surfaceAtPosition,
+    heightAt: (x, z) => surfaceAtPosition(toWorld(x, 0, z)).h,
     update: (dt, t) => {
       if (group.userData.volcano) {
         const v = group.userData.volcano;
         v.userData.glow.intensity = 4 + Math.sin(t * 3.1) * 1.3;
         v.userData.lava.emissiveIntensity = 1.25 + Math.sin(t * 2.4) * 0.35;
       }
-      const water = group.getObjectByName('water');
-      if (water && water.material) water.material.opacity = 0.86 + Math.sin(t * 1.2) * 0.04;
+      localRoot.traverse((o) => {
+        if (o.isMesh && o.name === 'water' && o.material) {
+          o.material.opacity = 0.86 + Math.sin(t * 1.2) * 0.04;
+        }
+      });
     }
   };
   return world;
 }
 
 export function makeStars(scene) {
-  return addStarField(scene);
+  const count = 1400;
+  const g = new THREE.BufferGeometry();
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 9000 + Math.random() * 2500;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(Math.random() * 2 - 1);
+    pos[i * 3] = Math.cos(theta) * Math.sin(phi) * r;
+    pos[i * 3 + 1] = Math.cos(phi) * r;
+    pos[i * 3 + 2] = Math.sin(theta) * Math.sin(phi) * r;
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 2.4, transparent: true, opacity: 0.85, depthWrite: false });
+  const stars = new THREE.Points(g, m);
+  stars.name = 'stars';
+  stars.frustumCulled = false;
+  scene.add(stars);
+  return stars;
 }

@@ -6,6 +6,7 @@ import {
 } from './config.js';
 import { preloadModels, hasModel, createAircraftInstance } from './assets.js';
 import { buildWorld, makeStars } from './world.js';
+import { latLonFromDir, isLandAt } from './earth.js';
 import {
   createPlayer, updatePlayer, startAutoTakeoff, toggleVTOL, playerHUD
 } from './flight.js';
@@ -43,6 +44,13 @@ let rainSoundOn = false;
 const clockTarget = new THREE.Vector3();
 const camDesired = new THREE.Vector3();
 const camLook = new THREE.Vector3();
+const camForward = new THREE.Vector3(0, 0, -1);
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+let camForwardReady = false;
+
+function resetCameraFollow() {
+  camForwardReady = false;
+}
 
 function specOf(key = state.aircraft) { return AIRCRAFT[key]; }
 
@@ -69,7 +77,7 @@ function setupRenderer() {
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
 
-  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.35, 9000);
+  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 60000);
   camera.position.set(30, 18, 40);
 
   hemi = new THREE.HemisphereLight(0xbfe4ff, 0x4a5a3a, 0.85);
@@ -89,7 +97,7 @@ function setupRenderer() {
   scene.add(sun);
   scene.add(sun.target);
 
-  const skyGeo = new THREE.SphereGeometry(4200, 32, 20);
+  const skyGeo = new THREE.SphereGeometry(12000, 32, 20);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
@@ -100,10 +108,9 @@ function setupRenderer() {
       exponent: { value: 0.8 }
     },
     vertexShader: `
-      varying vec3 vWorldPosition;
+      varying vec3 vLocalPosition;
       void main() {
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = worldPosition.xyz;
+        vLocalPosition = position;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -112,9 +119,9 @@ function setupRenderer() {
       uniform vec3 bottomColor;
       uniform float offset;
       uniform float exponent;
-      varying vec3 vWorldPosition;
+      varying vec3 vLocalPosition;
       void main() {
-        float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y;
+        float h = normalize(vLocalPosition + vec3(0.0, offset, 0.0)).y;
         float f = max(pow(max(h, 0.0), exponent), 0.0);
         gl_FragColor = vec4(mix(bottomColor, topColor, f), 1.0);
       }
@@ -173,7 +180,7 @@ function applyWeather() {
   scene.background.copy(bottom);
   scene.fog.color.copy(bottom).lerp(new THREE.Color('#6f8798'), rain ? 0.4 : 0.12);
   scene.fog.near = rain ? 80 : 150;
-  scene.fog.far = rain ? 1250 : night ? 2100 : 3100;
+  scene.fog.far = rain ? 1800 : night ? 3200 : 4400;
 
   sun.color.set(night ? '#9db8ff' : rain ? '#d7e2ea' : '#fff2d4');
   sun.intensity = (night ? 0.5 : 2.3) * (rain ? 0.55 : 1) * (0.45 + b * 0.75);
@@ -210,7 +217,9 @@ function buildWorldForMenu() {
     makeParkedAircraft: () => createAircraftInstance(AIRCRAFT.f35b)
   });
   scene.add(world.group);
+  if (effects) effects.setPlanetRadius(world.radius);
   menuPlayer = createPlayer(specOf(), world, scene);
+  resetCameraFollow();
   menuAngle = 0.8;
   applyWeather();
   updateMenuCamera(0);
@@ -220,6 +229,7 @@ function replaceMenuAircraft() {
   if (!menuPlayer) return;
   scene.remove(menuPlayer.object);
   menuPlayer = createPlayer(specOf(), world, scene);
+  resetCameraFollow();
   updateMenuCamera(0);
 }
 
@@ -230,19 +240,20 @@ function updateMenuCamera(dt) {
   camera.fov = damp(camera.fov, targetFov, 3, dt);
   camera.updateProjectionMatrix();
   const p = menuPlayer.object.position;
+  const b = world.basisAt(p);
   menuAngle += dt * 0.16;
   const radius = spec.category === 'airliner' ? 95 : spec.category === 'prop' ? 26 : 37;
   const height = spec.category === 'airliner' ? 30 : 10 + spec.halfHeight * 0.9;
-  camDesired.set(
-    p.x + Math.cos(menuAngle) * radius,
-    p.y + height,
-    p.z + Math.sin(menuAngle) * radius
-  );
-  const s = world.surfaceAt(camDesired.x, camDesired.z);
-  if (camDesired.y < s.h + 3) camDesired.y = s.h + 3;
+  camDesired.copy(p)
+    .addScaledVector(b.east, Math.cos(menuAngle) * radius)
+    .addScaledVector(b.north, Math.sin(menuAngle) * radius)
+    .addScaledVector(b.up, height);
+  const s = world.surfaceAtPosition(camDesired);
+  if (camDesired.length() < s.h + 3) camDesired.setLength(s.h + 3);
   camera.position.lerp(camDesired, dt > 0 ? Math.min(1, dt * 6) : 1);
-  camera.up.set(0, 1, 0);
-  camera.lookAt(p.x, p.y + 1.1, p.z);
+  camera.up.copy(b.up);
+  camLook.copy(p).addScaledVector(b.up, 1.1);
+  camera.lookAt(camLook);
   const prop = menuPlayer.object.userData.propeller;
   if (prop) prop.rotation.z += dt * 1.6;
 }
@@ -273,6 +284,7 @@ function updateCamera(dt) {
   if (!player) return;
   const spec = player.spec;
   const p = player.object.position;
+  const localUp = p.clone().normalize();
 
   // 速度感：速度越快视野越开阔
   const baseFov = camera.aspect < 1 ? 62 : 55;
@@ -280,65 +292,99 @@ function updateCamera(dt) {
   camera.fov = damp(camera.fov, speedFov, 2.5, dt);
   camera.updateProjectionMatrix();
 
+  // 机身水平朝前方向（忽略滚转），相机跟随它转到飞机后方
+  const f = new THREE.Vector3(0, 0, -1).applyQuaternion(player.object.quaternion);
+  let horiz = f.clone().addScaledVector(localUp, -f.dot(localUp));
+  if (horiz.lengthSq() < 0.01) {
+    horiz.copy(camForward).addScaledVector(localUp, -camForward.dot(localUp));
+  }
+  if (horiz.lengthSq() < 1e-6) {
+    horiz.copy(world.basisAt(p).north);
+  }
+  horiz.normalize();
+  if (!camForwardReady) {
+    camForward.copy(horiz);
+    camForwardReady = true;
+  } else {
+    camForward.addScaledVector(localUp, -camForward.dot(localUp));
+    if (camForward.lengthSq() < 1e-6) camForward.copy(horiz);
+    camForward.lerp(horiz, 1 - Math.exp(-3.4 * Math.max(dt, 0.0001)));
+    camForward.addScaledVector(localUp, -camForward.dot(localUp)).normalize();
+  }
+
   if (currentView === 'cockpit') {
     const cp = player.object.localToWorld(new THREE.Vector3(...spec.cockpit));
     camera.position.copy(cp);
-    camera.quaternion.copy(player.object.quaternion);
-    camera.up.set(0, 1, 0);
+    // 镜头保持当地水平，不随飞机滚转
+    let lookDir = f.clone();
+    let up = localUp.clone();
+    if (Math.abs(lookDir.dot(up)) > 0.985) up = camForward.clone();
+    camera.up.copy(up);
+    camLook.copy(cp).addScaledVector(lookDir, 120);
+    camera.lookAt(camLook);
     return;
   }
 
+  let topView = false;
   if (currentView === 'top') {
-    camDesired.set(p.x, p.y + (spec.category === 'airliner' ? 110 : camera.aspect < 1 ? 82 : 58), p.z + 22);
+    topView = true;
+    const h = spec.category === 'airliner' ? 110 : camera.aspect < 1 ? 82 : 58;
+    camDesired.copy(p).addScaledVector(localUp, h).addScaledVector(camForward, -6);
   } else if (currentView === 'rear') {
-    const local = new THREE.Vector3(0, player.halfHeight + 3.2, spec.targetLength * 1.15 + 10);
-    camDesired.copy(player.object.localToWorld(local));
+    const dist = spec.targetLength * 1.15 + 10;
+    const h = player.halfHeight + 3.2;
+    camDesired.copy(p).addScaledVector(camForward, -dist).addScaledVector(localUp, h);
   } else {
     const portrait = camera.aspect < 1 ? 1.5 : 1;
-    const yaw = player.heading * Math.PI / 180;
     const dist = (spec.category === 'airliner' ? 92 : spec.category === 'prop' ? 19 : 28) * portrait;
     const height = (spec.category === 'airliner' ? 30 : spec.category === 'prop' ? 7.5 : 10) * (portrait > 1 ? 1.18 : 1);
-    camDesired.set(
-      p.x + Math.sin(yaw) * dist,
-      p.y + height,
-      p.z + Math.cos(yaw) * dist
-    );
+    camDesired.copy(p).addScaledVector(camForward, -dist).addScaledVector(localUp, height);
   }
 
-  const s = world.surfaceAt(camDesired.x, camDesired.z);
-  if (camDesired.y < s.h + 2.2) camDesired.y = s.h + 2.2;
-  camera.position.lerp(camDesired, Math.min(1, dt * 6));
-  camera.up.set(0, 1, 0);
+  const s = world.surfaceAtPosition(camDesired);
+  if (camDesired.length() < s.h + 2.2) camDesired.setLength(s.h + 2.2);
+  if (camera.position.distanceTo(camDesired) > 1500) camera.position.copy(camDesired);
+  else camera.position.lerp(camDesired, Math.min(1, dt * 6));
+  const cs = world.surfaceAtPosition(camera.position);
+  if (camera.position.length() < cs.h + 1.5) camera.position.setLength(cs.h + 1.5);
 
-  if (currentView === 'top') {
-    camLook.set(p.x, p.y, p.z);
+  if (topView) {
+    camera.up.copy(camForward);
+    camLook.copy(p).addScaledVector(localUp, 2);
   } else if (currentView === 'rear') {
-    camLook.copy(p);
-    camLook.y += player.halfHeight * 0.6;
+    camera.up.copy(localUp);
+    camLook.copy(p).addScaledVector(localUp, player.halfHeight * 0.6);
   } else {
-    const yaw = player.heading * Math.PI / 180;
-    camLook.set(p.x - Math.sin(yaw) * 26, p.y + 2.2, p.z - Math.cos(yaw) * 26);
+    camera.up.copy(localUp);
+    camLook.copy(p).addScaledVector(camForward, 26).addScaledVector(localUp, 2.2);
   }
   camera.lookAt(camLook);
 
   if (crashShake > 0) {
-    camera.position.x += (Math.random() - 0.5) * crashShake;
-    camera.position.y += (Math.random() - 0.5) * crashShake;
-    camera.position.z += (Math.random() - 0.5) * crashShake;
+    const b = world.basisAt(camera.position);
+    camera.position
+      .addScaledVector(b.east, (Math.random() - 0.5) * crashShake)
+      .addScaledVector(b.up, (Math.random() - 0.5) * crashShake)
+      .addScaledVector(b.north, (Math.random() - 0.5) * crashShake);
   }
 }
 
 function updateVictoryCamera(dt) {
   if (!player) return;
   const p = player.object.position;
+  const b = world.basisAt(p);
   victoryTime += dt;
   const a = victoryTime * 0.45 + 0.8;
-  camDesired.set(p.x + Math.cos(a) * 32, p.y + 12, p.z + Math.sin(a) * 32);
-  const s = world.surfaceAt(camDesired.x, camDesired.z);
-  if (camDesired.y < s.h + 3) camDesired.y = s.h + 3;
+  camDesired.copy(p)
+    .addScaledVector(b.east, Math.cos(a) * 32)
+    .addScaledVector(b.north, Math.sin(a) * 32)
+    .addScaledVector(b.up, 12);
+  const s = world.surfaceAtPosition(camDesired);
+  if (camDesired.length() < s.h + 3) camDesired.setLength(s.h + 3);
   camera.position.lerp(camDesired, Math.min(1, dt * 3));
-  camera.up.set(0, 1, 0);
-  camera.lookAt(p.x, p.y + 1.2, p.z);
+  camera.up.copy(b.up);
+  camLook.copy(p).addScaledVector(b.up, 1.2);
+  camera.lookAt(camLook);
 }
 
 // ---------- HUD ----------
@@ -469,9 +515,11 @@ function startFlight() {
     });
     scene.add(world.group);
   }
+  effects.setPlanetRadius(world.radius);
 
   effects.clear();
   player = createPlayer(specOf(), world, scene);
+  resetCameraFollow();
   combat = createCombat(scene, world, effects, combatCallbacks);
   combat.spawnFor({ mapId: state.map, gameMode: state.mode, missionLevel: state.missionLevel });
   effects.setRain(state.rain);
@@ -503,6 +551,7 @@ function restartFlight() {
   scene.remove(player.object);
   effects.clear();
   player = createPlayer(specOf(), world, scene);
+  resetCameraFollow();
   combat.clear();
   combat.spawnFor({ mapId: state.map, gameMode: state.mode, missionLevel: state.missionLevel });
   ui.setThrottle(0);
@@ -531,7 +580,10 @@ function exitToMenu() {
   audio.setScene('menu');
   syncRainSound(false);
   setPhase('menu');
-  if (!menuPlayer && world) menuPlayer = createPlayer(specOf(), world, scene);
+  if (!menuPlayer && world) {
+    menuPlayer = createPlayer(specOf(), world, scene);
+    resetCameraFollow();
+  }
   ui.updateMenu();
   applyWeather();
 }
@@ -659,12 +711,22 @@ function animate(now) {
 
   const active = player || menuPlayer;
   if (active) {
-    sun.target.position.copy(active.object.position);
-    sun.position.set(
-      active.object.position.x + 130,
-      active.object.position.y + 180,
-      active.object.position.z + 80
-    );
+    const p = active.object.position;
+    const b = world ? world.basisAt(p) : { up: WORLD_UP.clone(), east: new THREE.Vector3(1, 0, 0), north: new THREE.Vector3(0, 0, 1) };
+    sun.target.position.copy(p);
+    sun.position.copy(p)
+      .addScaledVector(b.east, 130)
+      .addScaledVector(b.north, 80)
+      .addScaledVector(b.up, 180);
+    // 天空球与星空始终跟随镜头，球面上任何位置都有地平线
+    sky.position.copy(camera.position);
+    sky.quaternion.setFromUnitVectors(WORLD_UP, b.up);
+    stars.position.copy(camera.position);
+    if (world && effects) effects.setPlanetRadius(world.radius);
+    // 飞得越高，雾的可见距离越远，才能看见整颗地球
+    const alt = active.altitude || 0;
+    const baseFar = state.rain ? 1800 : state.time === 'night' ? 3200 : 4400;
+    scene.fog.far = baseFar + Math.max(0, alt) * 4;
   }
 
   if (audio.ready && (phase === 'flying' || phase === 'paused' || phase === 'crashed')) {
@@ -782,6 +844,22 @@ function installDebug() {
     get snapshot() {
       const p = player;
       const burn = p ? p.spec.fuelBurn * (0.32 + 0.68 * p.throttle) : 0;
+      const pos = p ? p.object.position : null;
+      const localUp = pos ? pos.clone().normalize() : null;
+      const fwd = p ? new THREE.Vector3(0, 0, -1).applyQuaternion(p.object.quaternion) : null;
+      let horizFwd = null;
+      let camBehindDot = 0;
+      let cameraUpDotLocalUp = 0;
+      if (p && pos && localUp) {
+        horizFwd = fwd.clone().addScaledVector(localUp, -fwd.dot(localUp));
+        if (horizFwd.lengthSq() > 1e-8) horizFwd.normalize();
+        const toPlane = pos.clone().sub(camera.position);
+        toPlane.addScaledVector(localUp, -toPlane.dot(localUp));
+        if (toPlane.lengthSq() > 1e-8 && horizFwd.lengthSq() > 1e-8) {
+          camBehindDot = toPlane.normalize().dot(horizFwd);
+        }
+        cameraUpDotLocalUp = camera.up.dot(localUp);
+      }
       return {
         phase,
         aircraft: state.aircraft,
@@ -808,7 +886,23 @@ function installDebug() {
         particles: effects ? effects.activeParticles : 0,
         flowers: ui ? ui.getFlowers() : 0,
         throttle: ui ? ui.getThrottle() : 0,
-        cameraView: currentView
+        cameraView: currentView,
+        planetRadius: world ? world.radius : 0,
+        worldMap: world ? world.mapId : null,
+        spawnType: world ? world.surfaceAtPosition(world.spawn).type : null,
+        spawnLat: world ? latLonFromDir(world.spawnDir).lat : null,
+        spawnLon: world ? latLonFromDir(world.spawnDir).lon : null,
+        spawnOnLand: world ? isLandAt(latLonFromDir(world.spawnDir).lat, latLonFromDir(world.spawnDir).lon) : false,
+        earthVisible: !!(scene && scene.getObjectByName('earth')),
+        planetDistance: pos ? pos.length() : 0,
+        surfaceH: p && world ? world.surfaceAtPosition(pos).h : 0,
+        groundR: p && world ? world.surfaceAtPosition(pos).h + p.halfHeight + 0.12 : 0,
+        distanceTravelled: p ? p.distanceTravelled : 0,
+        cameraUpDotLocalUp,
+        camBehindDot,
+        aircraftRollDeg: p ? (p.bank * 180) / Math.PI : 0,
+        cameraForward: camera.getWorldDirection(new THREE.Vector3()).toArray(),
+        aircraftForward: fwd ? fwd.toArray() : null
       };
     },
     setAircraft(key) {
@@ -850,6 +944,25 @@ function installDebug() {
     start() { startFlight(); return true; },
     takeoff() { doTakeoff(); return true; },
     setThrottle(v) { if (ui) ui.setThrottle(v); if (player) player.throttle = clamp(v, 0, 1); return true; },
+    warpForward(meters = 5000) {
+      if (!player || !world) return false;
+      const p = player.object.position;
+      const up = p.clone().normalize();
+      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(player.object.quaternion);
+      const h = f.clone().addScaledVector(up, -f.dot(up));
+      if (h.lengthSq() < 1e-8) return false;
+      h.normalize();
+      const arc = meters / world.radius;
+      const nd = up.clone().multiplyScalar(Math.cos(arc)).addScaledVector(h, Math.sin(arc)).normalize();
+      const np = nd.multiplyScalar(p.length());
+      const surf = world.surfaceAtPosition(np);
+      const minR = surf.h + player.halfHeight + 30;
+      if (np.length() < minR) np.setLength(minR);
+      player.object.position.copy(np);
+      player.lastPos.copy(player.object.position);
+      player.distanceTravelled += Math.abs(meters);
+      return true;
+    },
     cycleView() { cycleView(); return currentView; },
     fireMissile() { onFire(); return true; },
     enterVTOL() { enterVtol(true); return true; },

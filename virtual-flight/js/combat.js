@@ -82,12 +82,14 @@ export function createCombat(scene, world, effects, callbacks = {}) {
   function spawnShip() {
     const obj = buildShipInstance(120);
     const sp = world.shipSpawn.clone();
-    const surf = world.surfaceAt(sp.x, sp.z);
-    obj.position.set(sp.x, (surf.water ? 0 : surf.h) + 6.5, sp.z);
-    obj.rotation.y = selectedMap === 'carrier' ? -0.4 : 0.35;
+    const surf = world.surfaceAtPosition(sp);
+    const dir = sp.clone().normalize();
+    obj.position.copy(dir).multiplyScalar(surf.h + 6.5);
+    obj.quaternion.copy(world.orientAt(obj.position, selectedMap === 'carrier' ? 0.7 : -0.5));
+    const up = obj.position.clone().normalize();
     const t = addTarget({
       type: 'ship', object: obj, health: 2, radius: 34,
-      pos: obj.position.clone().add(new THREE.Vector3(0, 8, 0)),
+      pos: obj.position.clone().addScaledVector(up, 8),
       label: '敌舰'
     });
     ship = t;
@@ -100,8 +102,8 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     tintEnemy(obj);
     const base = world.shipSpawn;
     const side = index === 0 ? 1 : -1;
-    obj.position.set(base.x + side * 180, 130 + index * 35, base.z + 240 + index * 90);
-    obj.rotation.y = 0;
+    obj.position.copy(world.offsetAt(base, side * 180, 130 + index * 35, 240 + index * 90));
+    obj.quaternion.copy(world.orientAt(obj.position, side * 1.2));
     const t = addTarget({
       type: 'plane', object: obj, health: 1, radius: 9,
       label: index === 0 ? '敌机 A' : '敌机 B',
@@ -117,7 +119,8 @@ export function createCombat(scene, world, effects, callbacks = {}) {
   function spawnDrone(index) {
     const obj = makeDrone();
     const lx = -120 + index * 120;
-    obj.position.set(lx, 55 + index * 12, -520 - index * 60);
+    obj.position.copy(world.localToWorld(new THREE.Vector3(lx, 55 + index * 12, -520 - index * 60)));
+    obj.quaternion.copy(world.orientAt(obj.position, index * 1.4));
     const t = addTarget({
       type: 'drone', object: obj, health: 1, radius: 4,
       label: '无人机 ' + (index + 1),
@@ -134,7 +137,9 @@ export function createCombat(scene, world, effects, callbacks = {}) {
       const x = -120 + i * 55;
       const z = -620 - (i % 2) * 70;
       const marker = new THREE.Object3D();
-      marker.position.set(x, 5, z);
+      const base = world.localToWorld(new THREE.Vector3(x, 0, z));
+      const surf = world.surfaceAtPosition(base);
+      marker.position.copy(base.clone().normalize()).multiplyScalar(surf.h + 5);
       addTarget({
         type: 'launcher', object: marker, health: 1, radius: 7,
         label: '导弹车 ' + (i + 1), static: true, fireEnabled: false
@@ -356,8 +361,8 @@ export function createCombat(scene, world, effects, callbacks = {}) {
       }
     }
 
-    const surf = world.surfaceAt(m.object.position.x, m.object.position.z);
-    if (m.object.position.y <= surf.h + 1.2) {
+    const surf = world.surfaceAtPosition(m.object.position);
+    if (m.object.position.length() <= surf.h + 1.2) {
       effects.explode(m.object.position.clone(), { scale: 0.7 });
       return false;
     }
@@ -369,20 +374,21 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     const obj = t.object;
     const p = player.object.position;
     const a = elapsed * 0.24 + t.phase;
-    const desired = new THREE.Vector3(
-      p.x + Math.cos(a) * 330,
-      Math.max(p.y + 70, 70) + Math.sin(a * 1.7) * 25,
-      p.z + Math.sin(a) * 330
-    );
+    const desired = world.offsetAt(p, Math.cos(a) * 330, 70 + Math.sin(a * 1.7) * 25, Math.sin(a) * 330);
     const dir = desired.clone().sub(obj.position);
     if (dir.lengthSq() < 1) return;
     dir.normalize();
-    const desiredQ = new THREE.Quaternion().setFromUnitVectors(LOCAL_FORWARD, dir);
+    const desiredQ = world.orientToward(obj.position, dir);
     obj.quaternion.slerp(desiredQ, Math.min(1, dt * 1.1));
     obj.position.addScaledVector(LOCAL_FORWARD.clone().applyQuaternion(obj.quaternion), t.speed * dt);
-    const surf = world.surfaceAt(obj.position.x, obj.position.z);
-    if (obj.position.y < surf.h + 18) obj.position.y = surf.h + 18;
-    t.pos = obj.position.clone().add(new THREE.Vector3(0, 1, 0));
+    const surf = world.surfaceAtPosition(obj.position);
+    const up = obj.position.clone().normalize();
+    const minR = surf.h + 18;
+    if (obj.position.length() < minR) {
+      obj.position.copy(up).multiplyScalar(minR);
+      obj.quaternion.slerp(world.orientAt(obj.position, 0), Math.min(1, dt * 0.8));
+    }
+    t.pos = obj.position.clone().addScaledVector(up, 1);
 
     if (t.fireEnabled && player && !player.crashed && !player.onGround) {
       t.fireCooldown -= dt;
@@ -398,10 +404,8 @@ export function createCombat(scene, world, effects, callbacks = {}) {
     if (!t.alive) return;
     const obj = t.object;
     const a = elapsed * 0.5 + t.phase;
-    obj.position.x = t.home.x + Math.cos(a) * 40;
-    obj.position.z = t.home.z + Math.sin(a) * 40;
-    obj.position.y = t.home.y + Math.sin(a * 2) * 4;
-    obj.rotation.y = -a + Math.PI / 2;
+    obj.position.copy(world.offsetAt(t.home, Math.cos(a) * 40, Math.sin(a * 2) * 4, Math.sin(a) * 40));
+    obj.quaternion.copy(world.orientAt(obj.position, -a + Math.PI / 2));
     t.pos = obj.position.clone();
   }
 
@@ -414,8 +418,9 @@ export function createCombat(scene, world, effects, callbacks = {}) {
       if (t.type === 'ship' && t.object && t.object.userData.sinking) {
         shipSink += dt;
         if (shipSink > 1.2) {
-          t.object.position.y -= dt * 2.2;
-          t.object.rotation.z += dt * 0.045;
+          const up = t.object.position.clone().normalize();
+          t.object.position.addScaledVector(up, -dt * 2.2);
+          t.object.rotateZ(dt * 0.045);
         }
         if (shipSink > 7 && t.object.parent) scene.remove(t.object);
       }
@@ -445,12 +450,10 @@ export function createCombat(scene, world, effects, callbacks = {}) {
   function getObjectives(player) {
     const p = player.object.position;
     return targets.filter((t) => t.alive && t.pos && t.type !== 'launcher').map((t) => {
-      const dx = t.pos.x - p.x;
-      const dz = t.pos.z - p.z;
       return {
         label: t.label,
         type: t.type,
-        distance: Math.hypot(dx, dz),
+        distance: t.pos.distanceTo(p),
         worldX: t.pos.x,
         worldZ: t.pos.z
       };
