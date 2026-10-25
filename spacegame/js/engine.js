@@ -1,6 +1,5 @@
 // Three.js engine: scene, camera, renderer, lighting, starfield
 import * as THREE from 'three';
-import { state } from './config.js';
 
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e); // Deep space dark blue (visible)

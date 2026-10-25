@@ -1,19 +1,121 @@
-// Main entry point: init + game loop
+// Main entry point: init + game loop + state machine (mission/tour/free)
 import * as THREE from 'three';
-import { renderer, camera } from './engine.js';
-import { state, ROCKETS, PAYLOADS } from './config.js';
+import { renderer, scene, camera } from './engine.js';
+import { state, ROCKETS, PAYLOADS, MISSIONS, PLANETS } from './config.js';
 import { createRocketModel, rocketGroup } from './rocket-model.js';
 import { initSolarSystem, animatePlanets } from './solar-system.js';
 import { updateLaunchSequence, startLaunchSequence, createLaunchPad } from './launch-seq.js';
 import { applyThrust, checkOrbitalVelocity, integrateRK4, updateCoordinates } from './physics.js';
 import { setupControls } from './controls.js';
-import { showNotif, updateCoordsDisplay, createPlanetSelector, createLaunchConfig, updatePhaseHUD } from './ui.js';
+import { showNotif, updateCoordsDisplay, createPlanetSelector, createLaunchConfig, updatePhaseHUD, renderSurveyPoints } from './ui.js';
 import { startReturnSequence, updateReturnSequence } from './re-entry.js';
 import { createVoyager1, voyager1Group, signalRings } from './voyager1.js';
 import { crewCapsule } from './spacecraft.js';
+import { startMission, checkMissionStep, collectSurveyPoint, travelToPlanet } from './mission.js';
+import { showKnowledgeLibrary } from './knowledge.js';
+import { startTour, updateTour, nextStop, previousStop, toggleTourPause, exitTour } from './tour.js';
+import { initAudio, sfx } from './audio.js';
 
 // Export for HTML onclick handlers
 window.startReturnSequence = startReturnSequence;
+window.startMission = startMission;
+
+// === Start mission + launch sequence ===
+window.startMissionFlow = (idx) => {
+  document.getElementById('mainMenu').style.display = 'none';
+  document.getElementById('missionSelect').style.display = 'none';
+  document.getElementById('tourPanel').style.display = 'none';
+  startMission(idx);
+  startLaunchSequence();
+};
+window.startTour = startTour;
+window.nextStop = nextStop;
+window.previousStop = previousStop;
+window.toggleTourPause = toggleTourPause;
+window.exitTour = exitTour;
+window.collectSurveyPoint = collectSurveyPoint;
+window.showKnowledgeLibrary = showKnowledgeLibrary;
+
+// === Auto travel: when mission step is travel and player escapes gravity, warp to next planet ===
+function checkTravelAuto() {
+  if (state.mode !== 'mission') return;
+  if (state.missionComplete) return;
+  const mission = MISSIONS[state.selectedMissionIdx];
+  if (!mission) return;
+  const step = mission.steps[state.missionStepIdx];
+  if (!step || step.id !== 'travel') return;
+
+  // Escape velocity check (real teaching threshold)
+  const planet = PLANETS[state.targetPlanetIdx];
+  if (!planet) return;
+  const vEscape = Math.sqrt(2 * 6.674e-11 * 5.972e24 / (planet.radius * 1000)) / 1000; // m/s → km/s
+  const speed = state.rocketVel.length() * 0.1; // game units → km/s
+
+  if (speed >= vEscape) {
+    // Find next planet in mission (or deep space for m5)
+    const nextIdx = mission.targetPlanetIdx;
+    travelToPlanet(nextIdx);
+  }
+}
+
+// Debug hooks for Playwright tests
+window.__gamePhase = () => state.gamePhase;
+window.__orbitActive = () => state.orbitActive;
+window.__altitude = () => state.altitude;
+window.__travelToPlanet = travelToPlanet;
+window.__missionStepIdx = () => state.missionStepIdx;
+window.__mode = () => state.mode;
+window.__speed = () => state.speed;
+window.__vel = () => ({ x: state.rocketVel.x, y: state.rocketVel.y, z: state.rocketVel.z, len: state.rocketVel.length() });
+window.__missionComplete = () => state.missionComplete;
+window.__knowledgeUnlocked = () => state.knowledgeUnlocked;
+window.__targetPlanetIdx = () => state.targetPlanetIdx;
+
+// === Main menu navigation ===
+window.showMainMenu = () => {
+  document.getElementById('mainMenu').style.display = '';
+  document.getElementById('missionSelect').style.display = 'none';
+  document.getElementById('missionPanel').style.display = 'none';
+  document.getElementById('tourPanel').style.display = 'none';
+  state.mode = 'menu';
+  state.gamePhase = 'menu';
+};
+
+window.showMissionSelect = () => {
+  document.getElementById('mainMenu').style.display = 'none';
+  document.getElementById('missionSelect').style.display = '';
+  buildMissionList();
+};
+
+window.startFreeExplore = () => {
+  state.mode = 'free';
+  state.gamePhase = 'launchPad';
+  document.getElementById('mainMenu').style.display = 'none';
+  document.getElementById('missionPanel').style.display = 'none';
+  document.getElementById('tourPanel').style.display = 'none';
+  startLaunchSequence();
+  showNotif('🛰️ 自由探索模式！选择目标行星，发射探测器！');
+};
+
+function buildMissionList() {
+  const list = document.getElementById('missionList');
+  if (!list) return;
+  list.innerHTML = '';
+  MISSIONS.forEach((m, i) => {
+    const item = document.createElement('div');
+    item.className = 'mission-item';
+    item.innerHTML = `
+      <div class="m-title">${i + 1}. ${m.title}</div>
+      <div class="m-sub">${m.subtitle} · ${m.objective}</div>
+      <div class="m-obj">${m.briefing}</div>
+    `;
+    item.onclick = () => {
+      document.getElementById('missionSelect').style.display = 'none';
+      window.startMissionFlow(i);
+    };
+    list.appendChild(item);
+  });
+}
 
 let lastTime = 0;
 let uiUpdateCounter = 0;
@@ -30,15 +132,21 @@ function gameLoop(time) {
     // Update return sequence (crewed mode)
     updateReturnSequence(dt);
 
+    // Update tour
+    updateTour(dt);
+
     // Animate planets (always visible in background)
     animatePlanets(dt);
 
     // During orbit/exploration phase: player controls probe
-    if (state.gamePhase === 'explore' || state.gamePhase === 'orbit') {
+    if (state.gamePhase === 'explore' || state.gamePhase === 'orbit' || state.gamePhase === 'travel' || state.gamePhase === 'arrive') {
+      window._keyThrust && window._keyThrust();
       applyThrust(dt);
       integrateRK4(state.rocketPos, state.rocketVel, dt);
       updateCoordinates();
       checkOrbitalVelocity();
+      checkMissionStep();
+      checkTravelAuto();
 
       // Animate Voyager 1 signal rings (if selected)
       if (state.selectedPayloadIdx === 2 && voyager1Group) {
@@ -108,12 +216,13 @@ function gameLoop(time) {
   if (uiUpdateCounter > 0.1) {
     updateCoordsDisplay();
     updatePhaseHUD();
+    renderSurveyPoints();
     window._updatePhaseWithUI && window._updatePhaseWithUI();
     uiUpdateCounter = 0;
   }
 
   try {
-    renderer.render(camera);
+    renderer.render(scene, camera);
   } catch (e) {
     // Suppress Three.js internal traversal errors from scene.remove parent corruption
     if (!e.message || !e.message.includes('parent')) throw e;
@@ -133,6 +242,8 @@ function onReady() {
   if (btn) {
     btn.addEventListener('click', () => {
       document.getElementById('startScreen').style.display = 'none';
+      initAudio();
+      sfx.click();
       startGame();
     });
   } else {
@@ -167,7 +278,7 @@ async function startGame() {
   createLaunchConfig();
 
   // Show main UI elements
-  ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel'].forEach(id => {
+  ['topBar', 'leftPanel', 'rightPanel', 'bottomPanel', 'mainMenu'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = '';
   });

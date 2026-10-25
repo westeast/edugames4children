@@ -28,6 +28,116 @@ body {
 .status-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ccc; }
 .status-item .val { color: #fff; font-weight: 600; }
 
+/* === Main Menu === */
+#mainMenu {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+  z-index: 95; text-align: center; width: 92%; max-width: 760px;
+}
+.menu-title { font-size: 20px; color: #ff9500; letter-spacing: 2px; margin-bottom: 16px; text-shadow: 0 0 16px rgba(255,149,0,0.3); }
+.menu-cards { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.menu-card {
+  width: 200px; padding: 20px; border-radius: 14px; cursor: pointer;
+  background: rgba(10,10,16,0.88); border: 1.5px solid rgba(255,149,0,0.25);
+  transition: all 0.2s; text-align: center;
+}
+.menu-card:hover { border-color: #ff9500; background: rgba(255,149,0,0.08); transform: translateY(-2px); }
+.menu-icon { font-size: 32px; margin-bottom: 8px; }
+.menu-name { font-size: 16px; font-weight: 600; color: #ff9500; margin-bottom: 4px; }
+.menu-desc { font-size: 12px; color: #aaa; }
+
+/* === Mission Select === */
+#missionSelect {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+  z-index: 95; text-align: center; width: 92%; max-width: 760px;
+}
+.mission-list { display: flex; flex-direction: column; gap: 10px; }
+.mission-item {
+  padding: 14px 18px; border-radius: 10px; cursor: pointer; text-align: left;
+  background: rgba(10,10,16,0.88); border: 1.5px solid rgba(255,149,0,0.25);
+  transition: all 0.2s;
+}
+.mission-item:hover { border-color: #ff9500; background: rgba(255,149,0,0.08); }
+.mission-item .m-title { font-size: 15px; font-weight: 600; color: #ff9500; }
+.mission-item .m-sub { font-size: 11px; color: #aaa; margin-top: 2px; }
+.mission-item .m-obj { font-size: 12px; color: #ccc; margin-top: 6px; }
+.menu-back { margin-top: 16px; padding: 8px 24px; border-radius: 20px; border: 1px solid rgba(255,149,0,0.4); background: transparent; color: #ff9500; font-size: 13px; cursor: pointer; font-family: inherit; }
+.menu-back:hover { background: rgba(255,149,0,0.2); }
+
+/* === Mission Panel === */
+#missionPanel {
+  position: fixed; top: 60px; left: 12px; width: 260px; z-index: 95;
+  background: rgba(10,10,16,0.9); border-radius: 12px; border: 1px solid rgba(255,149,0,0.25);
+  padding: 14px;
+}
+#missionPanel .panel-title { font-size: 11px; color: #ff9500; font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
+.mission-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+.mission-objective { font-size: 12px; color: #ccc; line-height: 1.6; margin-bottom: 10px; }
+.mission-steps { display: flex; flex-direction: column; gap: 6px; }
+.mission-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; }
+.mission-step .step-check { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(255,149,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 10px; }
+.mission-step .step-check.done { background: rgba(255,149,0,0.25); border-color: #ff9500; color: #ff9500; }
+
+/* === Tour Panel === */
+#tourPanel {
+  position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+  z-index: 95; width: 92%; max-width: 640px; text-align: center;
+  background: rgba(10,10,16,0.92); border-radius: 14px; border: 1px solid rgba(255,149,0,0.25);
+  padding: 18px;
+}
+.tour-counter { font-size: 11px; color: #ff9500; letter-spacing: 1px; margin-bottom: 4px; }
+.tour-subtitle { font-size: 12px; color: #aaa; margin-bottom: 4px; }
+.tour-title { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+.tour-description { font-size: 13px; color: #ccc; line-height: 1.6; margin-bottom: 8px; }
+.tour-stats { display: flex; gap: 12px; justify-content: center; margin-bottom: 8px; }
+.tour-stat { font-size: 11px; color: #ff9500; background: rgba(255,149,0,0.1); padding: 4px 10px; border-radius: 6px; }
+.tour-question { font-size: 12px; color: #88ccff; margin-bottom: 12px; }
+.tour-actions { display: flex; gap: 8px; justify-content: center; }
+.tour-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,149,0,0.4); background: transparent; color: #ff9500; font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.tour-btn:hover { background: rgba(255,149,0,0.2); }
+
+/* === Survey Points === */
+#surveyPoints {
+  position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+  z-index: 95; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  max-width: 90%;
+}
+.survey-btn {
+  padding: 8px 14px; border-radius: 20px; cursor: pointer; font-family: inherit;
+  background: rgba(10,10,16,0.9); border: 1.5px solid rgba(255,149,0,0.4);
+  color: #ff9500; font-size: 12px; transition: all 0.2s;
+}
+.survey-btn:hover { background: rgba(255,149,0,0.2); border-color: #ff9500; }
+.survey-btn small { display: block; color: #aaa; font-size: 10px; }
+
+/* === Knowledge Card === */
+#knowledgeCard {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 250; width: 92%; max-width: 420px; text-align: center;
+  background: rgba(10,10,16,0.95); border-radius: 16px; border: 1px solid rgba(255,149,0,0.4);
+  padding: 24px; box-shadow: 0 0 40px rgba(255,149,0,0.15);
+}
+#knowledgeCard .dialog-close { position: absolute; top: 10px; right: 14px; width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: #888; font-size: 16px; cursor: pointer; }
+.knowledge-icon { font-size: 40px; margin-bottom: 8px; }
+#knowledgeCard h3 { font-size: 18px; color: #ff9500; margin-bottom: 8px; }
+.knowledge-content { font-size: 13px; color: #ccc; line-height: 1.7; margin-bottom: 10px; }
+.knowledge-formula { font-size: 13px; color: #88ccff; font-family: monospace; margin-bottom: 10px; }
+.knowledge-fact { font-size: 12px; color: #aaa; line-height: 1.6; }
+
+/* === Knowledge Library === */
+#knowledgeLibrary {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 250; width: 92%; max-width: 520px; text-align: center;
+  background: rgba(10,10,16,0.95); border-radius: 16px; border: 1px solid rgba(255,149,0,0.4);
+  padding: 24px; box-shadow: 0 0 40px rgba(255,149,0,0.15);
+}
+#knowledgeLibrary .dialog-close { position: absolute; top: 10px; right: 14px; width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: #888; font-size: 16px; cursor: pointer; }
+#knowledgeLibrary h3 { font-size: 18px; color: #ff9500; margin-bottom: 12px; }
+.knowledge-entry { display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px; border-radius: 8px; background: rgba(255,149,0,0.06); margin-bottom: 8px; }
+.knowledge-entry .knowledge-icon { font-size: 24px; }
+.knowledge-entry strong { color: #ff9500; font-size: 14px; }
+.knowledge-entry p { color: #ccc; font-size: 12px; margin-top: 2px; }
+.empty { color: #888; font-size: 13px; }
+
 /* === Panels (left + right) === */
 #leftPanel, #rightPanel {
   position: fixed; top: 50px; width: 180px; max-height: calc(100vh - 260px);
@@ -127,4 +237,6 @@ body {
   .tele-panel { padding: 6px 8px; min-width: 70px; }
   .tele-panel .value { font-size: 16px; }
   .tele-panel .label { font-size: 8px; }
+  .menu-cards { flex-direction: column; align-items: center; }
+  .menu-card { width: 90%; }
 }

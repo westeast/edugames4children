@@ -27,8 +27,25 @@ export function setupControls() {
   });
 
   // Touch joystick setup for mobile
-  setupJoystick('joystickLeft', 'thumbL');
-  setupJoystick('joystickRight', 'thumbR');
+  setupJoystick('joystickLeftBase', 'thumbL');
+  setupJoystick('joystickRightBase', 'thumbR');
+
+  // Keyboard thrust mapping (arrow keys + WASD)
+  window._keyThrust = () => {
+    const k = state.keys;
+    state.leftStick.x = 0;
+    state.leftStick.y = 0;
+    state.rightStick.x = 0;
+    state.rightStick.y = 0;
+
+    // Left stick (radial/vertical): ArrowUp/Down + W/S
+    if (k['ArrowUp'] || k['w'] || k['W']) state.leftStick.y = 1;
+    if (k['ArrowDown'] || k['s'] || k['S']) state.leftStick.y = -1;
+
+    // Right stick (tangential): ArrowLeft/Right + A/D
+    if (k['ArrowLeft'] || k['a'] || k['A']) state.rightStick.x = -1;
+    if (k['ArrowRight'] || k['d'] || k['D']) state.rightStick.x = 1;
+  };
 }
 
 // Virtual joystick (same pattern as flight game)
@@ -69,7 +86,7 @@ export function setupJoystick(baseId, thumbId) {
     }
 
     // Map to state sticks
-    if (baseId === 'joystickLeft') {
+    if (baseId === 'joystickLeftBase') {
       state.leftStick.x = dx / maxRadius;
       state.leftStick.y = dy / maxRadius;
     } else {
@@ -84,7 +101,7 @@ export function setupJoystick(baseId, thumbId) {
     if (thumb) {
       thumb.style.transform = 'translate(-50%, -50%)';
     }
-    if (baseId === 'joystickLeft') {
+    if (baseId === 'joystickLeftBase') {
       state.leftStick.x = 0;
       state.leftStick.y = 0;
     } else {

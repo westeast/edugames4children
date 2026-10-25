@@ -4,7 +4,7 @@ import { scene } from './engine.js';
 import { PLANETS, PLUTO, state } from './config.js';
 
 const DIST_SCALE = 100; // 1 AU ≈ 100 game units (visual scale, not real)
-const RADIUS_SCALE = 0.08; // Scale planet radii for visibility
+const RADIUS_SCALE = 0.001; // Scale planet radii for visibility (real: 1 km = 0.01 units)
 
 // === Procedural texture generators ===
 export function createPlanetTexture(name) {

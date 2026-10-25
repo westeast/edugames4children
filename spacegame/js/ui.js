@@ -1,7 +1,8 @@
-// HUD: coordinates display, speed, engine status, notifications
-import { state, PLANETS, ROCKETS, PAYLOADS } from './config.js';
+// HUD: mission panel, planet data panel, notifications, knowledge cards, tour panel
+import { state, PLANETS, ROCKETS, PAYLOADS, MISSIONS, KNOWLEDGE_CARDS, TOUR_STOPS } from './config.js';
 import { updateCoordinates } from './physics.js';
-import { createCrewCapsule } from './spacecraft.js';
+import { sfx } from './audio.js';
+import { collectSurveyPoint } from './mission.js';
 
 // === Notification system ===
 export function showNotif(msg) {
@@ -45,13 +46,18 @@ export function updatePhaseHUD() {
 
   const phaseNames = {
     'menu': '就绪',
+    'briefing': '任务简报',
     'assemble': '组装中',
     'launchPad': '发射塔位',
     'ignite': '点火',
     'ascend': '升空',
     'boosterSep': '助推分离',
     'orbit': '入轨',
+    'travel': '航行中',
+    'arrive': '到达',
     'explore': '探索中',
+    'survey': '科学探测',
+    'complete': '任务完成',
     'serviceSep': '推进舱分离',
     'orbitalSep': '轨道舱分离',
     'reentry': '再入大气层',
@@ -63,6 +69,139 @@ export function updatePhaseHUD() {
   };
 
   phaseEl.textContent = phaseNames[state.gamePhase] || state.gamePhase;
+}
+
+// === Show mission panel ===
+export function showMissionPanel(mission, complete = false) {
+  const panel = document.getElementById('missionPanel');
+  if (!panel) return;
+
+  panel.style.display = 'block';
+
+  const titleEl = document.getElementById('missionTitle');
+  const objEl = document.getElementById('missionObjective');
+  const stepsEl = document.getElementById('missionSteps');
+
+  if (titleEl) titleEl.textContent = complete ? '✅ ' + mission.title : mission.title;
+  if (objEl) objEl.textContent = mission.objective;
+
+  if (stepsEl) {
+    stepsEl.innerHTML = '';
+    mission.steps.forEach((step, i) => {
+      const div = document.createElement('div');
+      div.className = 'mission-step';
+      div.innerHTML = `
+        <span class="step-check ${i < state.missionStepIdx ? 'done' : ''}">${i < state.missionStepIdx ? '✓' : '○'}</span>
+        <span class="step-text">${step.text}</span>
+      `;
+      stepsEl.appendChild(div);
+    });
+  }
+}
+
+// === Update mission progress ===
+export function updateMissionProgress(mission) {
+  showMissionPanel(mission);
+}
+
+// === Render survey points (during explore phase) ===
+export function renderSurveyPoints() {
+  const container = document.getElementById('surveyPoints');
+  if (!container) return;
+
+  const mission = MISSIONS[state.selectedMissionIdx];
+  if (!mission || state.mode !== 'mission' || state.missionComplete) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const step = mission.steps[state.missionStepIdx];
+  if (!step || step.id !== 'survey') {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  container.innerHTML = '';
+
+  mission.surveyPoints.forEach((point, i) => {
+    const collected = state.surveyPointsCollected.includes(i);
+    const btn = document.createElement('button');
+    btn.className = 'survey-btn';
+    btn.innerHTML = `${collected ? '✅' : '🔬'} ${point.name}<small>${point.desc}</small>`;
+    btn.onclick = () => collectSurveyPoint(i);
+    container.appendChild(btn);
+  });
+}
+
+// === Show knowledge card ===
+export function showKnowledgeCard(card) {
+  const el = document.getElementById('knowledgeCard');
+  if (!el) return;
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <button class="dialog-close" onclick="document.getElementById('knowledgeCard').style.display='none'">×</button>
+    <div class="knowledge-icon">${card.icon}</div>
+    <h3>${card.title}</h3>
+    <p class="knowledge-content">${card.content}</p>
+    <div class="knowledge-formula">${card.formula}</div>
+    <p class="knowledge-fact">${card.fact}</p>
+  `;
+}
+
+// === Show knowledge library ===
+export function showKnowledgeLibrary(unlocked) {
+  const el = document.getElementById('knowledgeLibrary');
+  if (!el) return;
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <button class="dialog-close" onclick="document.getElementById('knowledgeLibrary').style.display='none'">×</button>
+    <h3>📚 知识图鉴</h3>
+    ${unlocked.length === 0
+      ? '<p class="empty">还没有解锁知识卡。完成关卡任务来收集吧！</p>'
+      : unlocked.map(card => `
+        <div class="knowledge-entry">
+          <span class="knowledge-icon">${card.icon}</span>
+          <div>
+            <strong>${card.title}</strong>
+            <p>${card.content}</p>
+          </div>
+        </div>
+      `).join('')
+    }
+  `;
+}
+
+// === Show tour panel ===
+let tourStopIdx = 0;
+export function showTourPanel(stop) {
+  const panel = document.getElementById('tourPanel');
+  if (!panel) return;
+
+  panel.style.display = 'block';
+
+  const counter = document.getElementById('tourCounter');
+  const subtitle = document.getElementById('tourSubtitle');
+  const title = document.getElementById('tourTitle');
+  const desc = document.getElementById('tourDescription');
+  const stats = document.getElementById('tourStats');
+  const question = document.getElementById('tourQuestion');
+
+  if (counter) counter.textContent = `${String(tourStopIdx + 1).padStart(2, '0')} / 05`;
+  if (subtitle) subtitle.textContent = stop.subtitle;
+  if (title) title.textContent = stop.title;
+  if (desc) desc.textContent = stop.description;
+  if (stats) stats.innerHTML = stop.stats.map(s => `<div class="tour-stat">${s}</div>`).join('');
+  if (question) question.textContent = stop.question;
+}
+
+// === Update tour progress ===
+export function updateTourProgress(idx) {
+  tourStopIdx = idx;
+  const counter = document.getElementById('tourCounter');
+  if (counter) counter.textContent = `${String(idx + 1).padStart(2, '0')} / 05`;
 }
 
 // === Create planet selector panel (left side) ===
@@ -157,7 +296,7 @@ export function createLaunchConfig() {
   igniteBtn.className = 'ctrl-btn-inline ignite-btn';
   igniteBtn.style.display = 'none';
   igniteBtn.innerHTML = '<span class="icon">🔥</span><span>点火升空</span>';
-  igniteBtn.onclick = () => { state._igniting = true; };
+  igniteBtn.onclick = () => { state._igniting = true; sfx.countdown(); };
   content.appendChild(igniteBtn);
 
   // Return button (crewed mode only)
@@ -206,6 +345,7 @@ window.selectRocket = function(idx) {
   state.selectedRocketIdx = idx;
   createLaunchConfig(); // Re-render active state
   showNotif(`🚀 选择: ${ROCKETS[idx].name}`);
+  sfx.click();
 };
 
 window.selectPayload = function(idx) {
@@ -213,6 +353,7 @@ window.selectPayload = function(idx) {
   state.selectedPayloadIdx = idx;
   createLaunchConfig(); // Re-render active state
   showNotif(`🛰️ 载荷: ${PAYLOADS[idx].name}`);
+  sfx.click();
 };
 
 // === Panel collapse functionality ===

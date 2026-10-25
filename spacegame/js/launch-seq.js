@@ -1,7 +1,7 @@
-// Launch sequence state machine: menu → assemble → launchPad → ignite → ascend → boosterSep → orbit
+// Launch sequence state machine: menu → briefing → launchPad → ignite → ascend → boosterSep → orbit
 import * as THREE from 'three';
-import { scene } from './engine.js';
-import { state, ROCKETS } from './config.js';
+import { scene, camera } from './engine.js';
+import { state, ROCKETS, PLANETS } from './config.js';
 import { createRocketModel, setEnginesLit, rocketGroup, escapeTower } from './rocket-model.js';
 import { showNotif } from './ui.js';
 
@@ -16,6 +16,14 @@ let countdownValue = 3;
 let enginesStarted = false;
 let boostersDetached = false;
 let stage2Ignited = false;
+
+// === Orbit radius around target planet (game units) ===
+const RADIUS_SCALE = 0.001; // Must match solar-system.js visual scale
+function getOrbitRadius() {
+  const planet = PLANETS[state.targetPlanetIdx];
+  if (!planet) return 15;
+  return Math.max(planet.radius * RADIUS_SCALE + 5, 15); // Planet visual radius + clearance
+}
 
 // === Create launch pad platform (ground) ===
 export function createLaunchPad() {
@@ -53,6 +61,12 @@ export function startLaunchSequence() {
     rocketGroup.position.set(0, 0, 0);
     rocketGroup.rotation.set(0, 0, 0);
   }
+
+  // Reset physics state
+  state.rocketPos.copy(rocketGroup ? rocketGroup.position : new THREE.Vector3(0, 0, 0));
+  state.rocketVel.set(0, 0, 0);
+  state.orbitActive = false;
+  state.missionStepIdx = 0;
 
   showNotif('🔧 开始组装火箭...');
 }
@@ -208,9 +222,15 @@ export function updateLaunchSequence(dt) {
         sequenceTime = 0;
         showNotif('🛰️ 进入轨道！现在可以控制探测器了！');
 
-        // Switch to orbit control mode
-        state.orbitActive = true;
-        state.rocketPos.copy(rocketGroup.position);
+        // Switch to orbit control mode (player must reach orbital velocity)
+        state.orbitActive = false;
+
+        // Place rocket in orbit around target planet (planet center + orbital radius)
+        const tp = state.targetPlanetPos;
+        const orbitRadius = getOrbitRadius();
+        state.rocketPos.set(tp.x + orbitRadius, tp.y, tp.z);
+        state.rocketVel.set(0, 0, orbitRadius * 0.05); // Sub-orbital velocity, player must accelerate
+        if (rocketGroup) rocketGroup.position.copy(state.rocketPos);
       }
       break;
   }

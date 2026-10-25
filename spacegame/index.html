@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>深空探测器旅行 - Deep Space Explorer</title>
-<link rel="stylesheet" href="css/style.css?v=20260812">
+<title>小小航天员 · 太空学院 - Little Astronaut Space Academy</title>
+<link rel="stylesheet" href="css/style.css?v=20261023">
 </head>
 <body>
 
@@ -12,8 +12,8 @@
 
 <div id="startScreen">
   <div style="font-size:48px;">🚀</div>
-  <h1>深空探测器旅行</h1>
-  <p>Deep Space Explorer · Three.js Powered</p>
+  <h1>小小航天员 · 太空学院</h1>
+  <p>Little Astronaut Space Academy · Three.js Powered</p>
   <button class="start-btn" id="startBtn">▶ 开始探索</button>
 </div>
 
@@ -24,6 +24,73 @@
   <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
   <button class="settings-btn" onclick="openSettings()">⋮</button>
 </div>
+
+<!-- Main menu: mission / free explore / tour -->
+<div id="mainMenu" style="display:none">
+  <div class="menu-title">选择你的太空之旅</div>
+  <div class="menu-cards">
+    <div class="menu-card" onclick="showMissionSelect()">
+      <div class="menu-icon">🎯</div>
+      <div class="menu-name">任务模式</div>
+      <div class="menu-desc">5 关主线，从入轨到深空</div>
+    </div>
+    <div class="menu-card" onclick="startFreeExplore()">
+      <div class="menu-icon">🛰️</div>
+      <div class="menu-name">自由探索</div>
+      <div class="menu-desc">驾驶探测器，漫游太阳系</div>
+    </div>
+    <div class="menu-card" onclick="startTour()">
+      <div class="menu-icon">🧭</div>
+      <div class="menu-name">一键导览</div>
+      <div class="menu-desc">5 站旅程 · 约 40 秒</div>
+    </div>
+    <div class="menu-card" onclick="showKnowledgeLibrary()">
+      <div class="menu-icon">📚</div>
+      <div class="menu-name">知识图鉴</div>
+      <div class="menu-desc">查看已解锁的知识卡</div>
+    </div>
+  </div>
+</div>
+
+<!-- Mission select panel -->
+<div id="missionSelect" style="display:none">
+  <div class="menu-title">选择任务</div>
+  <div class="mission-list" id="missionList"></div>
+  <button class="menu-back" onclick="showMainMenu()">← 返回</button>
+</div>
+
+<!-- Mission panel (briefing + steps) -->
+<div id="missionPanel" style="display:none">
+  <div class="panel-title">📋 任务简报</div>
+  <div class="mission-title" id="missionTitle"></div>
+  <div class="mission-objective" id="missionObjective"></div>
+  <div class="mission-steps" id="missionSteps"></div>
+</div>
+
+<!-- Tour panel -->
+<div id="tourPanel" style="display:none">
+  <div class="tour-counter" id="tourCounter">01 / 05</div>
+  <div class="tour-subtitle" id="tourSubtitle"></div>
+  <div class="tour-title" id="tourTitle"></div>
+  <div class="tour-description" id="tourDescription"></div>
+  <div class="tour-stats" id="tourStats"></div>
+  <div class="tour-question" id="tourQuestion"></div>
+  <div class="tour-actions">
+    <button class="tour-btn" onclick="previousStop()">← 上一站</button>
+    <button class="tour-btn" onclick="toggleTourPause()">⏸ 暂停</button>
+    <button class="tour-btn" onclick="nextStop()">下一站 →</button>
+    <button class="tour-btn" onclick="exitTour()">退出导览</button>
+  </div>
+</div>
+
+<!-- Survey points (during explore) -->
+<div id="surveyPoints" style="display:none"></div>
+
+<!-- Knowledge card popup -->
+<div id="knowledgeCard" style="display:none"></div>
+
+<!-- Knowledge library -->
+<div id="knowledgeLibrary" style="display:none"></div>
 
 <div id="leftPanel" style="display:none">
   <div class="panel-title collapsible" onclick="togglePanel('leftPanel')">
@@ -40,7 +107,7 @@
 </div>
 
 <div id="bottomPanel" style="display:none">
-  <div class="tele-panel"><div class="label">速度 SPD</div><div class="value" id="teleSpd">0.0</div><div class="unit">m/s</div></div>
+  <div class="tele-panel"><div class="label">速度 SPD</div><div class="value" id="teleSpd">0.0</div><div class="unit">km/s</div></div>
   <div class="tele-panel"><div class="label">距离 DIS</div><div class="value" id="teleDis">0.0</div><div class="unit">km</div></div>
   <div class="tele-panel"><div class="label">阶段 PHASE</div><div class="value" id="telePhase">就绪</div></div>
 </div>
@@ -49,6 +116,20 @@
 <div id="engineDisplay" style="display:none"></div>
 
 <div id="notification"></div>
+
+<!-- Virtual joysticks (mobile) -->
+<div id="joystickLeft" style="display:none">
+  <div class="joystick-base" id="joystickLeftBase">
+    <div class="joystick-thumb" id="thumbL"></div>
+  </div>
+  <div class="joystick-label">径向推力</div>
+</div>
+<div id="joystickRight" style="display:none">
+  <div class="joystick-base" id="joystickRightBase">
+    <div class="joystick-thumb" id="thumbR"></div>
+  </div>
+  <div class="joystick-label">切向推力</div>
+</div>
 
 <!-- Settings Modal -->
 <div id="settingsModal" style="display:none">
@@ -102,10 +183,10 @@
       <div class="tab-content" id="tabAbout" style="display:none">
         <div class="about-section">
           <div class="about-logo">🚀</div>
-          <div class="about-title">深空探测器旅行</div>
-          <div class="about-version">版本 1.0.0</div>
-          <div class="about-desc">探索太阳系，环绕八大行星<br>体验真实物理的太空之旅</div>
-          <div class="about-tech">技术支持：Three.js · WebGL · N-body引力模拟</div>
+          <div class="about-title">小小航天员 · 太空学院</div>
+          <div class="about-version">版本 2.0.0</div>
+          <div class="about-desc">任务驱动的太空探索<br>5 关主线 + 自由探索 + 一键导览</div>
+          <div class="about-tech">技术支持：Three.js · WebGL · 两体引力模拟</div>
         </div>
       </div>
     </div>
@@ -119,7 +200,7 @@
   }
 }
 </script>
-<script type="module" src="js/game.js?v=20260812"></script>
+<script type="module" src="js/game.js?v=20261023"></script>
 
 </body>
 </html>
