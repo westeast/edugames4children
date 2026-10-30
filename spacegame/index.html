@@ -1,206 +1,146 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>小小航天员 · 太空学院 - Little Astronaut Space Academy</title>
-<link rel="stylesheet" href="css/style.css?v=20261023">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05090e">
+<title>ORBIT · 漫游宇宙 · 感知地球 | 小小航天员</title>
+<link rel="stylesheet" href="css/style.css?v=20261025">
 </head>
 <body>
+  <div id="universe" aria-label="三维宇宙视图，拖动旋转，滚轮缩放"></div>
+  <div id="labels" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
 
-<div id="loadingText">正在初始化太空系统...</div>
-
-<div id="startScreen">
-  <div style="font-size:48px;">🚀</div>
-  <h1>小小航天员 · 太空学院</h1>
-  <p>Little Astronaut Space Academy · Three.js Powered</p>
-  <button class="start-btn" id="startBtn">▶ 开始探索</button>
-</div>
-
-<div id="topBar" style="display:none">
-  <div class="settings-logo" onclick="openSettings()">🚀</div>
-  <div class="status-item"><span>📶</span><span class="val" id="signalVal">5</span></div>
-  <div class="status-item"><span>🛰️</span><span class="val" id="gpsVal">OK</span></div>
-  <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
-  <button class="settings-btn" onclick="openSettings()">⋮</button>
-</div>
-
-<!-- Main menu: mission / free explore / tour -->
-<div id="mainMenu" style="display:none">
-  <div class="menu-title">选择你的太空之旅</div>
-  <div class="menu-cards">
-    <div class="menu-card" onclick="showMissionSelect()">
-      <div class="menu-icon">🎯</div>
-      <div class="menu-name">任务模式</div>
-      <div class="menu-desc">5 关主线，从入轨到深空</div>
-    </div>
-    <div class="menu-card" onclick="startFreeExplore()">
-      <div class="menu-icon">🛰️</div>
-      <div class="menu-name">自由探索</div>
-      <div class="menu-desc">驾驶探测器，漫游太阳系</div>
-    </div>
-    <div class="menu-card" onclick="startTour()">
-      <div class="menu-icon">🧭</div>
-      <div class="menu-name">一键导览</div>
-      <div class="menu-desc">5 站旅程 · 约 40 秒</div>
-    </div>
-    <div class="menu-card" onclick="showKnowledgeLibrary()">
-      <div class="menu-icon">📚</div>
-      <div class="menu-name">知识图鉴</div>
-      <div class="menu-desc">查看已解锁的知识卡</div>
-    </div>
+  <!-- 加载屏 -->
+  <div id="loading" role="status">
+    <div class="load-mark">O<span>R</span>BIT</div>
+    <p>正在展开宇宙</p>
+    <div class="load-track"><i></i></div>
+    <small>准备天体纹理与星际航线</small>
   </div>
-</div>
 
-<!-- Mission select panel -->
-<div id="missionSelect" style="display:none">
-  <div class="menu-title">选择任务</div>
-  <div class="mission-list" id="missionList"></div>
-  <button class="menu-back" onclick="showMainMenu()">← 返回</button>
-</div>
-
-<!-- Mission panel (briefing + steps) -->
-<div id="missionPanel" style="display:none">
-  <div class="panel-title">📋 任务简报</div>
-  <div class="mission-title" id="missionTitle"></div>
-  <div class="mission-objective" id="missionObjective"></div>
-  <div class="mission-steps" id="missionSteps"></div>
-</div>
-
-<!-- Tour panel -->
-<div id="tourPanel" style="display:none">
-  <div class="tour-counter" id="tourCounter">01 / 05</div>
-  <div class="tour-subtitle" id="tourSubtitle"></div>
-  <div class="tour-title" id="tourTitle"></div>
-  <div class="tour-description" id="tourDescription"></div>
-  <div class="tour-stats" id="tourStats"></div>
-  <div class="tour-question" id="tourQuestion"></div>
-  <div class="tour-actions">
-    <button class="tour-btn" onclick="previousStop()">← 上一站</button>
-    <button class="tour-btn" onclick="toggleTourPause()">⏸ 暂停</button>
-    <button class="tour-btn" onclick="nextStop()">下一站 →</button>
-    <button class="tour-btn" onclick="exitTour()">退出导览</button>
+  <!-- 错误屏 -->
+  <div id="error" role="alert">
+    <h1>星空暂时无法展开</h1>
+    <p id="error-msg"></p>
+    <button onclick="location.reload()">重新加载</button>
   </div>
-</div>
 
-<!-- Survey points (during explore) -->
-<div id="surveyPoints" style="display:none"></div>
-
-<!-- Knowledge card popup -->
-<div id="knowledgeCard" style="display:none"></div>
-
-<!-- Knowledge library -->
-<div id="knowledgeLibrary" style="display:none"></div>
-
-<div id="leftPanel" style="display:none">
-  <div class="panel-title collapsible" onclick="togglePanel('leftPanel')">
-    <span>目标行星</span><span class="collapse-icon">▼</span>
-  </div>
-  <div class="panel-content" id="planetPanel"></div>
-</div>
-
-<div id="rightPanel" style="display:none">
-  <div class="panel-title collapsible" onclick="togglePanel('rightPanel')">
-    <span>发射配置</span><span class="collapse-icon">▼</span>
-  </div>
-  <div class="panel-content" id="launchConfigContent"></div>
-</div>
-
-<div id="bottomPanel" style="display:none">
-  <div class="tele-panel"><div class="label">速度 SPD</div><div class="value" id="teleSpd">0.0</div><div class="unit">km/s</div></div>
-  <div class="tele-panel"><div class="label">距离 DIS</div><div class="value" id="teleDis">0.0</div><div class="unit">km</div></div>
-  <div class="tele-panel"><div class="label">阶段 PHASE</div><div class="value" id="telePhase">就绪</div></div>
-</div>
-
-<div id="coordsDisplay" style="display:none"></div>
-<div id="engineDisplay" style="display:none"></div>
-
-<div id="notification"></div>
-
-<!-- Virtual joysticks (mobile) -->
-<div id="joystickLeft" style="display:none">
-  <div class="joystick-base" id="joystickLeftBase">
-    <div class="joystick-thumb" id="thumbL"></div>
-  </div>
-  <div class="joystick-label">径向推力</div>
-</div>
-<div id="joystickRight" style="display:none">
-  <div class="joystick-base" id="joystickRightBase">
-    <div class="joystick-thumb" id="thumbR"></div>
-  </div>
-  <div class="joystick-label">切向推力</div>
-</div>
-
-<!-- Settings Modal -->
-<div id="settingsModal" style="display:none">
-  <div class="settings-overlay" onclick="closeSettings()"></div>
-  <div class="settings-container">
-    <div class="settings-header">
-      <span class="settings-title">设置</span>
-      <button class="settings-close" onclick="closeSettings()">✕</button>
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 38 38" fill="none" aria-hidden="true">
+        <circle cx="19" cy="19" r="9" stroke="currentColor" stroke-width="1.4"/>
+        <ellipse cx="19" cy="19" rx="20" ry="7" transform="rotate(-42 19 19)" stroke="currentColor" stroke-width="1.4"/>
+        <circle cx="29" cy="7" r="2.6" fill="currentColor"/>
+      </svg>
+      <span>ORBIT<small>漫游宇宙 · 感知地球</small></span>
     </div>
-    <div class="settings-tabs">
-      <button class="settings-tab active" onclick="switchSettingsTab('rocket')">火箭</button>
-      <button class="settings-tab" onclick="switchSettingsTab('payload')">载荷</button>
-      <button class="settings-tab" onclick="switchSettingsTab('control')">操控</button>
-      <button class="settings-tab" onclick="switchSettingsTab('about')">关于</button>
+    <nav id="mode-nav" aria-label="模式">
+      <button data-mode="explore" class="active">自由探索</button>
+      <button data-mode="mission">任务模式</button>
+      <button data-mode="tour">一键导览</button>
+    </nav>
+    <div class="topbar-right">
+      <button class="icon-btn" id="library-btn" title="知识图鉴">📚</button>
+      <button class="icon-btn" id="open-settings" title="设置">⚙</button>
+      <button class="icon-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="全屏">⛶</button>
     </div>
-    <div class="settings-content">
-      <div class="tab-content" id="tabRocket">
-        <div style="font-size:12px;color:#aaa;line-height:1.8;">
-          <strong>火箭选择：</strong><br>
-          在右侧面板选择发射火箭。<br>
-          支持 SpaceX（星舰、猎鹰系列）和中国航天（长征系列）。<br><br>
-          <strong>发动机可视化：</strong><br>
-          - 星舰：33× Raptor 3 (助推器) + 24× Raptor (飞船)<br>
-          - 猎鹰9号：9× Merlin 1D (Octaweb) + 1× MVac<br>
-          - 长征五号：2× YF-77 + 8× YF-100<br>
-          - 长征二号C：4× YF-20A 簇 + 1× YF-22E
-        </div>
+  </header>
+
+  <!-- 尺度导航（近地轨道 / 太阳系 / 银河系 / 星系图鉴）-->
+  <nav class="scale-nav" aria-label="探索尺度">
+    <button data-scale="earth" class="active">近地轨道</button>
+    <button data-scale="solar">太阳系</button>
+    <button data-scale="galaxy">银河系</button>
+    <button data-scale="local">星系图鉴</button>
+  </nav>
+
+  <!-- 信息面板（左上）-->
+  <main class="info-panel" id="info-panel">
+    <div class="eyebrow"><span class="tiny-cross">+</span><span id="info-eyebrow">太阳系 / 类地行星</span></div>
+    <p class="object-en" id="info-en">EARTH</p>
+    <h1 id="info-name">地球<span class="object-index" id="info-index">03</span></h1>
+    <p class="description" id="info-desc"></p>
+    <div class="stats" id="info-stats"></div>
+    <div class="context-actions" id="info-actions"></div>
+  </main>
+
+  <!-- 尺度导轨（右侧）-->
+  <aside class="scale-rail" id="scale-rail" aria-label="缩放控制"></aside>
+  <div class="zoom-controls">
+    <button class="icon-btn" id="zoom-in" title="放大">+</button>
+    <button class="icon-btn" id="zoom-out" title="缩小">−</button>
+  </div>
+
+  <!-- 视图字幕 -->
+  <div class="view-caption">
+    <i></i><span id="view-caption-scale">地球近轨</span><b> / </b><span id="view-caption-distance">距地表 20,000 km</span>
+  </div>
+
+  <!-- 底部：目的地坞 -->
+  <footer class="dock">
+    <div class="dock-head">
+      <b id="dock-context">太阳系</b><span>DESTINATIONS</span>
+    </div>
+    <label class="dock-search">
+      <span>查找天体</span>
+      <input id="dock-search" type="search" placeholder="名称 / 编号" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="dock-list" id="dock-list"></div>
+  </footer>
+
+  <!-- 图层开关 -->
+  <div class="layers">
+    <button class="layer-btn active" id="toggle-orbits"><span>轨道</span></button>
+    <button class="layer-btn active" id="toggle-labels"><span>标记</span></button>
+    <button class="layer-btn active" id="toggle-sat"><span>卫星</span></button>
+  </div>
+
+  <!-- 任务卡 -->
+  <aside class="floating-card mission-card" id="mission-card"></aside>
+  <!-- 导览卡 -->
+  <aside class="floating-card tour-card" id="tour-card"></aside>
+
+  <!-- 知识卡 / 图鉴 -->
+  <div class="modal-card" id="knowledge-card"></div>
+  <div class="modal-card" id="library"></div>
+
+  <!-- 设置弹窗 -->
+  <div class="settings" id="settings">
+    <div class="settings-backdrop" id="settings-backdrop"></div>
+    <div class="settings-panel">
+      <div class="settings-head">
+        <span>ORBIT · PREFERENCES</span>
+        <button class="card-close" id="settings-close">×</button>
       </div>
-      <div class="tab-content" id="tabPayload" style="display:none">
-        <div style="font-size:12px;color:#aaa;line-height:1.8;">
-          <strong>探测器载荷：</strong><br>
-          - 火星探测卫星<br>
-          - 月球探测器<br>
-          - 旅行者1号（3.66m大锅盖天线）<br>
-          - 深空探测器<br>
-          - 载人飞船（神舟型）
-        </div>
+      <h2>把宇宙，留在你的屏幕上。</h2>
+      <fieldset>
+        <legend>全局设置</legend>
+        <label class="row">深空颜色<input id="space-color" type="color" value="#05090e"></label>
+        <label class="row">深空星星<input id="stars-toggle" type="checkbox" checked></label>
+      </fieldset>
+      <fieldset>
+        <legend>操作说明</legend>
+        <p class="help">拖动旋转 · 滚轮 / 双指缩放 · 点击天体飞入 · 空格暂停 · H 回地球 · F 全屏</p>
+      </fieldset>
+      <div class="settings-actions">
+        <button class="primary-btn" id="reset-btn">回到地球</button>
       </div>
-      <div class="tab-content" id="tabControl" style="display:none">
-        <div style="font-size:12px;color:#aaa;line-height:1.8;">
-          <strong>键盘操控：</strong><br>
-          - 左摇杆：径向推力（上下）+ 垂直调整<br>
-          - 右摇杆：切向推力（左右）<br><br>
-          <strong>移动端：</strong><br>
-          - 屏幕两侧虚拟摇杆<br><br>
-          <strong>载人返回：</strong><br>
-          - 开启载人模式后点击"返回地球"<br>
-          - 或按 R 键快速启动返回序列
-        </div>
-      </div>
-      <div class="tab-content" id="tabAbout" style="display:none">
-        <div class="about-section">
-          <div class="about-logo">🚀</div>
-          <div class="about-title">小小航天员 · 太空学院</div>
-          <div class="about-version">版本 2.0.0</div>
-          <div class="about-desc">任务驱动的太空探索<br>5 关主线 + 自由探索 + 一键导览</div>
-          <div class="about-tech">技术支持：Three.js · WebGL · 两体引力模拟</div>
-        </div>
-      </div>
+      <p class="settings-note">本作品是宇宙可视化演示。天体大小、距离与轨道速度为展示示意，非真实比例。</p>
     </div>
   </div>
-</div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+  <div id="toast" role="status"></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+    }
   }
-}
-</script>
-<script type="module" src="js/game.js?v=20261023"></script>
-
+  </script>
+  <script type="module" src="js/game.js?v=20261025"></script>
 </body>
 </html>

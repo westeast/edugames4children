@@ -1,143 +1,109 @@
-// Mission / level system: briefing → launchPad → ignite → ascend → orbit → travel → arrive → survey → complete
-import * as THREE from 'three';
-import { state, MISSIONS, KNOWLEDGE_CARDS, PLANETS } from './config.js';
-import { showNotif, showMissionPanel, updateMissionProgress, showKnowledgeCard } from './ui.js';
+// 关卡任务系统：前往目标 → 观察 → 答题 → 解锁知识卡
+import { state, MISSIONS, BODIES } from './config.js';
+import { flyTo, setScale } from './camera-rig.js';
+import { renderMissionCard, hideMissionCard, hideTourCard, showKnowledgeCard, toast } from './ui.js';
 import { sfx } from './audio.js';
 
-// === Start a mission ===
+// 开始一关
 export function startMission(idx) {
   state.mode = 'mission';
-  state.selectedMissionIdx = idx;
-  const mission = MISSIONS[idx];
+  state.missionIdx = idx;
+  state.missionStage = 'navigate';
+  state.missionAnswered = false;
 
-  // Set target planet
-  state.targetPlanetIdx = mission.targetPlanetIdx;
+  hideTourCard();
+  const m = MISSIONS[idx];
+  // 调整到该关所在尺度
+  if (m.scale && m.scale !== state.scale) setScale(m.scale);
 
-  // Reset mission progress
-  state.missionStepIdx = 0;
-  state.missionComplete = false;
-  state.surveyPointsCollected = [];
-
-  // Show briefing
-  showMissionPanel(mission);
-  showNotif(`📋 任务简报: ${mission.title}`);
+  renderMissionCard(m, 'navigate', null, false);
+  toast(`🎯 任务 ${idx + 1}：${m.title}`);
   sfx.click();
 }
 
-// === Advance mission step ===
-export function advanceMissionStep() {
-  const mission = MISSIONS[state.selectedMissionIdx];
-  if (!mission) return;
-
-  state.missionStepIdx++;
-
-  // Mission complete when all steps done
-  if (state.missionStepIdx >= mission.steps.length) {
-    completeMission();
-    return;
-  }
-
-  updateMissionProgress(mission);
+// 前往任务目标
+export function missionGo() {
+  const m = MISSIONS[state.missionIdx];
+  if (!m) return;
+  flyTo(m.targetId);
+  state.missionStage = 'observe';
+  toast(`🚀 正在飞向 ${bodyName(m.targetId)}…`);
+  sfx.whoosh();
+  // 到达判定交给 game.js 的 updateMissionArrival
 }
 
-// === Complete mission: unlock knowledge card ===
-export function completeMission() {
-  const mission = MISSIONS[state.selectedMissionIdx];
-  state.missionComplete = true;
-
-  // Unlock knowledge card
-  const card = KNOWLEDGE_CARDS[mission.knowledgeCard];
-  if (card && !state.knowledgeUnlocked.includes(mission.knowledgeCard)) {
-    state.knowledgeUnlocked.push(mission.knowledgeCard);
-    showKnowledgeCard(card);
-    sfx.knowledge();
-  }
-
-  showNotif(`🎉 任务完成！${mission.title}`);
-  showMissionPanel(mission, true);
+export function bodyName(id) {
+  const b = BODIES.find(x => x.id === id);
+  return b ? b.name : id;
 }
 
-// === Travel to target planet (change central body) ===
-export function travelToPlanet(planetIdx) {
-  state.targetPlanetIdx = planetIdx;
-  const planet = PLANETS[planetIdx];
+// 检测是否已到达目标附近 → 进入答题
+export function updateMissionArrival(camPos) {
+  if (state.mode !== 'mission' || state.missionStage !== 'observe') return;
+  const m = MISSIONS[state.missionIdx];
+  if (!m) return;
 
-  // Place rocket in orbit around new planet
-  const orbitRadius = Math.max(planet.radius * 0.001 + 5, 15);
-  const tp = state.targetPlanetPos;
-  state.rocketPos.set(tp.x + orbitRadius, tp.y, tp.z);
-  state.rocketVel.set(0, 0, orbitRadius * 0.1);
+  const obj = window.__celestialGet && window.__celestialGet(m.targetId);
+  if (!obj || !obj.group) return;
+  const p = new (obj.group.position.constructor)();
+  obj.group.getWorldPosition(p);
+  const d = camPos.distanceTo(p);
+  const r = obj.data?.visualR || 3;
 
-  state.gamePhase = 'arrive';
-  state.orbitActive = true;
-
-  showNotif(`🛰️ 到达 ${planet.name} 引力圈！进入环绕轨道！`);
-  sfx.orbit();
-}
-
-// === Check mission step completion conditions ===
-export function checkMissionStep() {
-  const mission = MISSIONS[state.selectedMissionIdx];
-  if (!mission || state.mode !== 'mission') return;
-  if (state.missionComplete) return;
-
-  const step = mission.steps[state.missionStepIdx];
-  if (!step) return;
-
-  switch (step.id) {
-    case 'launch':
-      // Launch step completes when rocket reaches orbit
-      if (state.gamePhase === 'orbit' || state.gamePhase === 'explore') {
-        advanceMissionStep();
-      }
-      break;
-
-    case 'orbit':
-      // Orbit step completes when reaching orbital velocity
-      if (state.orbitActive) {
-        advanceMissionStep();
-      }
-      break;
-
-    case 'travel':
-      // Travel step completes when reaching target planet vicinity
-      if (state.gamePhase === 'arrive') {
-        advanceMissionStep();
-      }
-      break;
-
-    case 'arrive':
-      // Arrive step completes when entering target orbit
-      if (state.orbitActive && state.gamePhase === 'explore') {
-        advanceMissionStep();
-      }
-      break;
-
-    case 'survey':
-      // Survey step completes when all survey points collected
-      if (state.surveyPointsCollected.length >= mission.surveyPoints.length) {
-        advanceMissionStep();
-      }
-      break;
+  if (d < Math.max(r * 5, 12)) {
+    state.missionStage = 'quiz';
+    renderMissionCard(m, 'quiz', null, false);
+    sfx.arrive();
+    toast(`📍 已到达 ${bodyName(m.targetId)}，回答问题吧`);
   }
 }
 
-// === Collect a survey point ===
-export function collectSurveyPoint(pointIdx) {
-  const mission = MISSIONS[state.selectedMissionIdx];
-  if (!mission) return;
+// 答题
+export function answerQuiz(sel) {
+  const m = MISSIONS[state.missionIdx];
+  if (!m || state.missionAnswered) return;
+  state.missionAnswered = true;
 
-  const point = mission.surveyPoints[pointIdx];
-  if (!point) return;
+  const correct = sel === m.answer;
+  renderMissionCard(m, 'quiz', sel, true);
 
-  // Avoid double-collection
-  if (state.surveyPointsCollected.includes(pointIdx)) return;
+  if (correct) {
+    sfx.correct();
+    if (!state.unlocked.includes(m.knowledgeCard)) state.unlocked.push(m.knowledgeCard);
+    setTimeout(() => {
+      state.missionStage = 'done';
+      showKnowledgeCard(m.knowledgeCard, () => {
+        toast('✅ 任务完成！可在顶部继续下一关');
+        renderMissionDone(m);
+      });
+    }, 900);
+  } else {
+    sfx.wrong();
+    toast('❌ 再想一想：' + m.explain);
+    setTimeout(() => {
+      state.missionAnswered = false;
+      renderMissionCard(m, 'quiz', null, false);
+    }, 2200);
+  }
+}
 
-  state.surveyPointsCollected.push(pointIdx);
-  showNotif(`🔬 探测成功: ${point.name} — ${point.desc}`);
-  sfx.survey();
-  updateMissionProgress(mission);
-
-  // Check if survey step complete
-  checkMissionStep();
+function renderMissionDone(m) {
+  const el = document.getElementById('mission-card');
+  if (!el) return;
+  const idx = state.missionIdx;
+  const hasNext = idx + 1 < MISSIONS.length;
+  el.innerHTML = `
+    <div class="eyebrow">MISSION ${String(idx + 1).padStart(2, '0')} / 05 · 完成</div>
+    <h3>✅ ${m.title}</h3>
+    <p class="mission-brief">${m.explain}</p>
+    ${hasNext
+      ? '<button class="primary-btn" id="mission-next">进入下一关 →</button>'
+      : '<button class="primary-btn" id="mission-next">🎉 全部完成，自由探索</button>'}
+  `;
+  el.classList.add('show');
+  const next = document.getElementById('mission-next');
+  next.onclick = () => {
+    if (hasNext) startMission(idx + 1);
+    else { state.mode = 'explore'; hideMissionCard(); document.querySelector('#mode-nav button[data-mode="explore"]')?.click(); }
+  };
 }

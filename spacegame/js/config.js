@@ -1,323 +1,263 @@
-// Configuration constants and shared game state
-import * as THREE from 'three';
+// 数据配置：天体、尺度层级、任务、导览、知识卡
+// 严格参考 ORBIT (dididaiqu.com/orbit) 的信息结构：类别/英文名/编号/描述/统计/操作/思考题
 
-// === Rocket definitions (real-world data) ===
-export const ROCKETS = [
-  { id: 'starship', name: '星舰 Starship', company: 'SpaceX',
-    stages: [
-      { name: 'Super Heavy 助推器', height: 71, radius: 5, engineCount: 33, engines: 'Raptor 3×33', prop: 'LOX/LH2' },
-      { name: 'Starship 飞船', height: 50, radius: 4.5, engineCount: 6, engines: 'Raptor×6+18Vac', prop: 'LOX/LH2' }
-    ],
-    totalHeight: 121, mass: 5000, thrust: 76000 // kN total liftoff thrust
-  },
-  { id: 'falcon9', name: '猎鹰9号 Falcon 9', company: 'SpaceX',
-    stages: [
-      { name: '第一级助推器', height: 43.8, radius: 1.675, engineCount: 9, engines: 'Merlin 1D×9 (Octaweb)', prop: 'LOX/RP-1' },
-      { name: '第二级发动机', height: 4.0, radius: 0.825, engineCount: 1, engines: 'Merlin Vacuum×1', prop: 'LOX/LH2' }
-    ],
-    totalHeight: 70, mass: 500, thrust: 6840 // 9 × ~760 kN per Merlin 1D
-  },
-  { id: 'falcon_heavy', name: '猎鹰重型 Falcon Heavy', company: 'SpaceX',
-    stages: [
-      { name: '中心核心级', height: 50, radius: 1.675, engineCount: 9, engines: 'Merlin 1D×9 (Octaweb)', prop: 'LOX/RP-1' },
-      { name: '左侧助推器', height: 43.8, radius: 1.675, engineCount: 9, engines: 'Merlin 1D×9', prop: 'LOX/RP-1' },
-      { name: '右侧助推器', height: 43.8, radius: 1.675, engineCount: 9, engines: 'Merlin 1D×9', prop: 'LOX/RP-1' }
-    ],
-    totalHeight: 81.2, mass: 1500, thrust: 13500 // per side × 27 + center = ~68400 kN total
-  },
-  { id: 'cz5', name: '长征五号 CZ-5', company: '中国航天',
-    stages: [
-      { name: '芯级发动机', height: 33.3, radius: 2.5, engineCount: 2, engines: 'YF-77×2 (液氢液氧)', prop: 'LOX/LH2' },
-      { name: '4个助推器(每侧2个)', height: 16.1, radius: 1.675, engineCount: 8, engines: 'YF-100×8 (液氧煤油)', prop: 'LOX/RP-1' },
-      { name: '二级发动机', height: 13.4, radius: 2.5, engineCount: 2, engines: 'YF-75D×2', prop: 'LOX/LH2' }
-    ],
-    totalHeight: 56.97, mass: 870, thrust: 1080 // tonnes total liftoff
-  },
-  { id: 'cz2c', name: '长征二号C CZ-2C', company: '中国航天',
-    stages: [
-      { name: '一级(4发动机簇)', height: 26.6, radius: 1.675, engineCount: 4, engines: 'YF-20A×4 (偏二甲肼/四氧化二氮)', prop: 'N2O4/UDMH' },
-      { name: '二级发动机', height: 8.3, radius: 1.675, engineCount: 1, engines: 'YF-22E×1', prop: 'N2O4/UDMH' }
-    ],
-    totalHeight: 35.15, mass: 192, thrust: 306 // tonnes
-  }
+// === 探索尺度（ORBIT 的「近地轨道 / 太阳系 / 银河系 / 星系图鉴」）===
+export const SCALES = [
+  { id: 'earth', label: '近地轨道', caption: '地球近轨', distance: '距地表 20,000 km' },
+  { id: 'solar', label: '太阳系', caption: '太阳系', distance: '约 4.5 小时光程' },
+  { id: 'galaxy', label: '银河系', caption: '银河系', distance: '直径约 100,000 光年' },
+  { id: 'local', label: '星系图鉴', caption: '星系图鉴', distance: '空间布局为示意' },
 ];
 
-// === Payload types ===
-export const PAYLOADS = [
-  { id: 'mars_probe', name: '火星探测卫星', desc: '携带光谱仪、钻探设备' },
-  { id: 'moon_probe', name: '月球探测器', desc: '轨道相机、月震仪' },
-  { id: 'voyager1', name: '旅行者1号 Voyager 1', desc: '3.66m大锅盖天线 · S/X波段通信' },
-  { id: 'deep_space', name: '深空探测器', desc: '通用探测平台' },
-  { id: 'crew_capsule', name: '载人飞船（神舟型）', desc: '轨道舱+返回舱+推进舱 · 太阳能板' }
+// === 天体数据（真实数据 + 展示用视觉参数）===
+// radiusKm 真实半径；visualR 展示用半径（非真实比例）；au 轨道半径
+export const BODIES = [
+  {
+    id: 'earth', index: 3, category: '太阳系 / 类地行星', name: '地球', en: 'EARTH',
+    description: '越过蔚蓝的大气层，看见云海之下的万家灯火。这里，是我们在宇宙中的家。',
+    radiusKm: 12742, au: 1.0, periodDays: 365.25, color: '#3b7ddd', visualR: 4.0,
+    stats: [['平均直径', '12,742', ' km'], ['公转周期', '365.25', ' 天']],
+    actions: [
+      { id: 'night', label: '看万家灯火' },
+      { id: 'station', label: '探访空间站' },
+    ],
+    texture: 'earth',
+  },
+  {
+    id: 'moon', index: 3.1, category: '地球 / 卫星', name: '月球', en: 'MOON',
+    description: '没有大气，没有风。四十亿年的撞击坑安静地保存着太阳系早期的记忆。',
+    radiusKm: 3474, orbitOf: 'earth', color: '#b8b8c0', visualR: 1.2,
+    stats: [['平均直径', '3,474', ' km'], ['公转周期', '27.3', ' 天']],
+    texture: 'moon',
+  },
+  {
+    id: 'mercury', index: 1, category: '太阳系 / 类地行星', name: '水星', en: 'MERCURY',
+    description: '离太阳最近的行星。白天 427°C，夜晚骤降至 -173°C，没有大气来缓冲。',
+    radiusKm: 4879, au: 0.387, periodDays: 87.97, color: '#9a9a9a', visualR: 1.6,
+    stats: [['平均直径', '4,879', ' km'], ['公转周期', '88', ' 天']],
+    texture: 'mercury',
+  },
+  {
+    id: 'venus', index: 2, category: '太阳系 / 类地行星', name: '金星', en: 'VENUS',
+    description: '浓密的二氧化碳大气造成失控温室效应，表面 465°C，是太阳系最热的行星。',
+    radiusKm: 12104, au: 0.723, periodDays: 224.7, color: '#e6c878', visualR: 3.8,
+    stats: [['平均直径', '12,104', ' km'], ['公转周期', '225', ' 天']],
+    texture: 'venus',
+  },
+  {
+    id: 'mars', index: 4, category: '太阳系 / 类地行星', name: '火星', en: 'MARS',
+    description: '红色的氧化铁土壤覆盖着这颗星球。奥林帕斯山高 21.9 km，是太阳系最高的火山。',
+    radiusKm: 6779, au: 1.524, periodDays: 686.98, color: '#c1643a', visualR: 2.4,
+    stats: [['平均直径', '6,779', ' km'], ['公转周期', '687', ' 天']],
+    actions: [{ id: 'rover', label: '看探测器' }],
+    texture: 'mars',
+  },
+  {
+    id: 'jupiter', index: 5, category: '太阳系 / 气态巨行星', name: '木星', en: 'JUPITER',
+    description: '太阳系最大的行星。大红斑是一场持续数百年的风暴，比地球还大。',
+    radiusKm: 139820, au: 5.204, periodDays: 4332.6, color: '#d4a46a', visualR: 8.0,
+    hasRings: false,
+    stats: [['平均直径', '139,820', ' km'], ['公转周期', '11.86', ' 年']],
+    texture: 'jupiter',
+  },
+  {
+    id: 'saturn', index: 6, category: '太阳系 / 气态巨行星', name: '土星', en: 'SATURN',
+    description: '土星环由无数冰块与岩石组成，宽达数十万公里，厚度却只有几十米。',
+    radiusKm: 116460, au: 9.537, periodDays: 10759, color: '#e3d090', visualR: 7.0,
+    hasRings: true, ringInner: 1.4, ringOuter: 2.6,
+    stats: [['平均直径', '116,460', ' km'], ['公转周期', '29.46', ' 年']],
+    actions: [{ id: 'rings', label: '近看土星环' }],
+    texture: 'saturn',
+  },
+  {
+    id: 'uranus', index: 7, category: '太阳系 / 冰巨行星', name: '天王星', en: 'URANUS',
+    description: '自转轴几乎横躺，98° 的倾角让它像一个滚动的球绕太阳前进。',
+    radiusKm: 50724, au: 19.19, periodDays: 30687, color: '#8fd0dd', visualR: 4.6,
+    hasRings: true, ringInner: 1.5, ringOuter: 1.9,
+    stats: [['平均直径', '50,724', ' km'], ['公转周期', '84.01', ' 年']],
+    texture: 'uranus',
+  },
+  {
+    id: 'neptune', index: 8, category: '太阳系 / 冰巨行星', name: '海王星', en: 'NEPTUNE',
+    description: '太阳系最远的行星。风速可达 2,100 km/h，是已知最狂暴的行星大气。',
+    radiusKm: 49244, au: 30.07, periodDays: 60190, color: '#4a68d8', visualR: 4.4,
+    stats: [['平均直径', '49,244', ' km'], ['公转周期', '164.8', ' 年']],
+    texture: 'neptune',
+  },
+  {
+    id: 'sun', index: 0, category: '太阳系 / 恒星', name: '太阳', en: 'SUN',
+    description: '一颗普通的 G 型主序星，占太阳系 99.86% 的质量，每秒把 6 亿吨氢聚变成氦。',
+    radiusKm: 696340, au: 0, periodDays: 0, color: '#ffcc44', visualR: 14.0,
+    stats: [['平均直径', '1,392,700', ' km'], ['表面温度', '5,500', ' °C']],
+    texture: 'sun',
+  },
+  {
+    id: 'voyager', index: 9, category: '深空 / 探测器', name: '旅行者1号', en: 'VOYAGER 1',
+    description: '1977 年发射，携带金唱片飞出太阳系。它是人类制造的最遥远的物体。',
+    radiusKm: 0, au: 120, periodDays: 0, color: '#ccccaa', visualR: 1.0,
+    stats: [['距地球', '约 240 亿', ' km'], ['飞行速度', '17', ' km/s']],
+    texture: 'voyager',
+  },
 ];
 
-// === Planet data (radius km, distance AU, orbital period years) ===
-export const PLANETS = [
-  { name: '水星', radius: 2439.7, distAU: 0.387, period: 0.241, color: '#a0a0a0', tilt: 0.03, fact: '水星是离太阳最近的行星，白天温度可达 427°C，夜晚骤降至 -173°C。' },
-  { name: '金星', radius: 6051.8, distAU: 0.723, period: 0.615, color: '#e8c870', tilt: 177.4, fact: '金星是太阳系最热的行星，表面温度约 465°C，大气压是地球的 92 倍。' },
-  { name: '地球', radius: 6371.0, distAU: 1.0,   period: 1.0,   color: '#4488ff', tilt: 23.4, hasMoon: true, fact: '地球是唯一已知存在生命的行星，71% 表面被海洋覆盖。' },
-  { name: '火星', radius: 3389.5, distAU: 1.524, period: 1.881, color: '#cc6644', tilt: 25.2, fact: '火星被称为红色星球，拥有太阳系最高的火山奥林帕斯山（21.9km）。' },
-  { name: '木星', radius: 71492,  distAU: 5.204, period: 11.86,  color: '#d4a46a', tilt: 3.1, hasRings: true, ringLayers: 5, fact: '木星是太阳系最大的行星，大红斑是一场持续了数百年的风暴。' },
-  { name: '土星', radius: 60268,  distAU: 9.537, period: 29.46,  color: '#e8d088', tilt: 26.7, hasRings: true, ringLayers: 7, fact: '土星环由无数冰块和岩石组成，最宽处可达数十万公里。' },
-  { name: '天王星', radius: 25559, distAU: 19.19, period: 84.01, color: '#88ccdd', tilt: 97.8, fact: '天王星几乎横躺着绕太阳转，是太阳系最"躺"的行星。' },
-  { name: '海王星', radius: 24764, distAU: 30.07, period: 164.8, color: '#4466ee', tilt: 28.3, fact: '海王星是太阳系最远的行星，风速可达 2100 km/h，是太阳系最狂暴的风。' }
+// === 星系图鉴（ORBIT 的「星系图鉴」，程序生成示意）===
+export const GALAXIES = [
+  { id: 'milkyway', name: '银河系', en: 'MILKY WAY', type: '棒旋星系', desc: '我们的家园星系，包含 1,000–4,000 亿颗恒星。', color: '#cfe0ff' },
+  { id: 'andromeda', name: '仙女座星系', en: 'ANDROMEDA', type: '旋涡星系', desc: '距我们 254 万光年，是银河系最大的邻居，正在靠近。', color: '#ffd9c0' },
+  { id: 'triangulum', name: '三角座星系', en: 'TRIANGULUM', type: '旋涡星系', desc: '本星系群第三大成员，约 300 亿颗恒星。', color: '#c0d8ff' },
+  { id: 'lmc', name: '大麦哲伦云', en: 'LMC', type: '不规则星系', desc: '银河系的伴星系，南半球肉眼可见。', color: '#e0e0ff' },
+  { id: 'sombrero', name: '草帽星系', en: 'SOMBRERO', type: '透镜星系', desc: '侧视的尘埃带让它像一顶墨西哥草帽。示意。', color: '#ffe0b0' },
 ];
 
-export const PLUTO = { name: '冥王星', radius: 1188, distAU: 39.48, period: 248, color: '#aa9988', tilt: 177, fact: '冥王星是矮行星，位于柯伊伯带，直径约 2377 km。' };
-
-// === Physics constants (game unit scaled) ===
-const G_REAL = 6.674e-11; // m³/(kg·s²)
-export const SUN_MASS = 1.989e30;
-export const EARTH_MASS = 5.972e24;
-export const JUPITER_MASS = 1.898e27;
-
-// Scale: 1 AU = 100 game units, 1 km = 0.01 game units
-const SCALE_DIST = 100;
-const SCALE_RADIUS = 0.01;
-export const G_GAME = G_REAL * SCALE_DIST * SCALE_DIST * SCALE_DIST / (1e24); // scaled for gameplay
-
-// First cosmic speed: v = sqrt(GM/r)
-export function firstCosmicSpeed(massKg, radiusKm) {
-  return Math.sqrt(G_REAL * massKg / (radiusKm * 1000));
-}
-
-// Escape velocity: v₂ = √2 × v₁
-export function escapeVelocity(massKg, radiusKm) {
-  return firstCosmicSpeed(massKg, radiusKm) * Math.SQRT2;
-}
-
-// === Mission definitions (5 main missions + free explore + tour) ===
+// === 5 关主线任务（教育：到达 → 观察 → 答题 → 解锁知识卡）===
 export const MISSIONS = [
   {
-    id: 'm1', title: '第一次入轨', subtitle: '从地球出发',
-    targetPlanetIdx: 2, // Earth
-    rocketHint: '推荐：长征二号C 或 猎鹰9号',
-    objective: '发射火箭，达到第一宇宙速度 7.9 km/s，环绕地球',
-    briefing: '地球引力把我们牢牢拉住。想要环绕地球不掉下来，需要达到第一宇宙速度 v₁ = √(GM/r) ≈ 7.9 km/s。今天，你就是航天员！',
-    steps: [
-      { id: 'launch', text: '点火升空', hint: '点击点火按钮，倒计时 3-2-1' },
-      { id: 'orbit', text: '达到第一宇宙速度', hint: '持续加速，速度达到 7.9 km/s' },
-      { id: 'survey', text: '探测地球', hint: '点击地球上的探测点，收集数据' }
-    ],
-    surveyPoints: [
-      { name: '万家灯火', desc: '夜半球的城市灯光', x: 0.6, y: 0.3 },
-      { name: '蔚蓝海洋', desc: '太平洋的蓝色', x: -0.4, y: -0.2 },
-      { name: '云海', desc: '大气层的白色云层', x: 0.2, y: 0.7 }
-    ],
-    knowledgeCard: 'first_cosmic_speed'
+    id: 'm1', title: '最近的邻居', subtitle: '为什么月球没有大气',
+    targetId: 'moon', scale: 'earth',
+    objective: '飞到月球，观察它的表面，回答问题。',
+    briefing: '月球是地球唯一的天然卫星。它很小，引力只有地球的 1/6 —— 这正是它留不住大气的原因。',
+    question: '月球为什么几乎没有大气层？',
+    options: ['因为它离太阳太近', '因为引力太小，气体逃逸到太空', '因为被陨石撞没了'],
+    answer: 1,
+    explain: '月球引力只有地球的 1/6，逃逸速度仅 2.4 km/s，气体分子很容易逃逸到太空。',
+    knowledgeCard: 'moon',
   },
   {
-    id: 'm2', title: '奔向月球', subtitle: '第二宇宙速度',
-    targetPlanetIdx: 2, // Earth (moon orbit)
-    rocketHint: '推荐：长征五号 或 星舰',
-    objective: '变轨到月球，绕月探测，收集月震数据',
-    briefing: '第二宇宙速度 v₂ = √2 × v₁ ≈ 11.2 km/s，可以逃离地球引力。但我们要去月球——只需把速度提高到 10.9 km/s，就能进入奔月轨道。',
-    steps: [
-      { id: 'launch', text: '点火升空', hint: '点击点火按钮' },
-      { id: 'orbit', text: '达到第二宇宙速度', hint: '加速到 10.9 km/s，脱离地球引力' },
-      { id: 'travel', text: '变轨到月球', hint: '沿轨道航行，接近月球引力圈' },
-      { id: 'survey', text: '探测月球', hint: '点击月球上的探测点' }
-    ],
-    surveyPoints: [
-      { name: '静海', desc: '阿波罗11号着陆点', x: 0.5, y: 0.4 },
-      { name: '月震仪', desc: '记录月球内部震动', x: -0.3, y: -0.5 },
-      { name: '环形山', desc: '陨石撞击的痕迹', x: 0.1, y: 0.8 }
-    ],
-    knowledgeCard: 'moon'
+    id: 'm2', title: '红色星球', subtitle: '火星为什么是红的',
+    targetId: 'mars', scale: 'solar',
+    objective: '飞到火星，观察它，回答问题。',
+    briefing: '火星距离太阳比地球远一半，表面覆盖着氧化铁尘埃 —— 也就是铁锈。',
+    question: '火星表面呈现红色，是因为？',
+    options: ['表面全是熔岩', '土壤富含氧化铁（铁锈）', '反射了太阳的红光'],
+    answer: 1,
+    explain: '火星土壤富含氧化铁，反射红光，所以从太空看是一颗红色星球。',
+    knowledgeCard: 'mars',
   },
   {
-    id: 'm3', title: '红色星球', subtitle: '引力弹弓',
-    targetPlanetIdx: 3, // Mars
-    rocketHint: '推荐：猎鹰重型 或 星舰',
-    objective: '利用引力弹弓加速，进入火星轨道，探测火星',
-    briefing: '火星太远了，直接飞过去要消耗大量燃料。聪明的办法是：借助行星的引力弹弓效应——飞近一颗行星，让它"甩"你一下，速度就大大增加！',
-    steps: [
-      { id: 'launch', text: '点火升空', hint: '点击点火按钮' },
-      { id: 'orbit', text: '达到逃逸速度', hint: '加速到 11.2 km/s 以上' },
-      { id: 'travel', text: '引力弹弓加速', hint: '飞近金星/地球借力' },
-      { id: 'arrive', text: '进入火星轨道', hint: '到达火星引力圈，减速入轨' },
-      { id: 'survey', text: '探测火星', hint: '点击火星上的探测点' }
-    ],
-    surveyPoints: [
-      { name: '奥林帕斯山', desc: '太阳系最高火山', x: 0.3, y: 0.6 },
-      { name: '水手峡谷', desc: '太阳系最大峡谷', x: -0.5, y: 0.2 },
-      { name: '极冠', desc: '火星两极冰盖', x: 0.1, y: -0.8 }
-    ],
-    knowledgeCard: 'mars'
+    id: 'm3', title: '巨大的风暴', subtitle: '大红斑的秘密',
+    targetId: 'jupiter', scale: 'solar',
+    objective: '飞到木星，寻找大红斑，回答问题。',
+    briefing: '木星比地球大 11 倍，自转却只要 10 小时。快速自转把大气拉成条纹，也搅出了大红斑。',
+    question: '木星的大红斑是什么？',
+    options: ['一块红色岩石', '一场持续数百年的巨型风暴', '卫星投下的影子'],
+    answer: 1,
+    explain: '大红斑是一场反气旋风暴，直径可容纳整个地球，已持续至少 350 年。',
+    knowledgeCard: 'jupiter',
   },
   {
-    id: 'm4', title: '巨行星之旅', subtitle: '气态巨行星',
-    targetPlanetIdx: 4, // Jupiter
-    rocketHint: '推荐：星舰',
-    objective: '到达木星，观察大红斑；顺访土星环',
-    briefing: '木星和土星是气态巨行星，没有固体表面。木星的大红斑是一场比地球还大的风暴，已经持续了数百年！',
-    steps: [
-      { id: 'launch', text: '点火升空', hint: '点击点火按钮' },
-      { id: 'orbit', text: '达到逃逸速度', hint: '加速到 11.2 km/s 以上' },
-      { id: 'travel', text: '深空航行', hint: '穿越小行星带' },
-      { id: 'arrive', text: '进入木星轨道', hint: '到达木星引力圈' },
-      { id: 'survey', text: '探测木星', hint: '点击大红斑探测点' }
-    ],
-    surveyPoints: [
-      { name: '大红斑', desc: '持续数百年的风暴', x: 0.65, y: 0.55 },
-      { name: '云带', desc: '木星的风带', x: -0.2, y: 0.3 },
-      { name: '伽利略卫星', desc: '木卫二欧罗巴', x: 0.1, y: -0.6 }
-    ],
-    knowledgeCard: 'jupiter'
+    id: 'm4', title: '环的世界', subtitle: '土星环是什么做的',
+    targetId: 'saturn', scale: 'solar',
+    objective: '飞到土星，近看土星环，回答问题。',
+    briefing: '土星环宽 28 万公里，却薄得惊人。它由数不清的冰块和岩石颗粒组成。',
+    question: '土星环的主要成分是？',
+    options: ['固体圆盘', '冰块与岩石颗粒', '浓密的气体'],
+    answer: 1,
+    explain: '土星环由无数冰块和岩石颗粒组成，它们各自沿轨道运行，并不相连。',
+    knowledgeCard: 'saturn',
   },
   {
-    id: 'm5', title: '深空信使', subtitle: '第三宇宙速度',
-    targetPlanetIdx: 8, // Voyager / deep space
-    rocketHint: '推荐：星舰 + 旅行者1号载荷',
-    objective: '发射旅行者1号，达到第三宇宙速度，逃离太阳系',
-    briefing: '第三宇宙速度 v₃ ≈ 16.7 km/s，可以逃离太阳系。旅行者1号带着金唱片，上面记录了人类的声音和问候，已经飞了 40 多年！',
-    steps: [
-      { id: 'launch', text: '点火升空', hint: '点击点火按钮' },
-      { id: 'orbit', text: '达到第三宇宙速度', hint: '加速到 16.7 km/s' },
-      { id: 'travel', text: '深空航行', hint: '飞向太阳系边缘' },
-      { id: 'survey', text: '探测旅行者1号', hint: '点击金唱片探测点' }
-    ],
-    surveyPoints: [
-      { name: '金唱片', desc: '人类的声音与问候', x: 0.5, y: 0.5 },
-      { name: '大锅盖天线', desc: '高增益天线', x: -0.4, y: 0.2 },
-      { name: '磁强计', desc: '磁场测量长杆', x: 0.2, y: -0.5 }
-    ],
-    knowledgeCard: 'voyager'
-  }
+    id: 'm5', title: '飞向星际', subtitle: '旅行者1号与金唱片',
+    targetId: 'voyager', scale: 'solar',
+    objective: '跟随信号前往旅行者1号，回答问题。',
+    briefing: '1977 年，旅行者1号带着一张金唱片出发了。上面有人类的问候、音乐和 55 种语言。',
+    question: '旅行者1号上的金唱片是为了？',
+    options: ['记录飞行数据', '向可能存在的外星文明传递地球信息', '反射阳光调整航向'],
+    answer: 1,
+    explain: '金唱片记录了人类的问候与音乐，是写给宇宙的一封信，能保存约 10 亿年。',
+    knowledgeCard: 'voyager',
+  },
 ];
 
-// === Knowledge cards (real data) ===
-export const KNOWLEDGE_CARDS = {
-  first_cosmic_speed: {
-    title: '第一宇宙速度',
-    icon: '🚀',
-    content: '环绕地球的最小速度约为 7.9 km/s（约 28,440 km/h）。低于这个速度，物体会被地球引力拉回地面。',
-    formula: 'v₁ = √(GM/r)',
-    fact: '中国长征火箭、SpaceX 猎鹰火箭都是靠这个原理把卫星送入轨道的。'
-  },
+// === 知识卡（真实数据）===
+export const KNOWLEDGE = {
   moon: {
-    title: '月球与月震',
-    icon: '🌕',
-    content: '月球没有大气层，昼夜温差高达 280°C。月震是月球内部的微弱震动，阿波罗任务在月球上放置了月震仪。',
-    formula: '第二宇宙速度 v₂ = √2 × v₁ ≈ 11.2 km/s',
-    fact: '月球距离地球约 38 万公里，是地球唯一的天然卫星。'
+    title: '月球与逃逸速度', icon: '🌕',
+    body: '天体能否留住大气，取决于它的逃逸速度。月球逃逸速度只有 2.4 km/s，气体分子轻易跑到太空；地球是 11.2 km/s，才能留住厚厚的大气层。',
+    fact: '月球引力约为地球的 1/6，在月球上你能跳 6 倍高。',
   },
   mars: {
-    title: '火星与引力弹弓',
-    icon: '🔴',
-    content: '引力弹弓（引力助推）利用行星的引力改变探测器速度和方向，不消耗燃料。NASA 的许多火星任务都借地球或金星"甩"一下。',
-    formula: 'Δv = 2 × V_planet × sin(θ/2)',
-    fact: '火星大气稀薄，但足以让探测器减速着陆。'
+    title: '火星的红色', icon: '🔴',
+    body: '火星表面遍布氧化铁（Fe₂O₃）尘埃，也就是铁锈。它反射红光，让火星从太空看呈现橙红色。',
+    fact: '火星有太阳系最高的火山奥林帕斯山（21.9 km）和最长的峡谷水手谷（4,000 km）。',
   },
   jupiter: {
-    title: '木星大红斑与土星环',
-    icon: '🪐',
-    content: '木星大红斑是一场反气旋风暴，直径约 16,000 km，比地球还大，已持续至少 350 年。土星环由冰块和岩石组成。',
-    formula: '气态巨行星：无固体表面',
-    fact: '木星有 95 颗卫星，其中木卫二欧罗巴可能藏着地下海洋。'
+    title: '大红斑', icon: '🪐',
+    body: '大红斑是木星上的一场反气旋风暴，直径约 16,000 km，比地球还大。它至少已持续 350 年。',
+    fact: '木星自转只要约 10 小时，是太阳系自转最快的行星。',
+  },
+  saturn: {
+    title: '土星环', icon: '💫',
+    body: '土星环由无数冰块和岩石颗粒组成，直径约 28 万公里，但平均厚度只有约 10–100 米。',
+    fact: '土星平均密度小于水，如果有足够大的海洋，土星能浮起来。',
   },
   voyager: {
-    title: '旅行者1号与金唱片',
-    icon: '📀',
-    content: '旅行者1号 1977 年发射，携带金唱片，记录了 55 种语言的问候、90 分钟音乐和地球的声音。它已飞出太阳系，是人类最远的信使。',
-    formula: '第三宇宙速度 v₃ ≈ 16.7 km/s',
-    fact: '金唱片能保存约 10 亿年，上面刻着如何使用它的"说明书"。'
-  }
+    title: '金唱片', icon: '📀',
+    body: '旅行者1号携带的金唱片刻有 55 种语言的问候、90 分钟音乐和地球的声音，附带播放说明。',
+    fact: '旅行者1号已飞出太阳风层顶，进入星际空间，是人类最遥远的信使。',
+  },
 };
 
-// === Tour stops (5 stations, reference ORBIT) ===
-export const TOUR_STOPS = [
+// === 5 站导览（参考 ORBIT「一键导览 · 5 站」）===
+export const TOUR = [
   {
-    title: '从万家灯火出发', subtitle: '地球 · 夜侧', phase: '准备出发',
+    id: 't1', title: '从万家灯火出发', subtitle: '地球 · 夜侧', phase: '准备出发',
+    targetId: 'earth',
     description: '越过蔚蓝的大气层，看见云海之下的万家灯火。这里，是我们在宇宙中的家。',
     stats: ['平均直径 12,742 km', '公转周期 365.25 天'],
-    question: '思考题：为什么白天看不到星星？',
-    answer: '大气散射阳光，让天空变亮，星光就被"淹没"了。'
+    question: '为什么白天看不见星星？',
+    hint: '大气散射的阳光把微弱的星光掩盖了。',
   },
   {
-    title: '静海与月震', subtitle: '月球 · 静海', phase: '到站探索',
-    description: '月球没有大气，没有风，脚印能保留几百万年。静海是阿波罗11号着陆的地方。',
+    id: 't2', title: '静海与月震', subtitle: '月球 · 静海', phase: '到站探索',
+    targetId: 'moon',
+    description: '月球没有大气，没有风。阿波罗11号的脚印，也许还能保留几百万年。',
     stats: ['距地球 384,400 km', '直径 3,474 km'],
-    question: '思考题：月球上为什么能跳得更高？',
-    answer: '月球引力只有地球的 1/6，同样的力气能跳 6 倍高！'
+    question: '月球上为什么能跳得更高？',
+    hint: '引力只有地球的 1/6。',
   },
   {
-    title: '红色星球', subtitle: '火星 · 奥林帕斯山', phase: '到站探索',
+    id: 't3', title: '红色星球', subtitle: '火星 · 奥林帕斯山', phase: '到站探索',
+    targetId: 'mars',
     description: '火星的红色来自氧化铁。奥林帕斯山高 21.9 km，是珠穆朗玛峰的 2.5 倍。',
     stats: ['直径 6,779 km', '距太阳 2.28 亿 km'],
-    question: '思考题：为什么火星看起来是红色的？',
-    answer: '火星表面的岩石富含氧化铁（铁锈），反射阳光呈红色。'
+    question: '为什么火星看起来是红色的？',
+    hint: '表面岩石富含氧化铁，反射红光。',
   },
   {
-    title: '换个角度想一想', subtitle: '土星 · 土星环', phase: '到站探索',
-    description: '土星环宽达数十万公里，但厚度只有几十米。每一粒冰块都在自己的轨道上奔跑。',
-    stats: ['直径 116,460 km', '环宽 282,000 km'],
-    question: '思考题：土星环是固体吗？',
-    answer: '不是。土星环由无数冰块和岩石组成，各自沿轨道运行。'
+    id: 't4', title: '换个角度想一想', subtitle: '土星 · 土星环', phase: '到站探索',
+    targetId: 'saturn',
+    description: '土星环宽达数十万公里，厚度却只有几十米。每一粒冰块都在自己的轨道上奔跑。',
+    stats: ['直径 116,460 km', '环宽约 282,000 km'],
+    question: '土星环是固体吗？',
+    hint: '不是。它由无数冰块和岩石组成。',
   },
   {
-    title: '金唱片与深空', subtitle: '旅行者1号 · 深空', phase: '到站探索',
-    description: '旅行者1号已飞出太阳系，带着金唱片上的声音，向宇宙送去人类的问候。',
-    stats: ['距地球 240 亿 km', '速度 17 km/s'],
-    question: '思考题：金唱片为什么要记录声音？',
-    answer: '为了让可能的外星文明了解地球生命，这是人类写给宇宙的信。'
-  }
+    id: 't5', title: '金唱片与深空', subtitle: '旅行者1号 · 深空', phase: '到站探索',
+    targetId: 'voyager',
+    description: '旅行者1号已飞入星际空间，带着金唱片上的声音，向宇宙送去人类的问候。',
+    stats: ['距地球 约 240 亿 km', '速度 17 km/s'],
+    question: '金唱片为什么要记录声音？',
+    hint: '让可能的外星文明了解地球生命。',
+  },
 ];
 
-// === Global state ===
+// === 全局状态 ===
 export const state = {
-  gamePhase: 'menu', // menu → briefing → launchPad → ignite → ascend → orbit → travel → arrive → survey → complete
-  mode: 'menu', // menu | mission | free | tour
-  selectedMissionIdx: 0,
-  selectedRocketIdx: 0,
-  selectedPayloadIdx: 0,
-  isCrewed: false,
-
-  // Rocket position/velocity (game units)
-  rocketPos: new THREE.Vector3(0, 0, 0),
-  rocketVel: new THREE.Vector3(0, 0, 0),
-  rocketYaw: 0,
-  rocketPitch: 0,
-
-  // Launch state
-  enginesLit: false,
-  boostersAttached: true,
-  stage2Ignited: false,
-  launchTime: 0,
-
-  // Orbit state
-  orbitActive: false,
-  targetPlanetIdx: 2, // default Earth
-  targetPlanetPos: new THREE.Vector3(0, 0, 0),
-
-  // Mission progress
-  missionStepIdx: 0,
-  missionComplete: false,
-  surveyPointsCollected: [],
-  knowledgeUnlocked: [],
-
-  // Return state (crewed mode)
-  reentryPhase: null,
-  serviceDetached: false,
-  orbitalDetached: false,
-
-  // Coordinates display (game units → km)
-  latitude: 0,
-  longitude: 0,
-  altitude: 0,
-  speed: 0,
-
-  // Engine states
-  engineStates: {},
-
-  // Player input
-  keys: {},
-  leftStick: { x: 0, y: 0 },
-  rightStick: { x: 0, y: 0 },
-
-  // Voyager 1 signal rings animation
-  voyagerTime: 0,
-
-  // Notification timer
-  notifTimer: 0,
+  ready: false,
+  mode: 'explore',            // explore | mission | tour
+  scale: 'earth',             // earth | solar | galaxy | local
+  selectedId: 'earth',        // 当前聚焦天体
+  focusedId: null,            // 相机飞向目标
+  missionIdx: 0,
+  missionStage: 'idle',       // idle | navigate | observe | quiz | done
+  missionAnswered: false,
+  tourIdx: 0,
+  tourPlaying: false,
+  tourTime: 0,
+  unlocked: [],
+  paused: false,
+  layers: { orbits: true, labels: true, satellites: true },
+  timeScale: 1,
+  stars: true,
+  spaceColor: '#05090e',
 };

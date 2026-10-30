@@ -1,87 +1,60 @@
-// Tour mode (5-station journey + thought questions, reference ORBIT)
-import { state, TOUR_STOPS } from './config.js';
-import { showNotif, showTourPanel, updateTourProgress } from './ui.js';
+// 一键导览：5 站旅程（参考 ORBIT「一键导览 · 5 站 · 约 40 秒」）
+import { state, TOUR } from './config.js';
+import { flyTo, setScale } from './camera-rig.js';
+import { renderTourCard, hideTourCard, hideMissionCard, toast } from './ui.js';
+import { sfx } from './audio.js';
 
-let tourStopIdx = 0;
-let tourPaused = false;
-let tourTime = 0;
-const STOP_DURATION = 8; // seconds per stop
+const STOP_SECONDS = 9;
 
-// === Start the tour ===
 export function startTour() {
   state.mode = 'tour';
-  tourStopIdx = 0;
-  tourPaused = false;
-  tourTime = 0;
-
-  // Set target to Earth first
-  state.targetPlanetIdx = 2;
-
-  showTourPanel(TOUR_STOPS[0]);
-  showNotif('🚀 一键导览 · 5 站 · 约 40 秒');
+  state.tourIdx = 0;
+  state.tourPlaying = true;
+  state.tourTime = 0;
+  hideMissionCard();
+  enterStop();
+  toast('🧭 一键导览 · 5 站 · 约 45 秒');
 }
 
-// === Update tour each frame ===
-export function updateTour(dt) {
-  if (state.mode !== 'tour') return;
-  if (tourPaused) return;
-
-  tourTime += dt;
-
-  // Advance to next stop after duration
-  if (tourTime >= STOP_DURATION) {
-    tourTime = 0;
-    nextStop();
-  }
-}
-
-// === Next stop ===
-export function nextStop() {
-  tourStopIdx = (tourStopIdx + 1) % TOUR_STOPS.length;
-  const stop = TOUR_STOPS[tourStopIdx];
-
-  // Set target planet based on stop
-  if (tourStopIdx === 0) state.targetPlanetIdx = 2; // Earth
-  else if (tourStopIdx === 1) state.targetPlanetIdx = 2; // Moon (Earth vicinity)
-  else if (tourStopIdx === 2) state.targetPlanetIdx = 3; // Mars
-  else if (tourStopIdx === 3) state.targetPlanetIdx = 5; // Saturn
-  else state.targetPlanetIdx = 8; // Deep space / Voyager
-
-  showTourPanel(stop);
-  updateTourProgress(tourStopIdx);
-}
-
-// === Previous stop ===
-export function previousStop() {
-  tourStopIdx = (tourStopIdx - 1 + TOUR_STOPS.length) % TOUR_STOPS.length;
-  const stop = TOUR_STOPS[tourStopIdx];
-
-  if (tourStopIdx === 0) state.targetPlanetIdx = 2;
-  else if (tourStopIdx === 1) state.targetPlanetIdx = 2;
-  else if (tourStopIdx === 2) state.targetPlanetIdx = 3;
-  else if (tourStopIdx === 3) state.targetPlanetIdx = 5;
-  else state.targetPlanetIdx = 8;
-
-  showTourPanel(stop);
-  updateTourProgress(tourStopIdx);
-}
-
-// === Pause / resume tour ===
-export function toggleTourPause() {
-  tourPaused = !tourPaused;
-  showNotif(tourPaused ? '⏸ 旅程暂停 · 进度已保留' : '▶ 继续原旅程');
-}
-
-// === Exit tour ===
-export function exitTour() {
-  state.mode = 'menu';
-  state.gamePhase = 'menu';
-  showNotif('← 返回星空');
-}
-
-// === Show thought question ===
-export function showThoughtQuestion() {
-  const stop = TOUR_STOPS[tourStopIdx];
+function enterStop() {
+  const stop = TOUR[state.tourIdx];
   if (!stop) return;
-  showNotif(`🤔 ${stop.question}`);
+  // 尺度：地球/月球走近地轨道，其余太阳系
+  const scale = (stop.targetId === 'earth' || stop.targetId === 'moon') ? 'earth' : 'solar';
+  if (state.scale !== scale) setScale(scale, true);
+  flyTo(stop.targetId);
+  renderTourCard(stop, state.tourIdx, TOUR.length, state.tourPlaying);
+  sfx.arrive();
+}
+
+export function updateTour(dt) {
+  if (state.mode !== 'tour' || !state.tourPlaying) return;
+  state.tourTime += dt;
+  if (state.tourTime >= STOP_SECONDS) tourNext();
+}
+
+export function tourNext() {
+  state.tourTime = 0;
+  state.tourIdx = (state.tourIdx + 1) % TOUR.length;
+  enterStop();
+}
+
+export function tourPrev() {
+  state.tourTime = 0;
+  state.tourIdx = (state.tourIdx - 1 + TOUR.length) % TOUR.length;
+  enterStop();
+}
+
+export function tourToggle() {
+  state.tourPlaying = !state.tourPlaying;
+  const stop = TOUR[state.tourIdx];
+  renderTourCard(stop, state.tourIdx, TOUR.length, state.tourPlaying);
+  toast(state.tourPlaying ? '▶ 继续旅程' : '⏸ 旅程暂停 · 进度已保留');
+}
+
+export function exitTour() {
+  state.mode = 'explore';
+  state.tourPlaying = false;
+  hideTourCard();
+  toast('← 已退出导览');
 }
